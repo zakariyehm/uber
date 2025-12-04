@@ -2,6 +2,7 @@ import { BottomSheet } from '@/components/bottom-sheet';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Dimensions, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -122,6 +123,7 @@ export default function HomeScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const isDark = colorScheme === 'dark';
+  const router = useRouter();
   const cardHeight = height * 0.3; // 30% of screen height
   const [showRideSheet, setShowRideSheet] = useState(false);
   const [showBajaajSheet, setShowBajaajSheet] = useState(false);
@@ -143,9 +145,24 @@ export default function HomeScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent />
       
-      {/* Logo */}
-      <Text style={[styles.logo, { color: colors.text }]}>Eat</Text>
-      <Text style={[styles.location, { color: colors.icon }]}>{greeting}, {username}</Text>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerLeft}>
+          <Text style={[styles.logo, { color: colors.text }]}>Eat</Text>
+          <Text style={[styles.location, { color: colors.icon }]}>{greeting}, {username}</Text>
+        </View>
+        <TouchableOpacity 
+          style={[
+            styles.profileIconContainer,
+            {
+              backgroundColor: isDark ? '#2A2A2A' : '#F2F2F2',
+            }
+          ]}
+          activeOpacity={0.7}
+          onPress={() => router.push('/profile')}>
+          <Ionicons name="person" size={24} color={colors.text} />
+        </TouchableOpacity>
+      </View>
 
       {/* 2 Main Options */}
       <View style={styles.row}>
@@ -202,6 +219,33 @@ export default function HomeScreen() {
               onPress={() => setShowBajaajSheet(true)}>
               <Ionicons name="arrow-forward" size={16} color="#FFF" />
             </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </View>
+
+      {/* Saved Locations */}
+      <View style={styles.savedLocations}>
+        {/* Delivery Location */}
+        <TouchableOpacity 
+          style={[
+            styles.locationItem,
+            {
+              backgroundColor: isDark ? '#2A2A2A' : '#F8F8F8',
+            }
+          ]}
+          activeOpacity={0.7}
+          onPress={() => router.push('/plan-ride')}>
+          <View style={[
+            styles.locationIconContainer,
+            {
+              backgroundColor: isDark ? '#3A3A3A' : '#E0E0E0',
+            }
+          ]}>
+            <Ionicons name="bag" size={24} color={colors.text} />
+          </View>
+          <View style={styles.locationInfo}>
+            <Text style={[styles.locationName, { color: colors.text }]}>Delivery</Text>
+            <Text style={[styles.locationAddress, { color: colors.icon }]}>Code Street, London, UK</Text>
           </View>
         </TouchableOpacity>
       </View>
@@ -328,16 +372,33 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     paddingHorizontal: 20,
   },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    width: '100%',
+    marginTop: 15,
+    marginBottom: 25,
+  },
+  headerLeft: {
+    flex: 1,
+  },
   logo: {
     fontSize: 36,
     fontWeight: '700',
-    marginTop: 15,
     marginBottom: 8,
   },
   location: {
     fontSize: 14,
     fontWeight: '400',
-    marginBottom: 25,
+  },
+  profileIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 4,
   },
   row: {
     flexDirection: 'row',
@@ -373,6 +434,38 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  savedLocations: {
+    width: '100%',
+    marginTop: 25,
+    gap: 12,
+  },
+  locationItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    width: '100%',
+  },
+  locationIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  locationInfo: {
+    flex: 1,
+  },
+  locationName: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  locationAddress: {
+    fontSize: 14,
+    fontWeight: '400',
   },
   sheetTitle: {
     fontSize: 24,
