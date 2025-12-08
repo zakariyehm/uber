@@ -2,7 +2,7 @@ import { BottomNav } from '@/components/bottom-nav';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Dimensions, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Dimensions, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const { width } = Dimensions.get('window');
 
@@ -12,6 +12,7 @@ export default function HomeScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const [driverStatus, setDriverStatus] = useState<DriverStatus>('offline');
+  const [isLoading, setIsLoading] = useState(false);
   const [waitingTimer, setWaitingTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
   const [activeTimer, setActiveTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
   const [deactivatingTimer, setDeactivatingTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
@@ -55,11 +56,15 @@ export default function HomeScreen() {
   // Navigate to delivery offer when driver goes online
   useEffect(() => {
     if (driverStatus === 'online') {
-      // Navigate to delivery offer screen after a short delay
+      // Show loading state first
+      setIsLoading(true);
+      // Navigate to delivery offer screen after showing loading
       const navigateTimer = setTimeout(() => {
         router.push('/delivery-offer');
-      }, 500);
+      }, 1500); // Show loading for 1.5 seconds
       return () => clearTimeout(navigateTimer);
+    } else {
+      setIsLoading(false);
     }
   }, [driverStatus]);
 
@@ -173,6 +178,14 @@ export default function HomeScreen() {
         onLeftIconPress={handleLeftIconPress}
         onRightIconPress={handleRightIconPress}
       />
+
+      {/* Loading Overlay */}
+      {isLoading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#000000" />
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -220,5 +233,22 @@ const styles = StyleSheet.create({
     right: 0,
     height: 1,
     backgroundColor: '#E0E0E0',
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#000000',
   },
 });
