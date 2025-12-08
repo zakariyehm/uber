@@ -17,7 +17,7 @@ const scaleFont = (size: number) => {
   return Platform.OS === 'ios' ? Math.round(newSize) : Math.round(newSize);
 };
 
-type TripStatus = 'all' | 'completed' | 'cancelled' | 'skipped';
+type TripStatus = 'all' | 'completed' | 'cancelled' | 'skipped' | 'pending';
 
 interface TripItem {
   id: string;
@@ -28,7 +28,7 @@ interface TripItem {
   amount: string;
   distance: string;
   duration: string;
-  status: 'completed' | 'cancelled' | 'skipped';
+  status: 'completed' | 'cancelled' | 'skipped' | 'pending';
   customerName?: string;
 }
 
@@ -114,11 +114,36 @@ export default function HistoryScreen() {
       status: 'skipped',
       customerName: 'Amina Hassan',
     },
+    {
+      id: '7',
+      date: 'Today',
+      time: '11:45 AM',
+      pickupLocation: 'Crimicar Lane & Westminster Crescent, Sheffield',
+      destinationLocation: 'Street Name & Number, City',
+      amount: '$4.29',
+      distance: '2.9 mi',
+      duration: '18 min',
+      status: 'pending',
+      customerName: 'John Smith',
+    },
+    {
+      id: '8',
+      date: 'Today',
+      time: '12:00 PM',
+      pickupLocation: 'Downtown, Mogadishu',
+      destinationLocation: 'Airport Road, Mogadishu',
+      amount: '$20.00',
+      distance: '8.5 km',
+      duration: '25 min',
+      status: 'pending',
+      customerName: 'Mohamed Ali',
+    },
   ];
 
   const filterTabs: { id: TripStatus; label: string }[] = [
     { id: 'all', label: 'All' },
     { id: 'completed', label: 'Completed' },
+    { id: 'pending', label: 'Pending' },
     { id: 'cancelled', label: 'Cancelled' },
     { id: 'skipped', label: 'Skipped' },
   ];
@@ -131,6 +156,8 @@ export default function HistoryScreen() {
     switch (status) {
       case 'completed':
         return '#34C759';
+      case 'pending':
+        return '#007AFF';
       case 'cancelled':
         return '#FF3B30';
       case 'skipped':
@@ -144,6 +171,8 @@ export default function HistoryScreen() {
     switch (status) {
       case 'completed':
         return 'checkmark-circle';
+      case 'pending':
+        return 'time-circle';
       case 'cancelled':
         return 'close-circle';
       case 'skipped':
@@ -153,16 +182,48 @@ export default function HistoryScreen() {
     }
   };
 
-  const renderTripItem = ({ item }: { item: TripItem }) => (
-    <TouchableOpacity
-      style={[
-        styles.tripCard,
-        {
-          backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF',
-          marginBottom: scaleHeight(12),
-        }
-      ]}
-      activeOpacity={0.7}>
+  const handleTripPress = (item: TripItem) => {
+    // Only allow clicking on completed or pending trips
+    if (item.status !== 'completed' && item.status !== 'pending') {
+      return;
+    }
+    
+    // Navigate to delivery details with trip data
+    router.push({
+      pathname: '/delivery-details',
+      params: {
+        fromHistory: 'true',
+        tripId: item.id,
+        tripStatus: item.status,
+        senderName: item.customerName || '',
+        senderPhone: '+1234567890', // You can add phone to TripItem if needed
+        senderAddress: item.pickupLocation,
+        receiverName: item.customerName || '',
+        receiverPhone: '+0987654321', // You can add phone to TripItem if needed
+        receiverAddress: item.destinationLocation,
+        item: 'Food Order',
+        payment: item.amount,
+        timeDistance: `${item.duration} (${item.distance})`,
+      },
+    });
+  };
+
+  const renderTripItem = ({ item }: { item: TripItem }) => {
+    const isClickable = item.status === 'completed' || item.status === 'pending';
+    
+    return (
+      <TouchableOpacity
+        style={[
+          styles.tripCard,
+          {
+            backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF',
+            marginBottom: scaleHeight(12),
+            opacity: isClickable ? 1 : 0.6,
+          }
+        ]}
+        onPress={() => handleTripPress(item)}
+        activeOpacity={isClickable ? 0.7 : 1}
+        disabled={!isClickable}>
       {/* Trip Header */}
       <View style={styles.tripHeader}>
         <View style={styles.tripHeaderLeft}>
@@ -249,7 +310,8 @@ export default function HistoryScreen() {
         </View>
       </View>
     </TouchableOpacity>
-  );
+    );
+  };
 
   return (
     <View style={[styles.container, { paddingTop: Math.max(insets.top, Platform.OS === 'ios' ? 0 : StatusBar.currentHeight || 0) }]}>
