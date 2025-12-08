@@ -109,17 +109,18 @@ export default function ForgotPasswordVerifyScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}>
+    <View style={styles.container}>
       <StatusBar barStyle="dark-content" translucent />
       <View style={[styles.container, { paddingTop: insets.top }]}>
         {/* Header */}
         <View style={styles.header} />
 
         {/* Content */}
-        <View style={styles.content}>
+        <KeyboardAvoidingView
+          style={styles.keyboardView}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}>
+          <View style={styles.content}>
           {/* Title Section */}
           <View style={styles.titleSection}>
             <Text style={styles.title}>Verify PIN</Text>
@@ -170,16 +171,17 @@ export default function ForgotPasswordVerifyScreen() {
             activeOpacity={0.8}>
             <Text style={styles.verifyButtonText}>Verify</Text>
           </TouchableOpacity>
-        </View>
-
-        {/* Loading Overlay */}
-        {isLoading && (
-          <View style={styles.loadingOverlay}>
-            <ActivityIndicator size="large" color="#000000" />
           </View>
-        )}
+        </KeyboardAvoidingView>
       </View>
-    </KeyboardAvoidingView>
+
+      {/* Loading Overlay */}
+      {isLoading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#000000" />
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -187,6 +189,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+    width: '100%',
+  },
+  keyboardView: {
+    flex: 1,
   },
   loadingOverlay: {
     position: 'absolute',

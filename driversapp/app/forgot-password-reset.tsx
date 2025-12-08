@@ -107,10 +107,7 @@ export default function ForgotPasswordResetScreen() {
   const isFormValid = newPassword && confirmPassword && newPassword === confirmPassword;
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}>
+    <View style={styles.container}>
       <StatusBar barStyle="dark-content" translucent />
       <View style={[styles.container, { paddingTop: insets.top }]}>
         {/* Header with Back Button */}
@@ -124,11 +121,19 @@ export default function ForgotPasswordResetScreen() {
         </View>
 
         {/* Content */}
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled">
+        <KeyboardAvoidingView
+          style={styles.keyboardView}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}>
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={{
+              ...styles.scrollContent,
+              paddingBottom: insets.bottom + 100,
+              flexGrow: 1,
+            }}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled">
           {/* Title Section */}
           <View style={styles.titleSection}>
             <Text style={styles.title}>Reset Password</Text>
@@ -225,16 +230,17 @@ export default function ForgotPasswordResetScreen() {
               <Text style={styles.resetButtonText}>Reset Password</Text>
             </TouchableOpacity>
           </View>
-        </ScrollView>
-
-        {/* Loading Overlay */}
-        {isLoading && (
-          <View style={styles.loadingOverlay}>
-            <ActivityIndicator size="large" color="#000000" />
-          </View>
-        )}
+          </ScrollView>
+        </KeyboardAvoidingView>
       </View>
-    </KeyboardAvoidingView>
+
+      {/* Loading Overlay */}
+      {isLoading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#000000" />
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -242,6 +248,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+    width: '100%',
+  },
+  keyboardView: {
+    flex: 1,
   },
   loadingOverlay: {
     position: 'absolute',

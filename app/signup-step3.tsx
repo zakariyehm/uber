@@ -1,3 +1,4 @@
+import { SignupButton } from '@/components/signup-button';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Ionicons } from '@expo/vector-icons';
@@ -187,26 +188,11 @@ export default function SignupStep3Screen() {
           )}
         </View>
 
-        <TouchableOpacity 
-          style={[
-            styles.continueButton,
-            {
-              backgroundColor: pin.length === 4 ? '#000' : '#E0E0E0',
-              opacity: pin.length === 4 ? 1 : 0.5,
-            }
-          ]}
-          activeOpacity={pin.length === 4 ? 0.8 : 1}
+        <SignupButton
+          title="Continue"
+          onPress={handleContinue}
           disabled={pin.length !== 4}
-          onPress={handleContinue}>
-          <Text style={[
-            styles.continueButtonText,
-            {
-              color: pin.length === 4 ? '#FFF' : '#999',
-            }
-          ]}>
-            Continue
-          </Text>
-        </TouchableOpacity>
+        />
       </ScrollView>
 
       {isLoading && (
@@ -322,18 +308,6 @@ const styles = StyleSheet.create({
     fontSize: scaleFont(12),
     color: '#FF3B30',
     marginTop: scaleHeight(4),
-  },
-  continueButton: {
-    paddingVertical: scaleHeight(16),
-    borderRadius: scaleWidth(12),
-    alignItems: 'center',
-    marginTop: scaleHeight(24),
-    minHeight: scaleHeight(52),
-    justifyContent: 'center',
-  },
-  continueButtonText: {
-    fontSize: scaleFont(18),
-    fontWeight: '700',
   },
 });
 

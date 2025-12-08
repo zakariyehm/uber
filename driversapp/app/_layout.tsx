@@ -19,6 +19,15 @@ export default function RootLayout() {
         <Stack.Screen name="history" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="login" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="signup" options={{ headerShown: false, animation: 'none' }} />
+        <Stack.Screen name="signup-step1" options={{ headerShown: false, animation: 'none' }} />
+        <Stack.Screen name="signup-step2" options={{ headerShown: false, animation: 'none' }} />
+        <Stack.Screen name="signup-step3" options={{ headerShown: false, animation: 'none' }} />
+        <Stack.Screen name="signup-step4" options={{ headerShown: false, animation: 'none' }} />
+        <Stack.Screen name="signup-step5" options={{ headerShown: false, animation: 'none' }} />
+        <Stack.Screen name="signup-step6" options={{ headerShown: false, animation: 'none' }} />
+        <Stack.Screen name="signup-step7" options={{ headerShown: false, animation: 'none' }} />
+        <Stack.Screen name="signup-step8" options={{ headerShown: false, animation: 'none' }} />
+        <Stack.Screen name="signup-step9" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="forgot-password" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="forgot-password-verify" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="forgot-password-reset" options={{ headerShown: false, animation: 'none' }} />

@@ -5,6 +5,7 @@ import {
   Dimensions,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -14,7 +15,16 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const { width } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+// Responsive helper functions
+const scaleWidth = (size: number) => (SCREEN_WIDTH / 375) * size;
+const scaleHeight = (size: number) => (SCREEN_HEIGHT / 812) * size;
+const scaleFont = (size: number) => {
+  const scale = SCREEN_WIDTH / 375;
+  const newSize = size * scale;
+  return Platform.OS === 'ios' ? Math.round(newSize) : Math.round(newSize);
+};
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
@@ -33,99 +43,114 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}>
+    <View style={styles.container}>
       <StatusBar barStyle="dark-content" translucent />
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        {/* Header - Empty for clean look */}
-        <View style={styles.header} />
-
+      <View style={[
+        styles.container, 
+        { 
+          paddingTop: Math.max(insets.top, Platform.OS === 'ios' ? 0 : StatusBar.currentHeight || 0),
+        }
+      ]}>
         {/* Content */}
-        <View style={styles.content}>
-          {/* Title Section */}
-          <View style={styles.titleSection}>
-            <Text style={styles.title}>Welcome back</Text>
-            <Text style={styles.subtitle}>Sign in to continue</Text>
-          </View>
-
-          {/* Form Section */}
-          <View style={styles.formSection}>
-            {/* Phone Number Input */}
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Phone Number</Text>
-              <View style={styles.inputWrapper}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter your phone number"
-                  placeholderTextColor="#999999"
-                  value={phoneNumber}
-                  onChangeText={setPhoneNumber}
-                  keyboardType="phone-pad"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-              </View>
+        <KeyboardAvoidingView
+          style={styles.keyboardView}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}>
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled">
+            
+            {/* Title Section */}
+            <View style={styles.titleSection}>
+              <Text style={styles.title}>Welcome back</Text>
+              <Text style={styles.subtitle}>Sign in to continue</Text>
             </View>
 
-            {/* Password Input */}
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Password</Text>
-              <View style={styles.inputWrapper}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter your password"
-                  placeholderTextColor="#999999"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                <TouchableOpacity
-                  style={styles.eyeButton}
-                  onPress={() => setShowPassword(!showPassword)}
-                  activeOpacity={0.7}>
-                  <Ionicons
-                    name={showPassword ? 'eye-off' : 'eye'}
-                    size={20}
-                    color="#666666"
+            {/* Form Section */}
+            <View style={styles.formSection}>
+              {/* Phone Number Input */}
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Phone Number</Text>
+                <View style={styles.inputWrapper}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your phone number"
+                    placeholderTextColor="#999999"
+                    value={phoneNumber}
+                    onChangeText={setPhoneNumber}
+                    keyboardType="phone-pad"
+                    autoCapitalize="none"
+                    autoCorrect={false}
                   />
-                </TouchableOpacity>
+                </View>
               </View>
+
+              {/* Password Input */}
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Password</Text>
+                <View style={styles.inputWrapper}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your password"
+                    placeholderTextColor="#999999"
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <TouchableOpacity
+                    style={styles.eyeButton}
+                    onPress={() => setShowPassword(!showPassword)}
+                    activeOpacity={0.7}>
+                    <Ionicons
+                      name={showPassword ? 'eye-off' : 'eye'}
+                      size={scaleFont(20)}
+                      color="#666666"
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Forgot Password Link */}
+              <TouchableOpacity 
+                style={styles.forgotPasswordContainer}
+                onPress={() => router.push('/forgot-password')}>
+                <Text style={styles.forgotPasswordText}>Forgot password?</Text>
+              </TouchableOpacity>
+
+              {/* Login Button */}
+              <TouchableOpacity
+                style={[
+                  styles.loginButton,
+                  (!phoneNumber || !password) && styles.loginButtonDisabled,
+                ]}
+                onPress={handleLogin}
+                disabled={!phoneNumber || !password}
+                activeOpacity={0.8}>
+                <Text style={styles.loginButtonText}>Sign in</Text>
+              </TouchableOpacity>
             </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
 
-            {/* Forgot Password Link */}
-            <TouchableOpacity 
-              style={styles.forgotPasswordContainer}
-              onPress={() => router.push('/forgot-password')}>
-              <Text style={styles.forgotPasswordText}>Forgot password?</Text>
-            </TouchableOpacity>
-
-            {/* Login Button */}
-            <TouchableOpacity
-              style={[
-                styles.loginButton,
-                (!phoneNumber || !password) && styles.loginButtonDisabled,
-              ]}
-              onPress={handleLogin}
-              disabled={!phoneNumber || !password}
-              activeOpacity={0.8}>
-              <Text style={styles.loginButtonText}>Sign in</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Footer */}
-        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 20) }]}>
+        {/* Footer - Fixed at bottom, stays in place when keyboard opens */}
+        <View style={[
+          styles.footer, 
+          { 
+            paddingBottom: insets.bottom + scaleHeight(16),
+            paddingTop: scaleHeight(16),
+          }
+        ]}>
           <Text style={styles.footerText}>Don't have an account? </Text>
           <TouchableOpacity onPress={handleSignUpPress} activeOpacity={0.7}>
             <Text style={styles.footerLink}>Sign up</Text>
           </TouchableOpacity>
         </View>
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -133,35 +158,31 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+    width: '100%',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: width * 0.05,
-    paddingVertical: width * 0.04,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'flex-start',
-  },
-  content: {
+  keyboardView: {
     flex: 1,
-    paddingHorizontal: width * 0.06,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: scaleWidth(20),
+    paddingTop: scaleHeight(32),
+    paddingBottom: scaleHeight(16),
   },
   titleSection: {
-    marginTop: width * 0.08,
-    marginBottom: width * 0.1,
+    marginBottom: scaleHeight(40),
   },
   title: {
-    fontSize: width * 0.08,
+    fontSize: scaleFont(32),
     fontWeight: '700',
     color: '#000000',
-    marginBottom: width * 0.02,
+    marginBottom: scaleHeight(8),
   },
   subtitle: {
-    fontSize: width * 0.045,
+    fontSize: scaleFont(16),
     fontWeight: '400',
     color: '#666666',
   },
@@ -169,49 +190,49 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   inputContainer: {
-    marginBottom: width * 0.06,
+    marginBottom: scaleHeight(24),
   },
   inputLabel: {
-    fontSize: width * 0.04,
+    fontSize: scaleFont(14),
     fontWeight: '600',
     color: '#000000',
-    marginBottom: width * 0.025,
+    marginBottom: scaleHeight(8),
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E0E0E0',
-    borderRadius: 8,
+    borderRadius: scaleWidth(12),
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: width * 0.04,
-    minHeight: 52,
+    paddingHorizontal: scaleWidth(16),
+    minHeight: scaleHeight(52),
   },
   input: {
     flex: 1,
-    fontSize: width * 0.045,
+    fontSize: scaleFont(16),
     color: '#000000',
-    paddingVertical: width * 0.035,
+    paddingVertical: scaleHeight(14),
   },
   eyeButton: {
-    padding: 4,
+    padding: scaleWidth(4),
   },
   forgotPasswordContainer: {
     alignSelf: 'flex-end',
-    marginBottom: width * 0.06,
+    marginBottom: scaleHeight(24),
   },
   forgotPasswordText: {
-    fontSize: width * 0.04,
+    fontSize: scaleFont(14),
     fontWeight: '500',
     color: '#007AFF',
   },
   loginButton: {
     backgroundColor: '#000000',
-    borderRadius: 8,
-    paddingVertical: width * 0.045,
+    borderRadius: scaleWidth(12),
+    paddingVertical: scaleHeight(16),
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: width * 0.02,
+    minHeight: scaleHeight(52),
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -222,27 +243,33 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   loginButtonDisabled: {
-    backgroundColor: '#CCCCCC',
+    backgroundColor: '#E0E0E0',
   },
   loginButtonText: {
-    fontSize: width * 0.05,
+    fontSize: scaleFont(18),
     fontWeight: '600',
     color: '#FFFFFF',
   },
   footer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: width * 0.06,
-    paddingTop: width * 0.04,
+    paddingHorizontal: scaleWidth(20),
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#E0E0E0',
+    backgroundColor: '#FFFFFF',
   },
   footerText: {
-    fontSize: width * 0.04,
+    fontSize: scaleFont(14),
     fontWeight: '400',
     color: '#666666',
   },
   footerLink: {
-    fontSize: width * 0.04,
+    fontSize: scaleFont(14),
     fontWeight: '600',
     color: '#000000',
   },

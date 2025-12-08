@@ -1,3 +1,4 @@
+import { SignupButton } from '@/components/signup-button';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Ionicons } from '@expo/vector-icons';
@@ -217,30 +218,12 @@ export default function SignupStep4Screen() {
           )}
         </View>
 
-        <TouchableOpacity 
-          style={[
-            styles.signupButton,
-            {
-              backgroundColor: isFormValid ? '#000' : '#E0E0E0',
-              opacity: isFormValid ? 1 : 0.5,
-            }
-          ]}
-          activeOpacity={isFormValid ? 0.8 : 1}
-          disabled={!isFormValid || isSigningUp}
-          onPress={handleSignup}>
-          {isSigningUp ? (
-            <ActivityIndicator size="small" color="#FFF" />
-          ) : (
-            <Text style={[
-              styles.signupButtonText,
-              {
-                color: isFormValid ? '#FFF' : '#999',
-              }
-            ]}>
-              Complete Sign Up
-            </Text>
-          )}
-        </TouchableOpacity>
+        <SignupButton
+          title="Complete Sign Up"
+          onPress={handleSignup}
+          disabled={!isFormValid}
+          loading={isSigningUp}
+        />
       </ScrollView>
 
       {isLoading && (
@@ -337,18 +320,6 @@ const styles = StyleSheet.create({
     color: '#FF3B30',
     marginTop: scaleHeight(4),
     marginLeft: scaleWidth(4),
-  },
-  signupButton: {
-    paddingVertical: scaleHeight(16),
-    borderRadius: scaleWidth(12),
-    alignItems: 'center',
-    marginTop: scaleHeight(24),
-    minHeight: scaleHeight(52),
-    justifyContent: 'center',
-  },
-  signupButtonText: {
-    fontSize: scaleFont(18),
-    fontWeight: '700',
   },
 });
 

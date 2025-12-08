@@ -1,3 +1,4 @@
+import { SignupButton } from '@/components/signup-button';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Ionicons } from '@expo/vector-icons';
@@ -155,26 +156,11 @@ export default function SignupStep2Screen() {
           )}
         </View>
 
-        <TouchableOpacity 
-          style={[
-            styles.verifyButton,
-            {
-              backgroundColor: isFormValid ? '#000' : '#E0E0E0',
-              opacity: isFormValid ? 1 : 0.5,
-            }
-          ]}
-          activeOpacity={isFormValid ? 0.8 : 1}
+        <SignupButton
+          title="Verify"
+          onPress={handleVerify}
           disabled={!isFormValid}
-          onPress={handleVerify}>
-          <Text style={[
-            styles.verifyButtonText,
-            {
-              color: isFormValid ? '#FFF' : '#999',
-            }
-          ]}>
-            Verify
-          </Text>
-        </TouchableOpacity>
+        />
       </ScrollView>
 
       {isLoading && (
@@ -268,18 +254,6 @@ const styles = StyleSheet.create({
     color: '#FF3B30',
     marginTop: scaleHeight(4),
     marginLeft: scaleWidth(4),
-  },
-  verifyButton: {
-    paddingVertical: scaleHeight(16),
-    borderRadius: scaleWidth(12),
-    alignItems: 'center',
-    marginTop: scaleHeight(24),
-    minHeight: scaleHeight(52),
-    justifyContent: 'center',
-  },
-  verifyButtonText: {
-    fontSize: scaleFont(18),
-    fontWeight: '700',
   },
 });
 

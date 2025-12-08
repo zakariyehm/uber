@@ -104,7 +104,10 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: Math.max(insets.top, Platform.OS === 'ios' ? 0 : StatusBar.currentHeight || 0) }]}>
+    <View style={[styles.container, { 
+      paddingTop: Math.max(insets.top, Platform.OS === 'ios' ? 0 : StatusBar.currentHeight || 0),
+      paddingBottom: insets.bottom,
+    }]}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent />
       
       {/* Header */}
@@ -122,7 +125,10 @@ export default function LoginScreen() {
       <ScrollView 
         style={[styles.content, { paddingHorizontal: scaleWidth(20), paddingTop: scaleHeight(32) }]}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: scaleHeight(32) }}>
+        contentContainerStyle={{ 
+          paddingBottom: insets.bottom + scaleHeight(32),
+          flexGrow: 1,
+        }}>
         
         {/* Welcome Text */}
         <View style={styles.welcomeContainer}>
@@ -242,7 +248,7 @@ export default function LoginScreen() {
         </TouchableOpacity>
 
         {/* Sign Up Link */}
-        <View style={styles.signupContainer}>
+        <View style={[styles.signupContainer, { marginTop: scaleHeight(16), marginBottom: scaleHeight(16) }]}>
           <Text style={[styles.signupText, { color: colors.icon }]}>Don't have an account? </Text>
           <TouchableOpacity onPress={() => router.push('/signup-step1')}>
             <Text style={[styles.signupLink, { color: '#007AFF' }]}>Sign Up</Text>
@@ -264,6 +270,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
+    width: '100%',
   },
   loadingOverlay: {
     position: 'absolute',
