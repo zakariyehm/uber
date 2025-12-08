@@ -40,6 +40,7 @@ export default function AccountScreen() {
     { id: 'tax', title: 'Tax info', icon: 'calculator-outline' },
     { id: 'uber', title: 'Manage Raac account', icon: 'person-outline' },
     { id: 'address', title: 'Edit address', icon: 'create-outline' },
+    { id: 'history', title: 'History', icon: 'time-outline' },
     { id: 'about', title: 'About', icon: 'information-circle-outline' },
     { id: 'privacy', title: 'Privacy', icon: 'lock-closed-outline' },
     { id: 'settings', title: 'App settings', icon: 'settings-outline' },
@@ -50,6 +51,9 @@ export default function AccountScreen() {
     console.log(`${option.title} pressed`);
     if (option.id === 'wallet') {
       router.push('/wallet');
+    }
+    if (option.id === 'history') {
+      router.push('/history');
     }
     if (option.id === 'logout') {
       // Handle logout
@@ -65,16 +69,6 @@ export default function AccountScreen() {
   return (
     <View style={[styles.container, { paddingTop: Math.max(insets.top, Platform.OS === 'ios' ? 0 : StatusBar.currentHeight || 0) }]}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent />
-      
-      {/* Back Button */}
-      <View style={[styles.backButtonContainer, { paddingHorizontal: scaleWidth(20), paddingTop: scaleHeight(16) }]}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.backButton}
-          activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={scaleFont(24)} color={colors.text} />
-        </TouchableOpacity>
-      </View>
       
       {/* Content */}
       <ScrollView 
@@ -140,16 +134,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
-  },
-  backButtonContainer: {
-    paddingBottom: scaleHeight(8),
-  },
-  backButton: {
-    padding: scaleWidth(8),
-    width: scaleWidth(40),
-    height: scaleWidth(40),
-    justifyContent: 'center',
-    alignItems: 'flex-start',
   },
   content: {
     flex: 1,

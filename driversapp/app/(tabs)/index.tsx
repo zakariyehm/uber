@@ -69,8 +69,8 @@ export default function HomeScreen() {
   }, [driverStatus]);
 
   const handleLeftIconPress = () => {
-    // Navigate to History screen
-    router.push('/history');
+    // Navigate to Pending Trips screen
+    router.push('/pending-trips');
   };
 
   const handleRightIconPress = () => {

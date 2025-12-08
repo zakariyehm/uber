@@ -114,36 +114,11 @@ export default function HistoryScreen() {
       status: 'skipped',
       customerName: 'Amina Hassan',
     },
-    {
-      id: '7',
-      date: 'Today',
-      time: '11:45 AM',
-      pickupLocation: 'Crimicar Lane & Westminster Crescent, Sheffield',
-      destinationLocation: 'Street Name & Number, City',
-      amount: '$4.29',
-      distance: '2.9 mi',
-      duration: '18 min',
-      status: 'pending',
-      customerName: 'John Smith',
-    },
-    {
-      id: '8',
-      date: 'Today',
-      time: '12:00 PM',
-      pickupLocation: 'Downtown, Mogadishu',
-      destinationLocation: 'Airport Road, Mogadishu',
-      amount: '$20.00',
-      distance: '8.5 km',
-      duration: '25 min',
-      status: 'pending',
-      customerName: 'Mohamed Ali',
-    },
   ];
 
   const filterTabs: { id: TripStatus; label: string }[] = [
     { id: 'all', label: 'All' },
     { id: 'completed', label: 'Completed' },
-    { id: 'pending', label: 'Pending' },
     { id: 'cancelled', label: 'Cancelled' },
     { id: 'skipped', label: 'Skipped' },
   ];
@@ -183,8 +158,8 @@ export default function HistoryScreen() {
   };
 
   const handleTripPress = (item: TripItem) => {
-    // Only allow clicking on completed or pending trips
-    if (item.status !== 'completed' && item.status !== 'pending') {
+    // Only allow clicking on completed trips
+    if (item.status !== 'completed') {
       return;
     }
     
@@ -209,7 +184,7 @@ export default function HistoryScreen() {
   };
 
   const renderTripItem = ({ item }: { item: TripItem }) => {
-    const isClickable = item.status === 'completed' || item.status === 'pending';
+    const isClickable = item.status === 'completed';
     
     return (
       <TouchableOpacity
@@ -314,31 +289,9 @@ export default function HistoryScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: Math.max(insets.top, Platform.OS === 'ios' ? 0 : StatusBar.currentHeight || 0) }]}>
+    <View style={styles.container}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent />
       
-      {/* Header */}
-      <View style={[
-        styles.header,
-        {
-          backgroundColor: isDark ? '#000000' : '#FFFFFF',
-          borderBottomColor: isDark ? '#2C2C2E' : '#E5E5EA',
-          paddingHorizontal: scaleWidth(20),
-          paddingVertical: scaleHeight(16),
-        }
-      ]}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.backButton}
-          activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={scaleFont(24)} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text, fontSize: scaleFont(20) }]}>
-          Trip History
-        </Text>
-        <View style={styles.placeholder} />
-      </View>
-
       {/* Filter Tabs */}
       <View style={[
         styles.filterContainer,
@@ -417,25 +370,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F2F2F7',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  backButton: {
-    padding: scaleWidth(8),
-    width: scaleWidth(40),
-    height: scaleWidth(40),
-    justifyContent: 'center',
-    alignItems: 'flex-start',
-  },
-  headerTitle: {
-    fontWeight: '700',
-  },
-  placeholder: {
-    width: scaleWidth(40),
-  },
   filterContainer: {
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
@@ -471,16 +405,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   tripCard: {
-    borderRadius: scaleWidth(16),
+    borderRadius: 4,
     padding: scaleWidth(16),
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
   },
   tripHeader: {
     flexDirection: 'row',
