@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import NetInfo from '@react-native-community/netinfo';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Dimensions, Platform, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Dimensions, KeyboardAvoidingView, Platform, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -91,23 +91,31 @@ export default function SignupStep1Screen() {
   const isFormValid = firstName.trim() && lastName.trim();
 
   return (
-    <View style={[styles.container, { paddingTop: Math.max(insets.top, Platform.OS === 'ios' ? 0 : StatusBar.currentHeight || 0) }]}>
+    <View style={styles.container}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent />
-      
-      <View style={[styles.header, { paddingHorizontal: scaleWidth(20), paddingVertical: scaleHeight(16) }]}>
-        <TouchableOpacity 
-          onPress={() => router.back()}
-          style={styles.backButton}>
-          <Ionicons name="arrow-back" size={scaleFont(24)} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Sign Up</Text>
-        <View style={styles.placeholder} />
-      </View>
+      <View style={[styles.container, { paddingTop: Math.max(insets.top, Platform.OS === 'ios' ? 0 : StatusBar.currentHeight || 0) }]}>
+        <View style={[styles.header, { paddingHorizontal: scaleWidth(20), paddingVertical: scaleHeight(16) }]}>
+          <TouchableOpacity 
+            onPress={() => router.back()}
+            style={styles.backButton}>
+            <Ionicons name="arrow-back" size={scaleFont(24)} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Sign Up</Text>
+          <View style={styles.placeholder} />
+        </View>
 
-      <ScrollView 
-        style={[styles.content, { paddingHorizontal: scaleWidth(20), paddingTop: scaleHeight(32) }]}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: scaleHeight(32) }}>
+        <KeyboardAvoidingView
+          style={styles.keyboardView}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}>
+          <ScrollView 
+            style={[styles.content, { paddingHorizontal: scaleWidth(20), paddingTop: scaleHeight(32) }]}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ 
+              paddingBottom: insets.bottom + 100,
+              flexGrow: 1,
+            }}
+            keyboardShouldPersistTaps="handled">
         
         <View style={styles.welcomeContainer}>
           <Text style={[styles.welcomeTitle, { color: colors.text }]}>Create Account</Text>
@@ -181,7 +189,9 @@ export default function SignupStep1Screen() {
           onPress={handleContinue}
           disabled={!isFormValid}
         />
-      </ScrollView>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </View>
 
       {isLoading && (
         <View style={styles.loadingOverlay}>
@@ -196,6 +206,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
+    width: '100%',
+  },
+  keyboardView: {
+    flex: 1,
   },
   loadingOverlay: {
     position: 'absolute',
