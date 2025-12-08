@@ -52,6 +52,17 @@ export default function HomeScreen() {
     }
   }, [driverStatus]);
 
+  // Navigate to delivery offer when driver goes online
+  useEffect(() => {
+    if (driverStatus === 'online') {
+      // Navigate to delivery offer screen after a short delay
+      const navigateTimer = setTimeout(() => {
+        router.push('/delivery-offer');
+      }, 500);
+      return () => clearTimeout(navigateTimer);
+    }
+  }, [driverStatus]);
+
   const handleLeftIconPress = () => {
     // Navigate to History screen
     router.push('/history');
@@ -153,6 +164,9 @@ export default function HomeScreen() {
         </View>
       </View>
 
+      {/* Divider above bottom nav */}
+      <View style={styles.divider} />
+
       <BottomNav 
         statusText={getStatusText()}
         statusColor={getStatusColor()}
@@ -166,7 +180,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFDF7',
   },
   homeContainer: {
     flex: 1,
@@ -198,5 +212,13 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
     letterSpacing: 1,
+  },
+  divider: {
+    position: 'absolute',
+    bottom: width * 0.12, // Position above bottom nav
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: '#E0E0E0',
   },
 });

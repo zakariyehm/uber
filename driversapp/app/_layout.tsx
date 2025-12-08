@@ -31,6 +31,7 @@ export default function RootLayout() {
         <Stack.Screen name="forgot-password" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="forgot-password-verify" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="forgot-password-reset" options={{ headerShown: false, animation: 'none' }} />
+        <Stack.Screen name="delivery-offer" options={{ headerShown: false, animation: 'none' }} />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>
