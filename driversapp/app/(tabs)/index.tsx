@@ -1,8 +1,9 @@
 import { BottomNav } from '@/components/bottom-nav';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Dimensions, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { getPendingRequests, listenForPendingRequests, DeliveryRequest } from '@/utils/deliveryRequests';
 
 const { width } = Dimensions.get('window');
 
@@ -16,6 +17,7 @@ export default function HomeScreen() {
   const [waitingTimer, setWaitingTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
   const [activeTimer, setActiveTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
   const [deactivatingTimer, setDeactivatingTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const requestListenerRef = useRef<(() => void) | null>(null);
 
   // Responsive sizes for GO button
   const goButtonSize = width * 0.18; // ~18% of screen width (smaller)
@@ -53,17 +55,52 @@ export default function HomeScreen() {
     }
   }, [driverStatus]);
 
-  // Navigate to delivery offer when driver goes online
+  // Listen for pending requests in real-time when driver goes online
   useEffect(() => {
     if (driverStatus === 'online') {
-      // Show loading state first
-      setIsLoading(true);
-      // Navigate to delivery offer screen after showing loading
-      const navigateTimer = setTimeout(() => {
-        router.push('/delivery-offer');
-      }, 1500); // Show loading for 1.5 seconds
-      return () => clearTimeout(navigateTimer);
+      // Unsubscribe from any existing listener
+      if (requestListenerRef.current) {
+        requestListenerRef.current();
+        requestListenerRef.current = null;
+      }
+      
+      console.log('[Home] Driver is online. Setting up real-time listener for requests...');
+      
+      // Set up real-time listener for pending requests
+      const unsubscribe = listenForPendingRequests((requests: DeliveryRequest[]) => {
+        console.log('[Home] 🔔 Real-time update received:', requests.length, 'pending requests');
+        
+        if (requests.length > 0) {
+          console.log('[Home] ✅ Request found! Navigating to delivery-offer...');
+          // Found a request, navigate to delivery offer
+          setIsLoading(true);
+          setTimeout(() => {
+            router.push('/delivery-offer');
+          }, 500);
+        } else {
+          // No requests, stop loading
+          setIsLoading(false);
+        }
+      });
+      
+      // Store unsubscribe function
+      requestListenerRef.current = unsubscribe;
+      
+      // Cleanup on unmount or when status changes
+      return () => {
+        if (requestListenerRef.current) {
+          console.log('[Home] Cleaning up real-time listener');
+          requestListenerRef.current();
+          requestListenerRef.current = null;
+        }
+      };
     } else {
+      // Stop listening when not online
+      if (requestListenerRef.current) {
+        console.log('[Home] Driver is offline. Stopping listener.');
+        requestListenerRef.current();
+        requestListenerRef.current = null;
+      }
       setIsLoading(false);
     }
   }, [driverStatus]);
@@ -179,11 +216,11 @@ export default function HomeScreen() {
         onRightIconPress={handleRightIconPress}
       />
 
-      {/* Loading Overlay */}
-      {isLoading && (
+      {/* Loading Overlay - Only show when actually loading (found a request) */}
+      {isLoading && driverStatus === 'online' && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color="#000000" />
-          <Text style={styles.loadingText}>Loading...</Text>
+          <Text style={styles.loadingText}>Loading request...</Text>
         </View>
       )}
     </View>

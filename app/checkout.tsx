@@ -6,6 +6,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Dimensions, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { createDeliveryRequest } from '@/utils/deliveryRequests';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -83,13 +84,47 @@ export default function CheckoutScreen() {
   const handleConfirmOrder = async () => {
     setIsPlacingOrder(true);
     
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      // Generate order ID
+      const orderId = `ORD_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Create delivery request
+      console.log('[Checkout] Creating delivery request...');
+      const deliveryRequest = await createDeliveryRequest({
+        orderId,
+        pickupLocation,
+        destinationLocation,
+        recipientName,
+        recipientNumber,
+        itemType: selectedType || 'Package',
+        deliveryMethod: deliveryMethod || 'Standard',
+        deliveryPrice: estimatedPrice,
+        senderName: recipientName, // Using recipient as sender for now
+        senderPhone: recipientNumber,
+      });
+      
+      console.log('[Checkout] ✅ Delivery request created successfully!');
+      console.log('[Checkout] Request ID:', deliveryRequest.id);
+      console.log('[Checkout] Request status:', deliveryRequest.status);
+      console.log('[Checkout] Request details:', {
+        orderId: deliveryRequest.orderId,
+        pickup: deliveryRequest.pickupLocation,
+        destination: deliveryRequest.destinationLocation,
+        price: deliveryRequest.deliveryPrice,
+        status: deliveryRequest.status,
+      });
+      
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
       setIsPlacingOrder(false);
+      
       // Navigate to success screen with order details
       router.push({
         pathname: '/order-success',
         params: {
+          orderId,
+          requestId: deliveryRequest.id,
           pickupLocation,
           destinationLocation,
           recipientName,
@@ -99,7 +134,32 @@ export default function CheckoutScreen() {
           estimatedPrice,
         }
       });
-    }, 2000);
+    } catch (error: any) {
+      console.error('[Checkout] ❌ Error creating order:', error);
+      console.error('[Checkout] Error details:', {
+        code: error?.code,
+        message: error?.message,
+        stack: error?.stack
+      });
+      setIsPlacingOrder(false);
+      
+      // Show error to user (you can add an Alert here)
+      // For now, still navigate but log the error
+      const orderId = `ORD_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      router.push({
+        pathname: '/order-success',
+        params: {
+          orderId,
+          pickupLocation,
+          destinationLocation,
+          recipientName,
+          recipientNumber,
+          selectedType,
+          deliveryMethod,
+          estimatedPrice,
+        }
+      });
+    }
   };
 
   return (

@@ -35,6 +35,10 @@ yarn-error.*
 .env
 .env.example
 
+# Firebase Admin SDK (contains private keys - NEVER commit!)
+*firebase-adminsdk*.json
+config/secure/
+
 # typescript
 *.tsbuildinfo
 
