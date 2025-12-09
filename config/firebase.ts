@@ -17,13 +17,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // 5. Click on your web app (or create one if it doesn't exist)
 // 6. Copy the config values and replace the placeholders below
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY_HERE", // Get from Firebase Console > Project Settings > General > Your apps
-  authDomain: "uber-50d7e.firebaseapp.com", // Auto-generated from project ID
-  projectId: "uber-50d7e", // From Admin SDK JSON
-  storageBucket: "uber-50d7e.firebasestorage.app", // Auto-generated from project ID
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID", // Get from Firebase Console
-  appId: "YOUR_APP_ID", // Get from Firebase Console
-  measurementId: "YOUR_MEASUREMENT_ID" // Optional, get from Firebase Console
+  apiKey: "AIzaSyC91pGzopTaKuYpGu1wpZXgmivCkbk84gg",
+  authDomain: "uber-50d7e.firebaseapp.com",
+  databaseURL: "https://uber-50d7e-default-rtdb.firebaseio.com",
+  projectId: "uber-50d7e",
+  storageBucket: "uber-50d7e.firebasestorage.app",
+  messagingSenderId: "86540312706",
+  appId: "1:86540312706:web:0ab998ee3ffffc03d6549b",
+  measurementId: "G-K3PP8B4J8M"
 };
 
 // Initialize Firebase

@@ -2,6 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   Dimensions,
   KeyboardAvoidingView,
   Platform,
@@ -14,6 +16,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { loginDriver } from '@/utils/driverAuth';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -31,11 +34,41 @@ export default function LoginScreen() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  const handleLogin = () => {
-    console.log('Login pressed', { phoneNumber, password });
-    // Navigate to home after login
-    router.replace('/(tabs)');
+  const handleLogin = async () => {
+    if (!phoneNumber.trim() || !password.trim()) {
+      Alert.alert('Error', 'Please enter both phone number and password');
+      return;
+    }
+
+    setIsLoggingIn(true);
+    
+    try {
+      console.log('[Login] Attempting driver login...');
+      await loginDriver(phoneNumber, password);
+      console.log('[Login] Driver logged in successfully!');
+      
+      // Navigate to home after successful login
+      router.replace('/(tabs)');
+    } catch (error: any) {
+      console.error('[Login] Login error:', error);
+      setIsLoggingIn(false);
+      
+      // Show error alert
+      let errorMessage = 'An error occurred during login. Please try again.';
+      if (error.code === 'auth/user-not-found') {
+        errorMessage = 'No account found with this phone number. Please sign up first.';
+      } else if (error.code === 'auth/wrong-password') {
+        errorMessage = 'Incorrect password. Please try again.';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Invalid phone number format.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      Alert.alert('Login Failed', errorMessage, [{ text: 'OK' }]);
+    }
   };
 
   const handleSignUpPress = () => {
@@ -125,12 +158,16 @@ export default function LoginScreen() {
               <TouchableOpacity
                 style={[
                   styles.loginButton,
-                  (!phoneNumber || !password) && styles.loginButtonDisabled,
+                  ((!phoneNumber || !password) || isLoggingIn) && styles.loginButtonDisabled,
                 ]}
                 onPress={handleLogin}
-                disabled={!phoneNumber || !password}
+                disabled={(!phoneNumber || !password) || isLoggingIn}
                 activeOpacity={0.8}>
-                <Text style={styles.loginButtonText}>Sign in</Text>
+                {isLoggingIn ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.loginButtonText}>Sign in</Text>
+                )}
               </TouchableOpacity>
             </View>
           </ScrollView>

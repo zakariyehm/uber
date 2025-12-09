@@ -1,0 +1,22 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow read/write access to deliveryRequests collection
+    match /deliveryRequests/{document=**} {
+      allow read, write: if true;
+    }
+    
+    // Allow read/write access to activeDeliveries collection
+    match /activeDeliveries/{document=**} {
+      allow read, write: if true;
+    }
+    
+    // Allow authenticated users to read/write their own driver profile
+    match /drivers/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
+

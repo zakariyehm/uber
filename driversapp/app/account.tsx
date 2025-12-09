@@ -3,8 +3,9 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Dimensions, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Dimensions, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { logoutDriver } from '@/utils/driverAuth';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -56,14 +57,38 @@ export default function AccountScreen() {
       router.push('/history');
     }
     if (option.id === 'logout') {
-      // Handle logout
+      handleLogout();
     }
     // Handle navigation to other screens
   };
 
-  const handleSignOut = () => {
-    console.log('Sign out pressed');
-    // Handle sign out logic
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              console.log('[Account] Logging out driver...');
+              await logoutDriver();
+              console.log('[Account] Driver logged out successfully');
+              // Navigate to login screen
+              router.replace('/login');
+            } catch (error: any) {
+              console.error('[Account] Logout error:', error);
+              Alert.alert('Error', 'Failed to logout. Please try again.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   return (
