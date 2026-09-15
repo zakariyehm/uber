@@ -1,7 +1,7 @@
 import { BottomSheet } from '@/components/bottom-sheet';
 import { AppColors, Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Dimensions, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -21,7 +21,7 @@ interface RideOption {
 interface BajaajOption {
   id: string;
   name: string;
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: 'motorbike' | 'basket';
   travelTime: string;
   distance: string;
 }
@@ -30,7 +30,7 @@ const rideOptions: RideOption[] = [
   {
     id: '1',
     name: 'Economy',
-    icon: 'car-outline',
+    icon: 'airplane-outline',
     travelTime: '10 hours 20 mins',
     distance: '10 km',
     color: '#FFFFFF',
@@ -38,7 +38,7 @@ const rideOptions: RideOption[] = [
   {
     id: '2',
     name: 'Premium',
-    icon: 'car',
+    icon: 'airplane',
     travelTime: '10 hours 20 mins',
     distance: '10 km',
     color: '#FFFFFF',
@@ -46,7 +46,7 @@ const rideOptions: RideOption[] = [
   {
     id: '3',
     name: 'Luxury',
-    icon: 'car',
+    icon: 'airplane',
     travelTime: '10 hours 20 mins',
     distance: '10 km',
     color: '#000000',
@@ -56,8 +56,8 @@ const rideOptions: RideOption[] = [
 const bajaajOptions: BajaajOption[] = [
   {
     id: '1',
-    name: 'Bajaaj',
-    icon: 'bicycle',
+    name: 'Moto',
+    icon: 'motorbike',
     travelTime: '5 mins',
     distance: '1 km',
   },
@@ -70,8 +70,8 @@ const bajaajOptions: BajaajOption[] = [
   },
   {
     id: '3',
-    name: 'Bajaaj Premium',
-    icon: 'bicycle',
+    name: 'Moto Premium',
+    icon: 'motorbike',
     travelTime: '5 mins',
     distance: '1 km',
   },
@@ -132,7 +132,7 @@ export default function HomeScreen() {
       <View style={styles.content}>
       {/* 2 Main Options */}
       <View style={styles.row}>
-        {/* Get a Ride Card */}
+        {/* User Delivery Card */}
         <TouchableOpacity 
           style={[
             styles.card,
@@ -144,12 +144,12 @@ export default function HomeScreen() {
           activeOpacity={0.8}
           onPress={() => setShowRideSheet(true)}>
           <Ionicons 
-            name="car" 
+            name="airplane" 
             size={50} 
             color={colors.text} 
             style={styles.cardImage}
           />
-          <Text style={[styles.cardText, { color: colors.text }]}>Get a ride</Text>
+          <Text style={[styles.cardText, { color: colors.text }]}>Delivery State</Text>
           <View style={styles.buttonContainer}>
             <TouchableOpacity 
               style={styles.cardButton} 
@@ -160,7 +160,7 @@ export default function HomeScreen() {
           </View>
         </TouchableOpacity>
 
-        {/* Bajaaj Card */}
+        {/* Moto Card */}
         <TouchableOpacity 
           style={[
             styles.card,
@@ -171,13 +171,13 @@ export default function HomeScreen() {
           ]}
           activeOpacity={0.8}
           onPress={() => setShowBajaajSheet(true)}>
-          <Ionicons 
-            name="bicycle" 
+          <MaterialCommunityIcons 
+            name="motorbike" 
             size={50} 
             color={colors.text} 
             style={styles.cardImage}
           />
-          <Text style={[styles.cardText, { color: colors.text }]}>Bajaaj</Text>
+          <Text style={[styles.cardText, { color: colors.text }]}>Moto</Text>
           <View style={styles.buttonContainer}>
             <TouchableOpacity 
               style={styles.cardButton} 
@@ -220,7 +220,7 @@ export default function HomeScreen() {
       {/* Ride Bottom Sheet */}
       <BottomSheet visible={showRideSheet} onClose={() => setShowRideSheet(false)}>
         <ScrollView showsVerticalScrollIndicator={false}>
-          <Text style={[styles.sheetTitle, { color: colors.text }]}>Select a ride</Text>
+          <Text style={[styles.sheetTitle, { color: colors.text }]}>Select delivery</Text>
           
           {rideOptions.map((option) => (
             <TouchableOpacity
@@ -272,10 +272,10 @@ export default function HomeScreen() {
         </ScrollView>
       </BottomSheet>
 
-      {/* Bajaaj Bottom Sheet */}
+      {/* Moto Bottom Sheet */}
       <BottomSheet visible={showBajaajSheet} onClose={() => setShowBajaajSheet(false)}>
         <ScrollView showsVerticalScrollIndicator={false}>
-          <Text style={[styles.sheetTitle, { color: colors.text }]}>Select a ride</Text>
+          <Text style={[styles.sheetTitle, { color: colors.text }]}>Select a moto</Text>
           
           {bajaajOptions.map((option) => (
             <TouchableOpacity
@@ -292,11 +292,11 @@ export default function HomeScreen() {
               activeOpacity={0.7}>
               <View style={styles.rideOptionContent}>
                 <View style={[styles.iconContainer, { backgroundColor: isDark ? '#3A3A3A' : '#E0E0E0' }]}>
-                  <Ionicons 
-                    name={option.icon} 
-                    size={32} 
-                    color={colors.text} 
-                  />
+                  {option.icon === 'basket' ? (
+                    <Ionicons name="basket" size={32} color={colors.text} />
+                  ) : (
+                    <MaterialCommunityIcons name="motorbike" size={32} color={colors.text} />
+                  )}
                 </View>
                 <View style={styles.rideInfo}>
                   <Text style={[styles.rideName, { color: colors.text }]}>{option.name}</Text>
