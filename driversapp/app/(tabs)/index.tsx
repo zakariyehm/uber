@@ -1,9 +1,23 @@
 import { BottomNav } from '@/components/bottom-nav';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { router } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Dimensions, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { getPendingRequests, listenForPendingRequests, DeliveryRequest } from '@/utils/deliveryRequests';
+import {
+  DeliveryRequest,
+  getActiveDelivery,
+  listenForPendingRequests,
+  setDriverOnline,
+} from '@/utils/deliveryRequests';
+import { useFocusEffect, router } from 'expo-router';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
 const { width } = Dimensions.get('window');
 
@@ -18,12 +32,12 @@ export default function HomeScreen() {
   const [activeTimer, setActiveTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
   const [deactivatingTimer, setDeactivatingTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
   const requestListenerRef = useRef<(() => void) | null>(null);
+  /** One offer screen at a time — Uber style */
+  const offerInFlightRef = useRef(false);
+  const screenFocusedRef = useRef(true);
+  const goButtonSize = width * 0.18;
+  const goButtonFontSize = width * 0.06;
 
-  // Responsive sizes for GO button
-  const goButtonSize = width * 0.18; // ~18% of screen width (smaller)
-  const goButtonFontSize = width * 0.06; // ~6% of screen width (smaller)
-
-  // Clean up timers on unmount
   useEffect(() => {
     return () => {
       if (waitingTimer) clearTimeout(waitingTimer);
@@ -32,97 +46,116 @@ export default function HomeScreen() {
     };
   }, [waitingTimer, activeTimer, deactivatingTimer]);
 
-  // Handle status transitions
+  useFocusEffect(
+    useCallback(() => {
+      screenFocusedRef.current = true;
+      offerInFlightRef.current = false;
+
+      let cancelled = false;
+      const resumeActive = async () => {
+        try {
+          const activeId = await getActiveDelivery();
+          if (!cancelled && activeId) {
+            offerInFlightRef.current = true;
+            router.push({ pathname: '/delivery-details', params: { requestId: activeId } });
+          }
+        } catch {
+          // ignore
+        }
+      };
+      void resumeActive();
+
+      return () => {
+        cancelled = true;
+        screenFocusedRef.current = false;
+      };
+    }, [])
+  );
+
   useEffect(() => {
     if (driverStatus === 'waiting') {
-      // After 3 seconds, change to active
-      const timer = setTimeout(() => {
-        setDriverStatus('active');
-      }, 3000);
+      const timer = setTimeout(() => setDriverStatus('active'), 1200);
       setWaitingTimer(timer);
     } else if (driverStatus === 'active') {
-      // After 3 seconds, change to online
-      const timer = setTimeout(() => {
-        setDriverStatus('online');
-      }, 3000);
+      const timer = setTimeout(() => setDriverStatus('online'), 800);
       setActiveTimer(timer);
     } else if (driverStatus === 'deactivating') {
-      // After 2 seconds, change to offline
-      const timer = setTimeout(() => {
-        setDriverStatus('offline');
-      }, 2000);
+      const timer = setTimeout(() => setDriverStatus('offline'), 1000);
       setDeactivatingTimer(timer);
     }
   }, [driverStatus]);
 
-  // Listen for pending requests in real-time when driver goes online
   useEffect(() => {
-    if (driverStatus === 'online') {
-      // Unsubscribe from any existing listener
+    if (driverStatus !== 'online') {
       if (requestListenerRef.current) {
-        requestListenerRef.current();
-        requestListenerRef.current = null;
-      }
-      
-      console.log('[Home] Driver is online. Setting up real-time listener for requests...');
-      
-      // Set up real-time listener for pending requests
-      const unsubscribe = listenForPendingRequests((requests: DeliveryRequest[]) => {
-        console.log('[Home] 🔔 Real-time update received:', requests.length, 'pending requests');
-        
-        if (requests.length > 0) {
-          console.log('[Home] ✅ Request found! Navigating to delivery-offer...');
-          // Found a request, navigate to delivery offer
-          setIsLoading(true);
-          setTimeout(() => {
-            router.push('/delivery-offer');
-          }, 500);
-        } else {
-          // No requests, stop loading
-          setIsLoading(false);
-        }
-      });
-      
-      // Store unsubscribe function
-      requestListenerRef.current = unsubscribe;
-      
-      // Cleanup on unmount or when status changes
-      return () => {
-        if (requestListenerRef.current) {
-          console.log('[Home] Cleaning up real-time listener');
-          requestListenerRef.current();
-          requestListenerRef.current = null;
-        }
-      };
-    } else {
-      // Stop listening when not online
-      if (requestListenerRef.current) {
-        console.log('[Home] Driver is offline. Stopping listener.');
         requestListenerRef.current();
         requestListenerRef.current = null;
       }
       setIsLoading(false);
+      return;
     }
+
+    const unsubscribe = listenForPendingRequests((requests: DeliveryRequest[]) => {
+      if (!screenFocusedRef.current || offerInFlightRef.current) {
+        setIsLoading(false);
+        return;
+      }
+
+      const next = requests[0];
+      if (!next) {
+        setIsLoading(false);
+        return;
+      }
+
+      offerInFlightRef.current = true;
+      setIsLoading(true);
+      router.push({
+        pathname: '/delivery-offer',
+        params: { requestId: next.id },
+      });
+      setIsLoading(false);
+    });
+
+    requestListenerRef.current = unsubscribe;
+    return () => {
+      unsubscribe();
+      requestListenerRef.current = null;
+    };
   }, [driverStatus]);
 
   const handleLeftIconPress = () => {
-    // Navigate to Pending Trips screen
     router.push('/pending-trips');
   };
 
   const handleRightIconPress = () => {
-    // Navigate to Account screen
     router.push('/account');
   };
 
-  const handleGoPress = () => {
+  const handleGoPress = async () => {
     if (driverStatus === 'offline') {
-      // Start the waiting process
-      setDriverStatus('waiting');
-    } else if (driverStatus === 'online' || driverStatus === 'active' || driverStatus === 'waiting') {
-      // Start deactivating process
+      try {
+        const activeId = await getActiveDelivery();
+        if (activeId) {
+          router.push({ pathname: '/delivery-details', params: { requestId: activeId } });
+          return;
+        }
+        await setDriverOnline(true);
+        setDriverStatus('waiting');
+      } catch (error: any) {
+        Alert.alert('Could not go online', error.message || 'Check your connection to the Raac API');
+      }
+      return;
+    }
+
+    if (driverStatus === 'online' || driverStatus === 'active' || driverStatus === 'waiting') {
       if (waitingTimer) clearTimeout(waitingTimer);
       if (activeTimer) clearTimeout(activeTimer);
+      try {
+        await setDriverOnline(false);
+      } catch (error: any) {
+        Alert.alert('Could not go offline', error.message || 'Try again');
+        return;
+      }
       setDriverStatus('deactivating');
     }
   };
@@ -147,45 +180,26 @@ export default function HomeScreen() {
   const getStatusColor = (): string => {
     switch (driverStatus) {
       case 'offline':
-        return '#3B89EB'; // Blue
+        return '#3B89EB';
       case 'waiting':
-        return '#FF9500'; // Orange
+        return '#FF9500';
       case 'active':
-        return '#34C759'; // Green
       case 'online':
-        return '#34C759'; // Green
+        return '#34C759';
       case 'deactivating':
-        return '#8E8E93'; // Gray
+        return '#8E8E93';
       default:
         return '#3B89EB';
     }
   };
 
-  const getGoButtonText = (): string => {
-    if (driverStatus === 'offline') {
-      return 'GO';
-    } else if (driverStatus === 'deactivating') {
-      return 'OFF';
-    } else {
-      return 'OFF';
-    }
-  };
-
-  const getGoButtonColor = (): string => {
-    if (driverStatus === 'offline') {
-      return '#007AFF'; // Blue
-    } else {
-      return '#FF3B30'; // Red
-    }
-  };
+  const getGoButtonText = (): string => (driverStatus === 'offline' ? 'GO' : 'OFF');
+  const getGoButtonColor = (): string => (driverStatus === 'offline' ? '#007AFF' : '#FF3B30');
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent />
-      
-      {/* Home Content with GO Button */}
       <View style={styles.homeContainer}>
-        {/* GO Button - Positioned above bottom nav */}
         <View style={styles.goButtonContainer}>
           <TouchableOpacity
             style={[
@@ -195,7 +209,7 @@ export default function HomeScreen() {
                 height: goButtonSize,
                 borderRadius: goButtonSize / 2,
                 backgroundColor: getGoButtonColor(),
-              }
+              },
             ]}
             onPress={handleGoPress}
             activeOpacity={0.8}>
@@ -206,23 +220,20 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {/* Divider above bottom nav */}
       <View style={styles.divider} />
-
-      <BottomNav 
+      <BottomNav
         statusText={getStatusText()}
         statusColor={getStatusColor()}
         onLeftIconPress={handleLeftIconPress}
         onRightIconPress={handleRightIconPress}
       />
 
-      {/* Loading Overlay - Only show when actually loading (found a request) */}
-      {isLoading && driverStatus === 'online' && (
+      {isLoading && driverStatus === 'online' ? (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color="#000000" />
           <Text style={styles.loadingText}>Loading request...</Text>
         </View>
-      )}
+      ) : null}
     </View>
   );
 }
@@ -237,7 +248,7 @@ const styles = StyleSheet.create({
   },
   goButtonContainer: {
     position: 'absolute',
-    bottom: width * 0.1, // Position closer to bottom nav
+    bottom: width * 0.1,
     left: 0,
     right: 0,
     alignItems: 'center',
@@ -250,10 +261,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#FFFFFF',
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 4.65,
     elevation: 8,
@@ -265,7 +273,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     position: 'absolute',
-    bottom: width * 0.12, // Position above bottom nav
+    bottom: width * 0.12,
     left: 0,
     right: 0,
     height: 1,

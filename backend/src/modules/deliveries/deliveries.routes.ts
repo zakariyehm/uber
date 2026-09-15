@@ -4,10 +4,13 @@ import { authenticate, requireDriver } from '../../middleware/authenticate.ts';
 import {
   applyDeliveryAction,
   createDelivery,
+  declineDeliveryForDriver,
   getById,
   getByOrderId,
+  listForDriver,
   listForRider,
   listPending,
+  listPendingForDriver,
 } from './deliveries.service.ts';
 import { createDeliverySchema, deliveryActionSchema } from './deliveries.schemas.ts';
 
@@ -25,12 +28,34 @@ export async function deliveryRoutes(app: FastifyInstance) {
     return reply.code(201).send(created);
   });
 
-  app.get('/pending', async () => {
+  /** Authenticated drivers get Uber-filtered offers; others get raw pending list. */
+  app.get('/pending', async (request) => {
+    try {
+      await request.jwtVerify();
+      if (request.user.role === 'DRIVER') {
+        return listPendingForDriver(request.user.sub);
+      }
+    } catch {
+      // public pending fallback
+    }
     return listPending();
   });
 
   app.get('/mine', { preHandler: authenticate }, async (request) => {
     return listForRider(request.user.sub);
+  });
+
+  app.get('/driver/mine', { preHandler: requireDriver }, async (request) => {
+    return listForDriver(request.user.sub);
+  });
+
+  app.post('/:id/decline', { preHandler: requireDriver }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    try {
+      return await declineDeliveryForDriver(id, request.user.sub);
+    } catch (error: any) {
+      return reply.code(error.statusCode || 400).send({ error: error.message || 'Decline failed' });
+    }
   });
 
   app.get('/order/:orderId', async (request, reply) => {
@@ -61,7 +86,10 @@ export async function deliveryRoutes(app: FastifyInstance) {
       if (user) {
         actor = {
           id: user.id,
-          name: user.driverProfile?.displayName || [user.firstName, user.lastName].filter(Boolean).join(' ') || 'Driver',
+          name:
+            user.driverProfile?.displayName ||
+            [user.firstName, user.lastName].filter(Boolean).join(' ') ||
+            'Driver',
         };
       }
     } catch {
@@ -70,8 +98,13 @@ export async function deliveryRoutes(app: FastifyInstance) {
       }
     }
 
-    const updated = await applyDeliveryAction(id, body.action, actor);
-    return updated;
+    try {
+      return await applyDeliveryAction(id, body.action, actor);
+    } catch (error: any) {
+      return reply
+        .code(error.statusCode || 400)
+        .send({ error: error.message || 'Action failed', code: 'delivery/action_failed' });
+    }
   });
 
   app.put('/drivers/me/online', { preHandler: requireDriver }, async (request) => {

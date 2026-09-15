@@ -47,7 +47,5 @@ app-example
 # generated native folders
 /ios
 /android
-/driversapp
 /admin
-driversapp/
 admin/

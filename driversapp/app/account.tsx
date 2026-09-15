@@ -1,11 +1,12 @@
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { getStoredUser } from '@/lib/api';
+import { driverDisplayName, logoutDriver } from '@/utils/driverAuth';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Alert, Dimensions, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { logoutDriver } from '@/utils/driverAuth';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -32,8 +33,15 @@ export default function AccountScreen() {
   const colors = Colors[colorScheme ?? 'light'];
   const isDark = colorScheme === 'dark';
   const router = useRouter();
-  const [username] = useState('Driver Zakariyee');
-  const [rating] = useState('3.0');
+  const [username, setUsername] = useState('Driver');
+  const [rating] = useState('5.0');
+
+  useEffect(() => {
+    void (async () => {
+      const user = await getStoredUser();
+      setUsername(driverDisplayName(user));
+    })();
+  }, []);
 
   const accountOptions: AccountOption[] = [
     { id: 'wallet', title: 'Wallet', icon: 'wallet-outline' },
