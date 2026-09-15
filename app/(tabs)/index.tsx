@@ -117,15 +117,15 @@ export default function HomeScreen() {
       <StatusBar barStyle="dark-content" translucent />
       
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.logo}>RAAC</Text>
-        </View>
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+        <Text style={styles.logo} numberOfLines={1}>
+          RAAC
+        </Text>
         <TouchableOpacity 
           style={styles.profileIconContainer}
           activeOpacity={0.7}
           onPress={() => router.push('/profile')}>
-          <Ionicons name="person" size={26} color="#FFFFFF" />
+          <Ionicons name="person" size={28} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
 
@@ -343,13 +343,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     width: '100%',
-    paddingHorizontal: 24,
-    paddingBottom: 28,
-  },
-  headerLeft: {
-    flex: 1,
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    gap: 16,
   },
   logo: {
+    flex: 1,
     fontFamily: 'Poppins-ExtraBold',
     fontSize: 48,
     color: '#000000',
@@ -363,6 +362,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    flexShrink: 0,
   },
   content: {
     flex: 1,

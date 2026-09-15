@@ -1,6 +1,7 @@
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
+import { Platform } from 'react-native';
 import 'react-native-reanimated';
 
 import { SplashView } from '@/components/splash-view';
@@ -41,9 +42,12 @@ function RootNavigator() {
         headerShown: true,
         headerShadowVisible: false,
         headerBackTitle: 'Back',
-        headerStyle: { backgroundColor: AppColors.header },
+        headerStyle: {
+          backgroundColor: AppColors.header,
+          ...(Platform.OS === 'android' ? { height: 52 } : {}),
+        },
         headerTintColor: '#FFFFFF',
-        headerTitleStyle: { color: '#FFFFFF', fontWeight: '600' },
+        headerTitleStyle: { color: '#FFFFFF', fontWeight: '600', fontSize: 17 },
       }}>
       <Stack.Protected guard={isLoggedIn}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false, gestureEnabled: false }} />
