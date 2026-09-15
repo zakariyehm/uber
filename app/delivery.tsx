@@ -53,6 +53,7 @@ export default function DeliveryScreen() {
   
   // Form state
   const [receiptInfoId, setReceiptInfoId] = useState('');
+  const [senderName, setSenderName] = useState('');
   const [senderNumber, setSenderNumber] = useState('');
   const [recipientName, setRecipientName] = useState('');
   const [recipientNumber, setRecipientNumber] = useState('');
@@ -104,26 +105,35 @@ export default function DeliveryScreen() {
   }, []);
 
   const handleContinue = () => {
-    if (senderNumber && recipientName && recipientNumber && selectedItem && pickupLocation && destinationLocation) {
-      router.push({
-        pathname: '/checkout',
-        params: {
-          pickupLocation: pickupLocation,
-          destinationLocation: destinationLocation,
-          referenceId: receiptInfoId || '',
-          recipientName: recipientName,
-          recipientNumber: recipientNumber,
-          selectedType: selectedItem,
-          deliveryMethod: deliveryMethod || '',
-          deliveryTime: deliveryTime || '',
-          deliveryPrice: deliveryPrice || '',
-        },
-      });
-    }
+    if (!isFormValid()) return;
+    router.push({
+      pathname: '/checkout',
+      params: {
+        pickupLocation: pickupLocation,
+        destinationLocation: destinationLocation,
+        referenceId: receiptInfoId || '',
+        senderName: senderName.trim(),
+        senderNumber: senderNumber.trim(),
+        recipientName: recipientName.trim(),
+        recipientNumber: recipientNumber.trim(),
+        selectedType: selectedItem,
+        deliveryMethod: deliveryMethod || '',
+        deliveryTime: deliveryTime || '',
+        deliveryPrice: deliveryPrice || '',
+      },
+    });
   };
 
   const isFormValid = () => {
-    return senderNumber && recipientName && recipientNumber && selectedItem && pickupLocation && destinationLocation;
+    return (
+      senderName.trim().length > 0 &&
+      senderNumber.trim().length > 0 &&
+      recipientName.trim().length > 0 &&
+      recipientNumber.trim().length > 0 &&
+      selectedItem &&
+      pickupLocation &&
+      destinationLocation
+    );
   };
 
   return (
@@ -193,6 +203,10 @@ export default function DeliveryScreen() {
         {/* Sender Section */}
         <View style={styles.sectionContainer}>
           <Text style={[styles.sectionTitle, { color: isDark ? '#FFFFFF' : '#000000' }]}>Sender</Text>
+          <Text style={[styles.helperText, { color: isDark ? '#999999' : '#666666' }]}>
+            Magaca iyo number-ka waa qasab
+          </Text>
+
           <TextInput
             style={[
               styles.input,
@@ -200,7 +214,41 @@ export default function DeliveryScreen() {
                 backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
                 color: isDark ? '#FFFFFF' : '#000000',
                 borderColor: isDark ? '#333333' : '#E0E0E0',
-              }
+                marginBottom: scaleHeight(12),
+              },
+            ]}
+            placeholder="Enter sender name *"
+            placeholderTextColor={isDark ? '#666666' : '#999999'}
+            value={senderName}
+            onChangeText={setSenderName}
+            autoCapitalize="words"
+          />
+
+          <TextInput
+            style={[
+              styles.input,
+              {
+                backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
+                color: isDark ? '#FFFFFF' : '#000000',
+                borderColor: isDark ? '#333333' : '#E0E0E0',
+                marginBottom: scaleHeight(12),
+              },
+            ]}
+            placeholder="Enter sender phone number *"
+            placeholderTextColor={isDark ? '#666666' : '#999999'}
+            value={senderNumber}
+            onChangeText={setSenderNumber}
+            keyboardType="phone-pad"
+          />
+
+          <TextInput
+            style={[
+              styles.input,
+              {
+                backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
+                color: isDark ? '#FFFFFF' : '#000000',
+                borderColor: isDark ? '#333333' : '#E0E0E0',
+              },
             ]}
             placeholder="Enter receipt info ID (optional)"
             placeholderTextColor={isDark ? '#666666' : '#999999'}
@@ -210,29 +258,13 @@ export default function DeliveryScreen() {
           />
         </View>
 
-        {/* Sender Number Input */}
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={[
-              styles.input,
-              {
-                backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
-                color: isDark ? '#FFFFFF' : '#000000',
-                borderColor: isDark ? '#333333' : '#E0E0E0',
-              }
-            ]}
-            placeholder="Enter sender phone number *"
-            placeholderTextColor={isDark ? '#666666' : '#999999'}
-            value={senderNumber}
-            onChangeText={setSenderNumber}
-            keyboardType="phone-pad"
-          />
-        </View>
-
         {/* Recipient Section */}
         <View style={styles.sectionContainer}>
           <Text style={[styles.sectionTitle, { color: isDark ? '#FFFFFF' : '#000000' }]}>Recipient</Text>
-          
+          <Text style={[styles.helperText, { color: isDark ? '#999999' : '#666666' }]}>
+            Magaca iyo number-ka qofka alaabta loo geeynayo waa qasab
+          </Text>
+
           <TextInput
             style={[
               styles.input,
@@ -241,7 +273,7 @@ export default function DeliveryScreen() {
                 color: isDark ? '#FFFFFF' : '#000000',
                 borderColor: isDark ? '#333333' : '#E0E0E0',
                 marginBottom: scaleHeight(12),
-              }
+              },
             ]}
             placeholder="Enter recipient name *"
             placeholderTextColor={isDark ? '#666666' : '#999999'}
@@ -249,7 +281,7 @@ export default function DeliveryScreen() {
             onChangeText={setRecipientName}
             autoCapitalize="words"
           />
-          
+
           <TextInput
             style={[
               styles.input,
@@ -258,7 +290,7 @@ export default function DeliveryScreen() {
                 color: isDark ? '#FFFFFF' : '#000000',
                 borderColor: isDark ? '#333333' : '#E0E0E0',
                 marginBottom: scaleHeight(12),
-              }
+              },
             ]}
             placeholder="Enter recipient phone number *"
             placeholderTextColor={isDark ? '#666666' : '#999999'}
@@ -266,7 +298,7 @@ export default function DeliveryScreen() {
             onChangeText={setRecipientNumber}
             keyboardType="phone-pad"
           />
-          
+
           <TouchableOpacity
             style={[
               styles.input,
@@ -274,14 +306,23 @@ export default function DeliveryScreen() {
               {
                 backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
                 borderColor: isDark ? '#333333' : '#E0E0E0',
-              }
+              },
             ]}
             onPress={() => setShowItemPicker(true)}
             activeOpacity={0.7}>
-            <Text style={[
-              styles.pickerText,
-              { color: selectedItem ? (isDark ? '#FFFFFF' : '#000000') : (isDark ? '#666666' : '#999999') }
-            ]}>
+            <Text
+              style={[
+                styles.pickerText,
+                {
+                  color: selectedItem
+                    ? isDark
+                      ? '#FFFFFF'
+                      : '#000000'
+                    : isDark
+                      ? '#666666'
+                      : '#999999',
+                },
+              ]}>
               {selectedItem || 'select type *'}
             </Text>
             <Ionicons name="chevron-down" size={scaleFont(20)} color={isDark ? '#666666' : '#999999'} />
@@ -431,6 +472,10 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: scaleFont(18),
     fontWeight: '600',
+    marginBottom: scaleHeight(6),
+  },
+  helperText: {
+    fontSize: scaleFont(13),
     marginBottom: scaleHeight(12),
   },
   inputContainer: {

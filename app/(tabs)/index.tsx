@@ -1,22 +1,22 @@
 import { BottomSheet } from '@/components/bottom-sheet';
+import { BANADIR_DISTRICTS, SOMALIA_STATES } from '@/constants/somalia';
 import { AppColors, Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { Dimensions, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import {
+  Dimensions,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { height } = Dimensions.get('window');
-
-interface RideOption {
-  id: string;
-  name: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  travelTime: string;
-  distance: string;
-  color: string;
-}
 
 interface BajaajOption {
   id: string;
@@ -25,33 +25,6 @@ interface BajaajOption {
   travelTime: string;
   distance: string;
 }
-
-const rideOptions: RideOption[] = [
-  {
-    id: '1',
-    name: 'Economy',
-    icon: 'airplane-outline',
-    travelTime: '10 hours 20 mins',
-    distance: '10 km',
-    color: '#FFFFFF',
-  },
-  {
-    id: '2',
-    name: 'Premium',
-    icon: 'airplane',
-    travelTime: '10 hours 20 mins',
-    distance: '10 km',
-    color: '#FFFFFF',
-  },
-  {
-    id: '3',
-    name: 'Luxury',
-    icon: 'airplane',
-    travelTime: '10 hours 20 mins',
-    distance: '10 km',
-    color: '#000000',
-  },
-];
 
 const bajaajOptions: BajaajOption[] = [
   {
@@ -77,28 +50,14 @@ const bajaajOptions: BajaajOption[] = [
   },
 ];
 
-function calculateCarPrice(distance: string, carType: string): string {
-  // Extract number from distance string (e.g., "10 km" -> 10)
-  const km = parseFloat(distance.replace(' km', ''));
-  // Calculate price based on car type
-  let pricePerKm = 0.5; // Default: Economy
-  if (carType === 'Premium') {
-    pricePerKm = 0.6;
-  } else if (carType === 'Luxury') {
-    pricePerKm = 0.7;
-  }
-  const price = km * pricePerKm;
-  return `$${price.toFixed(2)}`;
-}
-
 function calculateBajaajPrice(distance: string, isPremium: boolean): string {
-  // Extract number from distance string (e.g., "0.25 km" -> 0.25)
   const km = parseFloat(distance.replace(' km', ''));
-  // Calculate price: Regular = $0.25/km, Premium = $0.3/km
   const pricePerKm = isPremium ? 0.3 : 0.25;
   const price = km * pricePerKm;
   return `$${price.toFixed(2)}`;
 }
+
+type PickerKind = 'district' | 'state' | null;
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -106,22 +65,49 @@ export default function HomeScreen() {
   const colors = Colors[colorScheme ?? 'light'];
   const isDark = colorScheme === 'dark';
   const router = useRouter();
-  const cardHeight = height * 0.3; // 30% of screen height
-  const [showRideSheet, setShowRideSheet] = useState(false);
+  const cardHeight = height * 0.3;
+  const [showDeliverySheet, setShowDeliverySheet] = useState(false);
   const [showBajaajSheet, setShowBajaajSheet] = useState(false);
-  const [selectedRide, setSelectedRide] = useState<string | null>(null);
   const [selectedBajaaj, setSelectedBajaaj] = useState<string | null>(null);
+  const [pickupDistrict, setPickupDistrict] = useState('');
+  const [dropoffState, setDropoffState] = useState('');
+  const [picker, setPicker] = useState<PickerKind>(null);
+
+  const canContinue = useMemo(
+    () => Boolean(pickupDistrict && dropoffState),
+    [pickupDistrict, dropoffState]
+  );
+
+  const openDeliverySheet = () => setShowDeliverySheet(true);
+  const closeDeliverySheet = () => {
+    setShowDeliverySheet(false);
+    setPicker(null);
+  };
+
+  const handleContinueDelivery = () => {
+    if (!canContinue) return;
+    closeDeliverySheet();
+    router.push({
+      pathname: '/delivery',
+      params: {
+        pickup: `${pickupDistrict}, Banadir`,
+        destination: dropoffState,
+        deliveryMethod: 'Delivery State',
+        deliveryTime: 'State delivery',
+        deliveryPrice: '',
+      },
+    });
+  };
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" translucent />
-      
-      {/* Header */}
+
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <Text style={styles.logo} numberOfLines={1}>
           RAAC
         </Text>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.profileIconContainer}
           activeOpacity={0.7}
           onPress={() => router.push('/profile')}>
@@ -130,153 +116,182 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.content}>
-      {/* 2 Main Options */}
-      <View style={styles.row}>
-        {/* User Delivery Card */}
-        <TouchableOpacity 
-          style={[
-            styles.card,
-            { 
-              backgroundColor: isDark ? '#2A2A2A' : '#F2F2F2',
-              height: cardHeight,
-            }
-          ]}
-          activeOpacity={0.8}
-          onPress={() => setShowRideSheet(true)}>
-          <Ionicons 
-            name="airplane" 
-            size={50} 
-            color={colors.text} 
-            style={styles.cardImage}
-          />
-          <Text style={[styles.cardText, { color: colors.text }]}>Delivery State</Text>
-          <View style={styles.buttonContainer}>
-            <TouchableOpacity 
-              style={styles.cardButton} 
-              activeOpacity={0.7}
-              onPress={() => setShowRideSheet(true)}>
-              <Ionicons name="arrow-forward" size={16} color="#FFF" />
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-
-        {/* Moto Card */}
-        <TouchableOpacity 
-          style={[
-            styles.card,
-            { 
-              backgroundColor: isDark ? '#2A2A2A' : '#F2F2F2',
-              height: cardHeight,
-            }
-          ]}
-          activeOpacity={0.8}
-          onPress={() => setShowBajaajSheet(true)}>
-          <MaterialCommunityIcons 
-            name="motorbike" 
-            size={50} 
-            color={colors.text} 
-            style={styles.cardImage}
-          />
-          <Text style={[styles.cardText, { color: colors.text }]}>Moto</Text>
-          <View style={styles.buttonContainer}>
-            <TouchableOpacity 
-              style={styles.cardButton} 
-              activeOpacity={0.7}
-              onPress={() => setShowBajaajSheet(true)}>
-              <Ionicons name="arrow-forward" size={16} color="#FFF" />
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </View>
-
-      {/* Saved Locations */}
-      <View style={styles.savedLocations}>
-        {/* Delivery Location */}
-        <TouchableOpacity 
-          style={[
-            styles.locationItem,
-            {
-              backgroundColor: isDark ? '#2A2A2A' : '#F8F8F8',
-            }
-          ]}
-          activeOpacity={0.7}
-          onPress={() => router.push('/plan-ride')}>
-          <View style={[
-            styles.locationIconContainer,
-            {
-              backgroundColor: isDark ? '#3A3A3A' : '#E0E0E0',
-            }
-          ]}>
-            <Ionicons name="bag" size={24} color={colors.text} />
-          </View>
-          <View style={styles.locationInfo}>
-            <Text style={[styles.locationName, { color: colors.text }]}>Delivery</Text>
-            <Text style={[styles.locationAddress, { color: colors.icon }]}>Code Street, London, UK</Text>
-          </View>
-        </TouchableOpacity>
-      </View>
-      </View>
-
-      {/* Ride Bottom Sheet */}
-      <BottomSheet visible={showRideSheet} onClose={() => setShowRideSheet(false)}>
-        <ScrollView showsVerticalScrollIndicator={false}>
-          <Text style={[styles.sheetTitle, { color: colors.text }]}>Select delivery</Text>
-          
-          {rideOptions.map((option) => (
-            <TouchableOpacity
-              key={option.id}
-              style={[
-                styles.rideOption,
-                {
-                  backgroundColor: isDark ? '#2A2A2A' : '#F8F8F8',
-                  borderColor: selectedRide === option.id ? colors.tint : 'transparent',
-                  borderWidth: selectedRide === option.id ? 2 : 0,
-                },
-              ]}
-              onPress={() => setSelectedRide(option.id)}
-              activeOpacity={0.7}>
-              <View style={styles.rideOptionContent}>
-                <View style={[styles.iconContainer, { backgroundColor: option.color === '#000000' ? '#000' : '#E0E0E0' }]}>
-                  <Ionicons 
-                    name={option.icon} 
-                    size={32} 
-                    color={option.color === '#000000' ? '#FFF' : '#000'} 
-                  />
-                </View>
-                <View style={styles.rideInfo}>
-                  <Text style={[styles.rideName, { color: colors.text }]}>{option.name}</Text>
-                  <Text style={[styles.travelTime, { color: colors.icon }]}>{option.travelTime} Travel Time</Text>
-                </View>
-                <View style={styles.priceContainer}>
-                  <Text style={[styles.distance, { color: colors.text }]}>{option.distance}</Text>
-                  <Text style={[styles.price, { color: colors.text }]}>{calculateCarPrice(option.distance, option.name)}</Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-          ))}
+        <View style={styles.row}>
+          <TouchableOpacity
+            style={[
+              styles.card,
+              {
+                backgroundColor: isDark ? '#2A2A2A' : '#F2F2F2',
+                height: cardHeight,
+              },
+            ]}
+            activeOpacity={0.8}
+            onPress={openDeliverySheet}>
+            <Ionicons name="airplane" size={50} color={colors.text} style={styles.cardImage} />
+            <Text style={[styles.cardText, { color: colors.text }]}>Delivery State</Text>
+            <View style={styles.buttonContainer}>
+              <TouchableOpacity style={styles.cardButton} activeOpacity={0.7} onPress={openDeliverySheet}>
+                <Ionicons name="arrow-forward" size={16} color="#FFF" />
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
 
           <TouchableOpacity
             style={[
-              styles.chooseButton,
+              styles.card,
               {
-                backgroundColor: selectedRide ? '#000' : '#E0E0E0',
-                marginTop: 20,
+                backgroundColor: isDark ? '#2A2A2A' : '#F2F2F2',
+                height: cardHeight,
               },
             ]}
-            disabled={!selectedRide}
-            activeOpacity={0.8}>
-            <Text style={[styles.chooseButtonText, { color: selectedRide ? '#FFF' : '#999' }]}>
-              Choose
-            </Text>
+            activeOpacity={0.8}
+            onPress={() => setShowBajaajSheet(true)}>
+            <MaterialCommunityIcons
+              name="motorbike"
+              size={50}
+              color={colors.text}
+              style={styles.cardImage}
+            />
+            <Text style={[styles.cardText, { color: colors.text }]}>Moto</Text>
+            <View style={styles.buttonContainer}>
+              <TouchableOpacity
+                style={styles.cardButton}
+                activeOpacity={0.7}
+                onPress={() => setShowBajaajSheet(true)}>
+                <Ionicons name="arrow-forward" size={16} color="#FFF" />
+              </TouchableOpacity>
+            </View>
           </TouchableOpacity>
-        </ScrollView>
+        </View>
+
+        <View style={styles.savedLocations}>
+          <TouchableOpacity
+            style={[
+              styles.locationItem,
+              {
+                backgroundColor: isDark ? '#2A2A2A' : '#F8F8F8',
+              },
+            ]}
+            activeOpacity={0.7}
+            onPress={() => router.push('/plan-ride')}>
+            <View
+              style={[
+                styles.locationIconContainer,
+                {
+                  backgroundColor: isDark ? '#3A3A3A' : '#E0E0E0',
+                },
+              ]}>
+              <Ionicons name="bag" size={24} color={colors.text} />
+            </View>
+            <View style={styles.locationInfo}>
+              <Text style={[styles.locationName, { color: colors.text }]}>Delivery</Text>
+              <Text style={[styles.locationAddress, { color: colors.icon }]}>Code Street, London, UK</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <BottomSheet visible={showDeliverySheet} onClose={closeDeliverySheet} heightRatio={0.78}>
+        <View style={styles.sheetHandle} />
+
+        {picker ? (
+          <View style={styles.pickerInline}>
+            <TouchableOpacity
+              style={styles.pickerBackRow}
+              onPress={() => setPicker(null)}
+              activeOpacity={0.7}>
+              <Ionicons name="arrow-back" size={22} color={colors.text} />
+              <Text style={[styles.pickerTitle, { color: colors.text }]}>
+                {picker === 'district' ? 'Dooro degmo' : 'Dooro gobol'}
+              </Text>
+            </TouchableOpacity>
+            <ScrollView
+              style={styles.pickerList}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled">
+              {(picker === 'district' ? BANADIR_DISTRICTS : SOMALIA_STATES).map((item) => {
+                const selected = picker === 'district' ? pickupDistrict === item : dropoffState === item;
+                return (
+                  <TouchableOpacity
+                    key={item}
+                    style={[styles.pickerItem, selected && styles.pickerItemSelected]}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      if (picker === 'district') setPickupDistrict(item);
+                      else setDropoffState(item);
+                      setPicker(null);
+                    }}>
+                    <Text style={[styles.pickerItemText, { color: colors.text }]}>{item}</Text>
+                    {selected ? <Ionicons name="checkmark" size={20} color={AppColors.header} /> : null}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        ) : (
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <Text style={[styles.sheetTitle, { color: colors.text }]}>Delivery State</Text>
+            <Text style={[styles.sheetSubtitle, { color: colors.icon }]}>
+              Dooro goobta alaabta laga qaadayo iyo goobta la geeynayo.
+            </Text>
+
+            <Text style={[styles.fieldLabel, { color: colors.icon }]}>Goobta laga qaadayo</Text>
+            <View style={[styles.fixedStateRow, { backgroundColor: isDark ? '#2A2A2A' : '#F3F3F3' }]}>
+              <Ionicons name="location" size={18} color={AppColors.header} />
+              <View style={styles.fixedStateText}>
+                <Text style={[styles.fixedStateTitle, { color: colors.text }]}>Banadir</Text>
+                <Text style={[styles.fixedStateHint, { color: colors.icon }]}>State-ka pickup waa Banadir</Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.selectField, { backgroundColor: isDark ? '#2A2A2A' : '#F3F3F3' }]}
+              activeOpacity={0.7}
+              onPress={() => setPicker('district')}>
+              <View style={styles.selectFieldBody}>
+                <Text style={[styles.selectLabel, { color: colors.icon }]}>Degmada</Text>
+                <Text style={[styles.selectValue, { color: pickupDistrict ? colors.text : colors.icon }]}>
+                  {pickupDistrict || 'Dooro degmo'}
+                </Text>
+              </View>
+              <Ionicons name="chevron-down" size={18} color={colors.icon} />
+            </TouchableOpacity>
+
+            <Text style={[styles.fieldLabel, { color: colors.icon, marginTop: 18 }]}>Goobta la geeynayo</Text>
+            <TouchableOpacity
+              style={[styles.selectField, { backgroundColor: isDark ? '#2A2A2A' : '#F3F3F3' }]}
+              activeOpacity={0.7}
+              onPress={() => setPicker('state')}>
+              <View style={styles.selectFieldBody}>
+                <Text style={[styles.selectLabel, { color: colors.icon }]}>Gobolka / State</Text>
+                <Text style={[styles.selectValue, { color: dropoffState ? colors.text : colors.icon }]}>
+                  {dropoffState || 'Dooro gobol'}
+                </Text>
+              </View>
+              <Ionicons name="chevron-down" size={18} color={colors.icon} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.chooseButton,
+                {
+                  backgroundColor: canContinue ? '#000' : '#E0E0E0',
+                  marginTop: 24,
+                },
+              ]}
+              disabled={!canContinue}
+              activeOpacity={0.8}
+              onPress={handleContinueDelivery}>
+              <Text style={[styles.chooseButtonText, { color: canContinue ? '#FFF' : '#999' }]}>Continue</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        )}
       </BottomSheet>
 
-      {/* Moto Bottom Sheet */}
       <BottomSheet visible={showBajaajSheet} onClose={() => setShowBajaajSheet(false)}>
         <ScrollView showsVerticalScrollIndicator={false}>
           <Text style={[styles.sheetTitle, { color: colors.text }]}>Select a moto</Text>
-          
+
           {bajaajOptions.map((option) => (
             <TouchableOpacity
               key={option.id}
@@ -322,9 +337,7 @@ export default function HomeScreen() {
             ]}
             disabled={!selectedBajaaj}
             activeOpacity={0.8}>
-            <Text style={[styles.chooseButtonText, { color: selectedBajaaj ? '#FFF' : '#999' }]}>
-              Choose
-            </Text>
+            <Text style={[styles.chooseButtonText, { color: selectedBajaaj ? '#FFF' : '#999' }]}>Choose</Text>
           </TouchableOpacity>
         </ScrollView>
       </BottomSheet>
@@ -438,10 +451,101 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '400',
   },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#D0D0D0',
+    marginBottom: 16,
+  },
   sheetTitle: {
     fontSize: 24,
     fontWeight: '700',
-    marginBottom: 24,
+    marginBottom: 8,
+  },
+  sheetSubtitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  fixedStateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    marginBottom: 10,
+  },
+  fixedStateText: {
+    flex: 1,
+  },
+  fixedStateTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  fixedStateHint: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  selectField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    minHeight: 64,
+  },
+  selectFieldBody: {
+    flex: 1,
+  },
+  selectLabel: {
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  selectValue: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  pickerInline: {
+    flex: 1,
+  },
+  pickerBackRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 12,
+  },
+  pickerList: {
+    flex: 1,
+  },
+  pickerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  pickerItem: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E6E6E6',
+    paddingHorizontal: 4,
+  },
+  pickerItemSelected: {
+    backgroundColor: 'rgba(3,193,103,0.08)',
+    borderRadius: 8,
+  },
+  pickerItemText: {
+    fontSize: 16,
   },
   rideOption: {
     borderRadius: 12,

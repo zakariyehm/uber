@@ -21,6 +21,30 @@ export const SOMALIA_STATES = [
   'Woqooyi Galbeed',
 ] as const;
 
+/** Pickup for Delivery State is always Banadir (Mogadishu). */
+export const BANADIR_DISTRICTS = [
+  'Abdiaziz',
+  'Bondhere',
+  'Daynile',
+  'Dharkenley',
+  'Garasbaaley',
+  'Gubadleey',
+  'Hamar Jajab',
+  'Hamar Weyne',
+  'Heliwaa',
+  'Hodan',
+  'Howlwadag',
+  'Karaan',
+  'Kaxda',
+  'Madina',
+  'Shangaani',
+  'Shibis',
+  'Waberi',
+  'Wadajir',
+  'Wardhiigley',
+  'Yaaqshiid',
+] as const;
+
 export function digitsOnly(value: string) {
   return value.replace(/\D/g, '');
 }

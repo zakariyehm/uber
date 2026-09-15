@@ -32,6 +32,8 @@ export default function CheckoutScreen() {
   const pickupLocation = params.pickupLocation as string || '';
   const destinationLocation = params.destinationLocation as string || '';
   const referenceId = params.referenceId as string || '';
+  const senderName = params.senderName as string || '';
+  const senderNumber = params.senderNumber as string || '';
   const recipientName = params.recipientName as string || '';
   const recipientNumber = params.recipientNumber as string || '';
   const selectedType = params.selectedType as string || '';
@@ -97,8 +99,8 @@ export default function CheckoutScreen() {
         itemType: selectedType || 'Package',
         deliveryMethod: deliveryMethod || 'Standard',
         deliveryPrice: estimatedPrice,
-        senderName: recipientName, // Using recipient as sender for now
-        senderPhone: recipientNumber,
+        senderName: senderName || 'Sender',
+        senderPhone: senderNumber,
       });
       
       console.log('[Checkout] ✅ Delivery request created successfully!');
@@ -225,6 +227,27 @@ export default function CheckoutScreen() {
               <Text style={[styles.infoValue, { color: colors.text }]}>{referenceId}</Text>
             </View>
           )}
+
+          {/* Sender Details */}
+          <View style={styles.recipientSection}>
+            <Text style={[styles.subsectionTitle, { color: colors.text }]}>Sender Details</Text>
+
+            <View style={styles.infoRow}>
+              <View style={styles.infoLabelContainer}>
+                <Ionicons name="person" size={scaleFont(20)} color={colors.icon} />
+                <Text style={[styles.infoLabel, { color: colors.icon }]}>Name</Text>
+              </View>
+              <Text style={[styles.infoValue, { color: colors.text }]}>{senderName || '—'}</Text>
+            </View>
+
+            <View style={styles.infoRow}>
+              <View style={styles.infoLabelContainer}>
+                <Ionicons name="call" size={scaleFont(20)} color={colors.icon} />
+                <Text style={[styles.infoLabel, { color: colors.icon }]}>Phone</Text>
+              </View>
+              <Text style={[styles.infoValue, { color: colors.text }]}>{senderNumber || '—'}</Text>
+            </View>
+          </View>
 
           {/* Recipient Details */}
           <View style={styles.recipientSection}>

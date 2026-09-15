@@ -1,8 +1,9 @@
 import { DeliveryBottomSheet } from '@/components/delivery-bottom-sheet';
+import { BANADIR_DISTRICTS, SOMALIA_STATES } from '@/constants/somalia';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Dimensions,
@@ -20,36 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-// Mogadishu Districts (Banadir)
-const mogadishuDistricts = [
-  'Abdiaziz',
-  'Bondhere',
-  'Daynile',
-  'Dharkenley',
-  'Hamar Jajab',
-  'Hamar Weyne',
-  'Hodan',
-  'Howlwadag',
-  'Karaan',
-  'Kaxda',
-  'Madina',
-  'Shangaani',
-  'Shibis',
-  'Waberi',
-  'Wadajir',
-  'Wardhiigley',
-  'Yaaqshiid',
-  'Heliwaa',
-  'Garasbaaley',
-  'Gubadleey',
-  'Gubta',
-  'Carafad',
-  'Ceelasha Biyaha',
-  'Coca Cola',
-  'Daarul Salaam',
-  'Hamar Jajab',
-  'Hamar Weyne',
-];
+const mogadishuDistricts = [...BANADIR_DISTRICTS];
 
 // Responsive helper functions
 const scaleWidth = (size: number) => (SCREEN_WIDTH / 375) * size;
@@ -66,9 +38,19 @@ export default function PlanRideScreen() {
   const colors = Colors[colorScheme ?? 'light'];
   const isDark = colorScheme === 'dark';
   const router = useRouter();
-  
-  const [pickupLocation, setPickupLocation] = useState('');
-  const [destinationLocation, setDestinationLocation] = useState('');
+  const params = useLocalSearchParams<{
+    pickupState?: string;
+    pickupDistrict?: string;
+    dropoffState?: string;
+  }>();
+
+  const initialPickup = params.pickupDistrict
+    ? `${params.pickupDistrict}, ${params.pickupState || 'Banadir'}`
+    : '';
+  const initialDestination = params.dropoffState || '';
+
+  const [pickupLocation, setPickupLocation] = useState(initialPickup);
+  const [destinationLocation, setDestinationLocation] = useState(initialDestination);
   const [activeInput, setActiveInput] = useState<'pickup' | 'destination' | null>(null);
   const [pickupSuggestions, setPickupSuggestions] = useState<string[]>([]);
   const [destinationSuggestions, setDestinationSuggestions] = useState<string[]>([]);
@@ -111,6 +93,15 @@ export default function PlanRideScreen() {
     
     return mogadishuDistricts.some(district => 
       district.toLowerCase() === districtPart.toLowerCase()
+    );
+  };
+
+  const isValidDestination = (location: string): boolean => {
+    if (!location.trim()) return false;
+    const part = location.split(',')[0].trim().toLowerCase();
+    return (
+      SOMALIA_STATES.some((state) => state.toLowerCase() === part) ||
+      mogadishuDistricts.some((district) => district.toLowerCase() === part)
     );
   };
 
@@ -241,22 +232,22 @@ export default function PlanRideScreen() {
       clearTimeout(autoCompleteTimeoutRef.current);
     }
     
-    // Auto-complete district on blur if there's a close match and no comma
+    // Keep Somalia states; only auto-fix Banadir district typos
     if (destinationLocation && !destinationLocation.includes(',')) {
+      if (isValidDestination(destinationLocation)) {
+        setTimeout(() => setActiveInput(null), 200);
+        return;
+      }
       const districtPart = destinationLocation.split(',')[0].trim();
-      if (!isValidDistrict(destinationLocation)) {
-        const suggestions = filterDistricts(districtPart);
-        if (suggestions.length === 1) {
-          // Auto-fill the single match
-          const match = suggestions[0];
-          setDestinationLocation(match);
-          destinationInputRef.current = match;
-          setDestinationSuggestions([]);
-        } else if (suggestions.length === 0) {
-          // Clear if no valid match
-          setDestinationLocation('');
-          destinationInputRef.current = '';
-        }
+      const suggestions = filterDistricts(districtPart);
+      if (suggestions.length === 1) {
+        const match = suggestions[0];
+        setDestinationLocation(match);
+        destinationInputRef.current = match;
+        setDestinationSuggestions([]);
+      } else if (suggestions.length === 0) {
+        setDestinationLocation('');
+        destinationInputRef.current = '';
       }
     }
     setTimeout(() => setActiveInput(null), 200);
@@ -288,10 +279,10 @@ export default function PlanRideScreen() {
   };
 
   const handleContinue = () => {
-    // Validate both locations are from the districts list
+    // Validate pickup is Banadir district; destination can be a Somalia state or district
     if (pickupLocation && destinationLocation && 
         isValidDistrict(pickupLocation) && 
-        isValidDistrict(destinationLocation)) {
+        isValidDestination(destinationLocation)) {
       // Open delivery bottom sheet
       setShowDeliverySheet(true);
     }
@@ -510,7 +501,7 @@ export default function PlanRideScreen() {
       {/* Continue Button */}
       {(pickupLocation && destinationLocation && 
         isValidDistrict(pickupLocation) && 
-        isValidDistrict(destinationLocation)) && (
+        isValidDestination(destinationLocation)) && (
         <View style={[styles.footer, { paddingBottom: insets.bottom + scaleHeight(16) }]}>
           <TouchableOpacity
             style={[styles.continueButton, { backgroundColor: isDark ? '#FFFFFF' : '#000000' }]}

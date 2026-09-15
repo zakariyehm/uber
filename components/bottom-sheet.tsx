@@ -13,25 +13,29 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-const SHEET_HEIGHT = SCREEN_HEIGHT * 0.5;
+const DEFAULT_SHEET_HEIGHT = SCREEN_HEIGHT * 0.5;
 
 interface BottomSheetProps {
   visible: boolean;
   onClose: () => void;
   children: React.ReactNode;
+  /** Fraction of screen height, e.g. 0.72. Defaults to 0.5. */
+  heightRatio?: number;
 }
 
-export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
+export function BottomSheet({ visible, onClose, children, heightRatio = 0.5 }: BottomSheetProps) {
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const isDark = colorScheme === 'dark';
-  const translateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
+  const sheetHeight = SCREEN_HEIGHT * heightRatio;
+  const translateY = useRef(new Animated.Value(DEFAULT_SHEET_HEIGHT)).current;
   const pan = useRef(new Animated.ValueXY()).current;
 
   useEffect(() => {
     if (visible) {
       pan.setValue({ x: 0, y: 0 });
+      translateY.setValue(sheetHeight);
       Animated.spring(translateY, {
         toValue: 0,
         useNativeDriver: true,
@@ -40,14 +44,14 @@ export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
       }).start();
     } else {
       Animated.timing(translateY, {
-        toValue: SHEET_HEIGHT,
+        toValue: sheetHeight,
         duration: 250,
         useNativeDriver: true,
       }).start(() => {
         pan.setValue({ x: 0, y: 0 });
       });
     }
-  }, [visible]);
+  }, [visible, sheetHeight]);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -92,6 +96,7 @@ export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
               style={[
                 styles.sheet,
                 {
+                  height: sheetHeight,
                   backgroundColor: isDark ? '#1A1A1A' : '#FFFFFF',
                   paddingBottom: insets.bottom,
                   transform: [
@@ -99,7 +104,7 @@ export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
                   ],
                 },
               ]}>
-              {children}
+              <View style={styles.sheetContent}>{children}</View>
             </Animated.View>
           </TouchableWithoutFeedback>
         </View>
@@ -115,11 +120,13 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheet: {
-    height: SHEET_HEIGHT,
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 0,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     paddingTop: 12,
     paddingHorizontal: 20,
+  },
+  sheetContent: {
+    flex: 1,
   },
 });
 
