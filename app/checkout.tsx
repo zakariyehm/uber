@@ -5,7 +5,6 @@ import NetInfo from '@react-native-community/netinfo';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Dimensions, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createDeliveryRequest } from '@/utils/deliveryRequests';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -20,7 +19,6 @@ const scaleFont = (size: number) => {
 };
 
 export default function CheckoutScreen() {
-  const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const isDark = colorScheme === 'dark';
@@ -163,21 +161,9 @@ export default function CheckoutScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: Math.max(insets.top, Platform.OS === 'ios' ? 0 : StatusBar.currentHeight || 0) }]}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent />
+    <View style={styles.container}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
       
-      {/* Header */}
-      <View style={[styles.header, { paddingHorizontal: scaleWidth(20), paddingVertical: scaleHeight(16) }]}>
-        <TouchableOpacity 
-          onPress={() => router.back()}
-          style={styles.backButton}>
-          <Ionicons name="arrow-back" size={scaleFont(24)} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Checkout</Text>
-        <View style={styles.placeholder} />
-      </View>
-
-      {/* Content */}
       <ScrollView 
         style={[styles.content, { paddingHorizontal: scaleWidth(20), paddingTop: scaleHeight(20) }]}
         showsVerticalScrollIndicator={false}

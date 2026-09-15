@@ -2,10 +2,8 @@ import { Colors } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { Dimensions, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -27,11 +25,9 @@ interface ProfileMenuItem {
 }
 
 export default function ProfileScreen() {
-  const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const isDark = colorScheme === 'dark';
-  const router = useRouter();
   const { user, signOut } = useAuth();
   const username = useMemo(() => {
     const name = [user?.firstName, user?.lastName].filter(Boolean).join(' ');
@@ -92,20 +88,8 @@ export default function ProfileScreen() {
   ];
 
   return (
-    <View style={[styles.container, { paddingTop: Math.max(insets.top, Platform.OS === 'ios' ? 0 : StatusBar.currentHeight || 0) }]}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent />
-      
-      {/* Back Button */}
-      <View style={[styles.backButtonContainer, { paddingHorizontal: scaleWidth(20), paddingTop: scaleHeight(16) }]}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.backButton}
-          activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={scaleFont(24)} color={colors.text} />
-        </TouchableOpacity>
-      </View>
-      
-      {/* Content */}
+    <View style={styles.container}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
       <ScrollView 
         style={[styles.content]}
         showsVerticalScrollIndicator={false}
@@ -178,16 +162,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
-  },
-  backButtonContainer: {
-    paddingBottom: scaleHeight(8),
-  },
-  backButton: {
-    padding: scaleWidth(8),
-    width: scaleWidth(40),
-    height: scaleWidth(40),
-    justifyContent: 'center',
-    alignItems: 'flex-start',
   },
   content: {
     flex: 1,

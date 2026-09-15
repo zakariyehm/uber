@@ -113,15 +113,8 @@ export default function SignupStep3Screen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent />
-      <View style={[styles.container, { paddingTop: Math.max(insets.top, Platform.OS === 'ios' ? 0 : StatusBar.currentHeight || 0) }]}>
-        <View style={[styles.header, { paddingHorizontal: scaleWidth(20), paddingVertical: scaleHeight(16) }]}>
-          <View style={styles.placeholder} />
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Verify PIN</Text>
-          <View style={styles.placeholder} />
-        </View>
-
-        <KeyboardAvoidingView
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+      <KeyboardAvoidingView
           style={styles.keyboardView}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}>
@@ -203,7 +196,6 @@ export default function SignupStep3Screen() {
         />
           </ScrollView>
         </KeyboardAvoidingView>
-      </View>
 
       {isLoading && (
         <View style={styles.loadingOverlay}>

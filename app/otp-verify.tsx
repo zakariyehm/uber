@@ -75,13 +75,8 @@ export default function OtpVerifyScreen() {
   };
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
+    <View style={styles.root}>
       <StatusBar barStyle="dark-content" />
-      <View style={styles.header}>
-        <Pressable style={styles.closeBtn} onPress={() => router.back()} hitSlop={8}>
-          <Ionicons name="close" size={28} color={AppColors.text} />
-        </Pressable>
-      </View>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Pressable style={styles.body} onPress={() => inputRef.current?.focus()}>
           <Text style={styles.title}>
@@ -130,9 +125,6 @@ export default function OtpVerifyScreen() {
           <View style={styles.flex} />
 
           <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
-            <Pressable style={styles.circleBtn} onPress={() => router.back()}>
-              <Ionicons name="arrow-back" size={20} color={AppColors.text} />
-            </Pressable>
             <Pressable
               style={[styles.nextBtn, !ready && styles.nextBtnDisabled]}
               disabled={!ready || busy}
@@ -154,21 +146,10 @@ const styles = StyleSheet.create({
     backgroundColor: AppColors.bg,
   },
   flex: { flex: 1 },
-  header: {
-    height: 48,
-    justifyContent: 'center',
-    paddingHorizontal: 12,
-  },
-  closeBtn: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   body: {
     flex: 1,
     paddingHorizontal: 20,
-    paddingTop: 4,
+    paddingTop: 8,
   },
   title: {
     fontSize: 28,
@@ -235,16 +216,8 @@ const styles = StyleSheet.create({
   },
   footer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     alignItems: 'center',
-  },
-  circleBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: AppColors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   nextBtn: {
     flexDirection: 'row',

@@ -180,21 +180,9 @@ export default function StandardDeliveryScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: Math.max(insets.top, Platform.OS === 'ios' ? 0 : StatusBar.currentHeight || 0) }]}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent />
+    <View style={styles.container}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
       
-      {/* Header */}
-      <View style={[styles.header, { paddingHorizontal: scaleWidth(20), paddingVertical: scaleHeight(16) }]}>
-        <TouchableOpacity 
-          onPress={() => router.back()}
-          style={styles.backButton}>
-          <Ionicons name="arrow-back" size={scaleFont(24)} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Standard Delivery</Text>
-        <View style={styles.placeholder} />
-      </View>
-
-      {/* Content */}
       <ScrollView 
         style={[styles.content, { paddingHorizontal: scaleWidth(20), paddingTop: scaleHeight(20) }]}
         showsVerticalScrollIndicator={false}

@@ -130,20 +130,8 @@ export default function DeliveryScreen() {
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: isDark ? '#000000' : '#FFFFFF' }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent />
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
       
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + scaleHeight(12), paddingHorizontal: scaleWidth(20), paddingBottom: scaleHeight(16) }]}>
-        <TouchableOpacity 
-          onPress={() => router.back()}
-          style={styles.backButton}>
-          <Ionicons name="arrow-back" size={scaleFont(24)} color={isDark ? '#FFFFFF' : '#000000'} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: isDark ? '#FFFFFF' : '#000000' }]}>Complete Order</Text>
-        <View style={styles.placeholder} />
-      </View>
-
-      {/* Content */}
       <ScrollView 
         style={styles.content}
         contentContainerStyle={{ paddingHorizontal: scaleWidth(20), paddingBottom: scaleHeight(32) }}

@@ -1,5 +1,5 @@
 import { BottomSheet } from '@/components/bottom-sheet';
-import { Colors } from '@/constants/theme';
+import { AppColors, Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -338,7 +338,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   header: {
-    backgroundColor: '#439959',
+    backgroundColor: AppColors.header,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',

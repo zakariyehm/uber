@@ -54,13 +54,8 @@ export function PhoneAuthScreen({ mode }: PhoneAuthScreenProps) {
   };
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
+    <View style={styles.root}>
       <StatusBar barStyle="dark-content" />
-      <View style={styles.header}>
-        <Pressable style={styles.closeBtn} onPress={() => router.back()} hitSlop={8}>
-          <Ionicons name="close" size={28} color={AppColors.text} />
-        </Pressable>
-      </View>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
@@ -133,20 +128,9 @@ const styles = StyleSheet.create({
     backgroundColor: AppColors.bg,
   },
   flex: { flex: 1 },
-  header: {
-    height: 48,
-    justifyContent: 'center',
-    paddingHorizontal: 12,
-  },
-  closeBtn: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   content: {
     paddingHorizontal: 20,
-    paddingTop: 4,
+    paddingTop: 8,
   },
   title: {
     fontSize: 28,

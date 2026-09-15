@@ -316,20 +316,6 @@ export default function PlanRideScreen() {
       style={[styles.container, { backgroundColor: isDark ? '#000000' : '#FFFFFF' }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
-      
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + scaleHeight(12) }]}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.backButton}
-          activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={scaleFont(24)} color={isDark ? '#FFFFFF' : '#000000'} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: isDark ? '#FFFFFF' : '#000000' }]}>
-          Plan your ride
-        </Text>
-        <View style={styles.headerSpacer} />
-      </View>
 
       <ScrollView
         style={styles.scrollView}

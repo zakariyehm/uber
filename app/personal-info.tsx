@@ -4,7 +4,7 @@ import { AppColors } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth';
 import { completeRiderProfile } from '@/utils/auth';
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import {
   Alert,
@@ -23,7 +23,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function PersonalInfoScreen() {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const { signIn } = useAuth();
   const params = useLocalSearchParams<{ verificationToken?: string; phone?: string }>();
   const [firstName, setFirstName] = useState('');
@@ -58,13 +57,8 @@ export default function PersonalInfoScreen() {
   };
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
+    <View style={styles.root}>
       <StatusBar barStyle="dark-content" />
-      <View style={styles.header}>
-        <Pressable style={styles.closeBtn} onPress={() => router.back()} hitSlop={8}>
-          <Ionicons name="close" size={28} color={AppColors.text} />
-        </Pressable>
-      </View>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
@@ -146,18 +140,7 @@ export default function PersonalInfoScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: AppColors.bg },
   flex: { flex: 1 },
-  header: {
-    height: 48,
-    justifyContent: 'center',
-    paddingHorizontal: 12,
-  },
-  closeBtn: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  content: { paddingHorizontal: 20, paddingTop: 4 },
+  content: { paddingHorizontal: 20, paddingTop: 8 },
   title: {
     fontSize: 28,
     fontWeight: '700',
