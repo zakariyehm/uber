@@ -6,6 +6,7 @@ import {
   createDelivery,
   getById,
   getByOrderId,
+  listForRider,
   listPending,
 } from './deliveries.service.ts';
 import { createDeliverySchema, deliveryActionSchema } from './deliveries.schemas.ts';
@@ -26,6 +27,10 @@ export async function deliveryRoutes(app: FastifyInstance) {
 
   app.get('/pending', async () => {
     return listPending();
+  });
+
+  app.get('/mine', { preHandler: authenticate }, async (request) => {
+    return listForRider(request.user.sub);
   });
 
   app.get('/order/:orderId', async (request, reply) => {

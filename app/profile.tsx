@@ -2,6 +2,7 @@ import { Colors } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { Dimensions, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -28,6 +29,7 @@ export default function ProfileScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const isDark = colorScheme === 'dark';
+  const router = useRouter();
   const { user, signOut } = useAuth();
   const username = useMemo(() => {
     const name = [user?.firstName, user?.lastName].filter(Boolean).join(' ');
@@ -36,6 +38,13 @@ export default function ProfileScreen() {
   const [rating] = useState('5.0');
 
   const menuItems: ProfileMenuItem[] = [
+    {
+      id: 'orders',
+      title: 'Orders',
+      icon: 'cube-outline',
+      description: 'Track deliveries from waiting to completed',
+      onPress: () => router.push('/orders'),
+    },
     {
       id: '1',
       title: 'Personal info',

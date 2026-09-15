@@ -54,9 +54,13 @@ function RootNavigator() {
         <Stack.Screen name="delivery" options={{ title: 'Complete Order' }} />
         <Stack.Screen name="standard-delivery" options={{ title: 'Standard Delivery' }} />
         <Stack.Screen name="checkout" options={{ title: 'Checkout' }} />
-        <Stack.Screen name="order-success" options={{ title: 'Order' }} />
+        <Stack.Screen
+          name="order-success"
+          options={{ title: 'Order', gestureEnabled: false, headerBackVisible: false }}
+        />
         <Stack.Screen name="plan-ride" options={{ title: 'Plan your ride' }} />
         <Stack.Screen name="profile" options={{ title: 'Profile' }} />
+        <Stack.Screen name="orders" options={{ title: 'Orders' }} />
       </Stack.Protected>
 
       <Stack.Protected guard={!isLoggedIn}>

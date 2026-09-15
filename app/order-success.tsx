@@ -1,8 +1,8 @@
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import React, { useEffect, useLayoutEffect, useState } from 'react';
 import { ActivityIndicator, Dimensions, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import NetInfo from '@react-native-community/netinfo';
@@ -25,6 +25,7 @@ export default function OrderSuccessScreen() {
   const colors = Colors[colorScheme ?? 'light'];
   const isDark = colorScheme === 'dark';
   const router = useRouter();
+  const navigation = useNavigation();
   const params = useLocalSearchParams();
   const [isLoading, setIsLoading] = useState(true);
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
@@ -35,6 +36,34 @@ export default function OrderSuccessScreen() {
   
   const orderId = params.orderId as string || '';
   const requestId = params.requestId as string || '';
+  const fromOrders = params.from === 'orders';
+
+  const goHome = () => {
+    router.replace('/(tabs)');
+  };
+
+  useLayoutEffect(() => {
+    if (fromOrders) {
+      navigation.setOptions({
+        gestureEnabled: true,
+        headerBackVisible: true,
+        headerLeft: undefined,
+        title: 'Track order',
+      });
+      return;
+    }
+
+    navigation.setOptions({
+      gestureEnabled: false,
+      headerBackVisible: false,
+      title: 'Order',
+      headerLeft: () => (
+        <TouchableOpacity onPress={goHome} hitSlop={12} style={{ paddingHorizontal: 8 }}>
+          <Ionicons name="home-outline" size={22} color="#FFFFFF" />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, fromOrders]);
 
   // Check delivery status periodically
   useEffect(() => {
@@ -102,7 +131,7 @@ export default function OrderSuccessScreen() {
   }, []);
 
   const handleGoHome = () => {
-    router.replace('/(tabs)');
+    goHome();
   };
 
   const handleConfirmDriverArrival = async () => {

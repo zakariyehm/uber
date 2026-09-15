@@ -3,8 +3,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Ionicons } from '@expo/vector-icons';
 import NetInfo from '@react-native-community/netinfo';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Dimensions, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Dimensions, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { createDeliveryRequest } from '@/utils/deliveryRequests';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -27,6 +27,7 @@ export default function CheckoutScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+  const placingRef = useRef(false);
 
   // Extract order details from params
   const pickupLocation = params.pickupLocation as string || '';
@@ -82,13 +83,13 @@ export default function CheckoutScreen() {
   }, []);
 
   const handleConfirmOrder = async () => {
+    if (placingRef.current || isPlacingOrder) return;
+    placingRef.current = true;
     setIsPlacingOrder(true);
-    
+
     try {
-      // Generate order ID
       const orderId = `ORD_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      // Create delivery request
+
       console.log('[Checkout] Creating delivery request...');
       const deliveryRequest = await createDeliveryRequest({
         orderId,
@@ -102,25 +103,11 @@ export default function CheckoutScreen() {
         senderName: senderName || 'Sender',
         senderPhone: senderNumber,
       });
-      
+
       console.log('[Checkout] ✅ Delivery request created successfully!');
       console.log('[Checkout] Request ID:', deliveryRequest.id);
-      console.log('[Checkout] Request status:', deliveryRequest.status);
-      console.log('[Checkout] Request details:', {
-        orderId: deliveryRequest.orderId,
-        pickup: deliveryRequest.pickupLocation,
-        destination: deliveryRequest.destinationLocation,
-        price: deliveryRequest.deliveryPrice,
-        status: deliveryRequest.status,
-      });
-      
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      setIsPlacingOrder(false);
-      
-      // Navigate to success screen with order details
-      router.push({
+
+      router.replace({
         pathname: '/order-success',
         params: {
           orderId,
@@ -132,33 +119,13 @@ export default function CheckoutScreen() {
           selectedType,
           deliveryMethod,
           estimatedPrice,
-        }
+        },
       });
     } catch (error: any) {
       console.error('[Checkout] ❌ Error creating order:', error);
-      console.error('[Checkout] Error details:', {
-        code: error?.code,
-        message: error?.message,
-        stack: error?.stack
-      });
+      placingRef.current = false;
       setIsPlacingOrder(false);
-      
-      // Show error to user (you can add an Alert here)
-      // For now, still navigate but log the error
-      const orderId = `ORD_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      router.push({
-        pathname: '/order-success',
-        params: {
-          orderId,
-          pickupLocation,
-          destinationLocation,
-          recipientName,
-          recipientNumber,
-          selectedType,
-          deliveryMethod,
-          estimatedPrice,
-        }
-      });
+      Alert.alert('Order failed', error?.message || 'Could not place order. Please try again.');
     }
   };
 
@@ -197,7 +164,7 @@ export default function CheckoutScreen() {
           {deliveryMethod && (
             <View style={styles.infoRow}>
               <View style={styles.infoLabelContainer}>
-                <Ionicons name="bicycle" size={scaleFont(20)} color={colors.icon} />
+                <Ionicons name="airplane" size={scaleFont(20)} color={colors.icon} />
                 <Text style={[styles.infoLabel, { color: colors.icon }]}>Delivery Method</Text>
               </View>
               <Text style={[styles.infoValue, { color: colors.text }]}>

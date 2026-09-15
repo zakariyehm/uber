@@ -48,6 +48,14 @@ export async function listPending() {
   return rows.map(toDeliveryDto);
 }
 
+export async function listForRider(riderUserId: string) {
+  const rows = await prisma.deliveryRequest.findMany({
+    where: { riderUserId },
+    orderBy: { createdAt: 'desc' },
+  });
+  return rows.map(toDeliveryDto);
+}
+
 export async function getByOrderId(orderId: string) {
   const row = await prisma.deliveryRequest.findUnique({ where: { orderId } });
   return row ? toDeliveryDto(row) : null;

@@ -48,6 +48,10 @@ export const createDeliveryRequest = async (orderData: {
   });
 };
 
+export const getMyDeliveries = async (): Promise<DeliveryRequest[]> => {
+  return apiRequest<DeliveryRequest[]>('/deliveries/mine');
+};
+
 export const getPendingRequests = async (): Promise<DeliveryRequest[]> => {
   return apiRequest<DeliveryRequest[]>('/deliveries/pending');
 };

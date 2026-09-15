@@ -158,7 +158,7 @@ export default function DeliveryScreen() {
             }
           ]}>
             <View style={styles.infoRow}>
-              <Ionicons name="bicycle" size={scaleFont(20)} color={isDark ? '#FFFFFF' : '#000000'} />
+              <Ionicons name="airplane" size={scaleFont(20)} color={isDark ? '#FFFFFF' : '#000000'} />
               <Text style={[styles.infoText, { color: isDark ? '#FFFFFF' : '#000000' }]}>
                 {deliveryMethod} • {deliveryTime} • {deliveryPrice}
               </Text>
