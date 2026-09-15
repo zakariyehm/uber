@@ -1,8 +1,9 @@
 import { Colors } from '@/constants/theme';
+import { useAuth } from '@/contexts/auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Dimensions, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -31,7 +32,11 @@ export default function ProfileScreen() {
   const colors = Colors[colorScheme ?? 'light'];
   const isDark = colorScheme === 'dark';
   const router = useRouter();
-  const [username] = useState('Zakariye Hassan');
+  const { user, signOut } = useAuth();
+  const username = useMemo(() => {
+    const name = [user?.firstName, user?.lastName].filter(Boolean).join(' ');
+    return name || 'Rider';
+  }, [user]);
   const [rating] = useState('5.0');
 
   const menuItems: ProfileMenuItem[] = [
@@ -80,8 +85,8 @@ export default function ProfileScreen() {
       id: '10',
       title: 'Logout',
       icon: 'log-out-outline',
-      onPress: () => {
-        // Handle logout
+      onPress: async () => {
+        await signOut();
       },
     },
   ];

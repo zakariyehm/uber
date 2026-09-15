@@ -1,0 +1,174 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  RIDER
+  DRIVER
+  ADMIN
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum OtpPurpose {
+  LOGIN
+  REGISTER
+}
+
+enum DeliveryStatus {
+  PENDING
+  ACCEPTED
+  PICKED_UP
+  IN_TRANSIT
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id           String   @id @default(uuid())
+  role         UserRole
+  phone        String   @unique
+  email        String?  @unique
+  passwordHash String?
+  firstName    String?
+  lastName     String?
+  gender       Gender?
+  state        String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  riderProfile     RiderProfile?
+  driverProfile    DriverProfile?
+  riderDeliveries  DeliveryRequest[]       @relation("RiderDeliveries")
+  driverDeliveries DeliveryRequest[]       @relation("DriverDeliveries")
+  sessions         AuthSession[]
+  files            UserFile[]
+  activeDelivery   DriverActiveDelivery?
+  wallet           DriverWallet?
+}
+
+model RiderProfile {
+  userId      String   @id
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName String?
+  rating      Decimal  @default(5.0) @db.Decimal(3, 2)
+  createdAt   DateTime @default(now())
+}
+
+model DriverProfile {
+  userId        String   @id
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName   String?
+  rating        Decimal  @default(3.0) @db.Decimal(3, 2)
+  isOnline      Boolean  @default(false)
+  licenseNumber String?
+  vehicleMake   String?
+  vehicleModel  String?
+  vehiclePlate  String?
+  address       String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model UserFile {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fileType   String
+  storageKey String
+  mimeType   String?
+  uploadedAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model DeliveryRequest {
+  id                     String         @id @default(uuid())
+  orderId                String         @unique
+  riderUserId            String?
+  rider                  User?          @relation("RiderDeliveries", fields: [riderUserId], references: [id])
+  pickupLocation         String
+  destinationLocation    String
+  recipientName          String
+  recipientNumber        String
+  senderName             String?
+  senderPhone            String?
+  itemType               String
+  deliveryMethod         String
+  deliveryPrice          Decimal        @db.Decimal(10, 2)
+  referenceId            String?
+  deliveryTimeLabel      String?
+  status                 DeliveryStatus @default(PENDING)
+  driverUserId           String?
+  driver                 User?          @relation("DriverDeliveries", fields: [driverUserId], references: [id])
+  driverName             String?
+  paymentRequested       Boolean        @default(false)
+  paymentRequestedAt     DateTime?
+  driverArrived          Boolean        @default(false)
+  driverArrivedAt        DateTime?
+  userConfirmedArrival   Boolean        @default(false)
+  userConfirmedArrivalAt DateTime?
+  createdAt              DateTime       @default(now())
+  acceptedAt             DateTime?
+  pickedUpAt             DateTime?
+  startedAt              DateTime?
+  completedAt            DateTime?
+  cancelledAt            DateTime?
+  updatedAt              DateTime       @updatedAt
+
+  activeForDrivers DriverActiveDelivery[]
+
+  @@index([status])
+  @@index([driverUserId])
+}
+
+model DriverActiveDelivery {
+  driverUserId String           @id
+  driver       User             @relation(fields: [driverUserId], references: [id], onDelete: Cascade)
+  requestId    String?
+  request      DeliveryRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  updatedAt    DateTime         @updatedAt
+}
+
+model DriverWallet {
+  driverUserId   String   @id
+  driver         User     @relation(fields: [driverUserId], references: [id], onDelete: Cascade)
+  balance        Decimal  @default(0) @db.Decimal(12, 2)
+  tripsCompleted Int      @default(0)
+  tripsCancelled Int      @default(0)
+  updatedAt      DateTime @updatedAt
+}
+
+model AuthSession {
+  id               String   @id @default(uuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokenHash String
+  deviceInfo       String?
+  expiresAt        DateTime
+  createdAt        DateTime @default(now())
+
+  @@index([userId])
+}
+
+model OtpChallenge {
+  id         String     @id @default(uuid())
+  phone      String
+  codeHash   String
+  purpose    OtpPurpose
+  expiresAt  DateTime
+  verifiedAt DateTime?
+  attempts   Int        @default(0)
+  createdAt  DateTime   @default(now())
+
+  @@index([phone, purpose])
+}

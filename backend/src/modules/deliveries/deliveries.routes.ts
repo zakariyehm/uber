@@ -1,0 +1,97 @@
+import type { FastifyInstance } from 'fastify';
+import { prisma } from '../../lib/prisma.ts';
+import { authenticate, requireDriver } from '../../middleware/authenticate.ts';
+import {
+  applyDeliveryAction,
+  createDelivery,
+  getById,
+  getByOrderId,
+  listPending,
+} from './deliveries.service.ts';
+import { createDeliverySchema, deliveryActionSchema } from './deliveries.schemas.ts';
+
+export async function deliveryRoutes(app: FastifyInstance) {
+  app.post('/', async (request, reply) => {
+    const body = createDeliverySchema.parse(request.body);
+    let riderUserId: string | undefined;
+    try {
+      await request.jwtVerify();
+      riderUserId = request.user.sub;
+    } catch {
+      riderUserId = undefined;
+    }
+    const created = await createDelivery(body, riderUserId);
+    return reply.code(201).send(created);
+  });
+
+  app.get('/pending', async () => {
+    return listPending();
+  });
+
+  app.get('/order/:orderId', async (request, reply) => {
+    const { orderId } = request.params as { orderId: string };
+    const row = await getByOrderId(orderId);
+    if (!row) return reply.code(404).send({ error: 'Delivery not found' });
+    return row;
+  });
+
+  app.get('/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const row = await getById(id);
+    if (!row) return reply.code(404).send({ error: 'Delivery not found' });
+    return row;
+  });
+
+  app.patch('/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = deliveryActionSchema.parse(request.body);
+    let actor: { id: string; name?: string } | undefined;
+
+    try {
+      await request.jwtVerify();
+      const user = await prisma.user.findUnique({
+        where: { id: request.user.sub },
+        include: { driverProfile: true },
+      });
+      if (user) {
+        actor = {
+          id: user.id,
+          name: user.driverProfile?.displayName || [user.firstName, user.lastName].filter(Boolean).join(' ') || 'Driver',
+        };
+      }
+    } catch {
+      if (body.driverId) {
+        actor = { id: body.driverId, name: body.driverName };
+      }
+    }
+
+    const updated = await applyDeliveryAction(id, body.action, actor);
+    return updated;
+  });
+
+  app.put('/drivers/me/online', { preHandler: requireDriver }, async (request) => {
+    const body = (request.body as { isOnline?: boolean }) ?? {};
+    const profile = await prisma.driverProfile.update({
+      where: { userId: request.user.sub },
+      data: { isOnline: Boolean(body.isOnline) },
+    });
+    return { isOnline: profile.isOnline };
+  });
+
+  app.put('/drivers/me/active', { preHandler: authenticate }, async (request) => {
+    const body = (request.body as { requestId?: string | null }) ?? {};
+    const row = await prisma.driverActiveDelivery.upsert({
+      where: { driverUserId: request.user.sub },
+      update: { requestId: body.requestId || null },
+      create: { driverUserId: request.user.sub, requestId: body.requestId || null },
+    });
+    return { requestId: row.requestId };
+  });
+
+  app.get('/drivers/me/active', { preHandler: authenticate }, async (request) => {
+    const row = await prisma.driverActiveDelivery.findUnique({
+      where: { driverUserId: request.user.sub },
+    });
+    return { requestId: row?.requestId ?? null };
+  });
+}

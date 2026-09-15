@@ -1,9 +1,10 @@
+import { LoadingOverlay } from '@/components/ui/loading-overlay';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Dimensions, Image, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Dimensions, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import NetInfo from '@react-native-community/netinfo';
 
@@ -108,7 +109,7 @@ export default function GetStartedScreen() {
               }
             ]}
             activeOpacity={0.8}
-            onPress={() => router.push('/signup-step1')}>
+            onPress={() => router.push('/signup')}>
             <Text style={styles.primaryButtonText}>Get Started</Text>
             <Ionicons name="arrow-forward" size={scaleFont(20)} color="#FFF" style={styles.buttonIcon} />
           </TouchableOpacity>
@@ -135,12 +136,7 @@ export default function GetStartedScreen() {
         </View>
       </ScrollView>
 
-      {/* Loading Overlay */}
-      {isLoading && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color={isDark ? '#FFFFFF' : '#000000'} />
-        </View>
-      )}
+      <LoadingOverlay visible={isLoading} />
     </View>
   );
 }
@@ -149,16 +145,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
-  },
-  loadingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
   },
   content: {
     flex: 1,

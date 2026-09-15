@@ -3,7 +3,7 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Dimensions, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -77,24 +77,6 @@ const bajaajOptions: BajaajOption[] = [
   },
 ];
 
-function getSomaliaGreeting(): string {
-  // Get current time in Somalia/Mogadishu (UTC+3)
-  const now = new Date();
-  const somaliaTime = new Date(now.toLocaleString('en-US', { timeZone: 'Africa/Mogadishu' }));
-  const hour = somaliaTime.getHours();
-
-  // Determine greeting based on time of day
-  if (hour >= 5 && hour < 12) {
-    return 'Good morning'; // 5:00 AM - 11:59 AM
-  } else if (hour >= 12 && hour < 17) {
-    return 'Good afternoon'; // 12:00 PM - 4:59 PM
-  } else if (hour >= 17 && hour < 21) {
-    return 'Good evening'; // 5:00 PM - 8:59 PM
-  } else {
-    return 'Good night'; // 9:00 PM - 4:59 AM
-  }
-}
-
 function calculateCarPrice(distance: string, carType: string): string {
   // Extract number from distance string (e.g., "10 km" -> 10)
   const km = parseFloat(distance.replace(' km', ''));
@@ -129,41 +111,25 @@ export default function HomeScreen() {
   const [showBajaajSheet, setShowBajaajSheet] = useState(false);
   const [selectedRide, setSelectedRide] = useState<string | null>(null);
   const [selectedBajaaj, setSelectedBajaaj] = useState<string | null>(null);
-  const [greeting, setGreeting] = useState(getSomaliaGreeting());
-  const [username] = useState('Zack'); // Default username
-
-  // Update greeting every minute to reflect time changes
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setGreeting(getSomaliaGreeting());
-    }, 60000); // Update every minute
-
-    return () => clearInterval(interval);
-  }, []);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent />
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" translucent />
       
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
         <View style={styles.headerLeft}>
-          <Text style={[styles.logo, { color: colors.text }]}>Eat</Text>
-          <Text style={[styles.location, { color: colors.icon }]}>{greeting}, {username}</Text>
+          <Text style={styles.logo}>RAAC</Text>
         </View>
         <TouchableOpacity 
-          style={[
-            styles.profileIconContainer,
-            {
-              backgroundColor: isDark ? '#2A2A2A' : '#F2F2F2',
-            }
-          ]}
+          style={styles.profileIconContainer}
           activeOpacity={0.7}
           onPress={() => router.push('/profile')}>
-          <Ionicons name="person" size={24} color={colors.text} />
+          <Ionicons name="person" size={26} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
 
+      <View style={styles.content}>
       {/* 2 Main Options */}
       <View style={styles.row}>
         {/* Get a Ride Card */}
@@ -248,6 +214,7 @@ export default function HomeScreen() {
             <Text style={[styles.locationAddress, { color: colors.icon }]}>Code Street, London, UK</Text>
           </View>
         </TouchableOpacity>
+      </View>
       </View>
 
       {/* Ride Bottom Sheet */}
@@ -369,36 +336,40 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
-    alignItems: 'flex-start',
-    paddingHorizontal: 20,
   },
   header: {
+    backgroundColor: '#439959',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     width: '100%',
-    marginTop: 15,
-    marginBottom: 25,
+    paddingHorizontal: 24,
+    paddingBottom: 28,
   },
   headerLeft: {
     flex: 1,
   },
   logo: {
-    fontSize: 36,
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  location: {
-    fontSize: 14,
-    fontWeight: '400',
+    fontFamily: 'Poppins-ExtraBold',
+    fontSize: 48,
+    color: '#000000',
+    letterSpacing: 1.5,
+    lineHeight: 56,
   },
   profileIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+  },
+  content: {
+    flex: 1,
+    width: '100%',
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    alignItems: 'flex-start',
   },
   row: {
     flexDirection: 'row',

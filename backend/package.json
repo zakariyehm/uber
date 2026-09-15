@@ -1,0 +1,36 @@
+{
+  "name": "uber-backend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch --env-file=.env src/server.ts",
+    "start": "node --env-file=.env dist/server.js",
+    "build": "tsc -p tsconfig.json",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:migrate": "prisma migrate dev",
+    "db:push": "prisma db push",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:studio": "prisma studio",
+    "prisma:generate": "prisma generate"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.1.0",
+    "@fastify/jwt": "^9.1.0",
+    "bcryptjs": "^3.0.2",
+    "fastify": "^5.6.0",
+    "ioredis": "^5.8.0",
+    "prisma": "^6.16.2",
+    "@prisma/client": "^6.16.2",
+    "zod": "^4.1.11"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^24.5.2",
+    "tsx": "^4.20.5",
+    "typescript": "~5.9.2"
+  }
+}
