@@ -1,10 +1,10 @@
+import { HoldToConfirmButton } from '@/components/hold-to-confirm-button';
 import {
   completeDelivery,
   DeliveryRequest,
   getDeliveryRequestById,
   markAsPickedUp,
   markDriverArrived,
-  requestPayment,
   setActiveDelivery,
   startTrip,
 } from '@/utils/deliveryRequests';
@@ -22,6 +22,15 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+type StepAction = {
+  kind: 'hold' | 'tap' | 'wait';
+  label: string;
+  hint?: string;
+  color?: string;
+  run?: () => Promise<unknown>;
+  nextHome?: boolean;
+};
 
 export default function DeliveryDetailsScreen() {
   const insets = useSafeAreaInsets();
@@ -45,7 +54,7 @@ export default function DeliveryDetailsScreen() {
 
   useEffect(() => {
     void load();
-    const interval = setInterval(() => void load(), 4000);
+    const interval = setInterval(() => void load(), 2500);
     return () => clearInterval(interval);
   }, [load]);
 
@@ -67,48 +76,83 @@ export default function DeliveryDetailsScreen() {
     }
   };
 
-  const primaryAction = () => {
+  const currentStep = (): StepAction | null => {
     if (!request) return null;
+
     if (request.status === 'accepted' && !request.driverArrived) {
       return {
-        label: 'Arrived at pickup',
-        onPress: () => runAction(() => markDriverArrived(request.id)),
+        kind: 'hold',
+        label: 'Hold to confirm arrived at pickup',
+        color: '#03C167',
+        run: () => markDriverArrived(request.id),
       };
     }
-    if (request.status === 'accepted' && request.driverArrived) {
+
+    if (request.status === 'accepted' && request.driverArrived && !request.userConfirmedArrival) {
       return {
-        label: 'Confirm pickup',
-        onPress: () => runAction(() => markAsPickedUp(request.id)),
+        kind: 'wait',
+        label: 'Waiting for rider confirmation',
+        hint: 'Ask the sender to confirm you arrived in the Raac app',
       };
     }
-    if (request.status === 'picked_up') {
+
+    if (request.status === 'accepted' && request.userConfirmedArrival) {
       return {
+        kind: 'hold',
+        label: 'Hold to confirm package picked up',
+        color: '#000',
+        run: () => markAsPickedUp(request.id),
+      };
+    }
+
+    if (request.status === 'picked_up' && !request.userConfirmedPickup) {
+      return {
+        kind: 'wait',
+        label: 'Waiting for pickup confirmation',
+        hint: 'Rider must confirm you took the package in Raac',
+      };
+    }
+
+    if (request.status === 'picked_up' && request.userConfirmedPickup) {
+      return {
+        kind: 'tap',
         label: 'Start trip',
-        onPress: () => runAction(() => startTrip(request.id)),
+        color: '#000',
+        run: () => startTrip(request.id),
       };
     }
-    if (request.status === 'in_transit' && !request.paymentRequested) {
-      return {
-        label: 'Request payment',
-        onPress: () => runAction(() => requestPayment(request.id)),
-      };
-    }
+
     if (request.status === 'in_transit') {
       return {
-        label: 'Complete delivery',
-        onPress: () => runAction(() => completeDelivery(request.id), true),
+        kind: 'hold',
+        label: 'Hold to complete delivery',
+        color: '#03C167',
+        run: () => completeDelivery(request.id),
       };
     }
-    if (request.status === 'completed') {
+
+    if (request.status === 'completed' && !request.userConfirmedDelivery) {
       return {
-        label: 'Back to home',
-        onPress: () => router.replace('/(tabs)'),
+        kind: 'wait',
+        label: 'Waiting for recipient confirmation',
+        hint: 'Rider must confirm they received the package',
       };
     }
+
+    if (request.status === 'completed' && request.userConfirmedDelivery) {
+      return {
+        kind: 'tap',
+        label: 'Back to home',
+        color: '#000',
+        nextHome: true,
+        run: async () => undefined,
+      };
+    }
+
     return null;
   };
 
-  const action = primaryAction();
+  const step = currentStep();
 
   if (loading) {
     return (
@@ -132,7 +176,7 @@ export default function DeliveryDetailsScreen() {
   return (
     <View style={[styles.root, { paddingTop: insets.top + 12 }]}>
       <StatusBar barStyle="dark-content" />
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 120 }}>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 140 }}>
         <Text style={styles.status}>{request.status.replace('_', ' ').toUpperCase()}</Text>
         <Text style={styles.price}>${request.deliveryPrice}</Text>
 
@@ -155,33 +199,74 @@ export default function DeliveryDetailsScreen() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.label}>Recipient</Text>
-          <Text style={styles.value}>{request.recipientName}</Text>
-          <Text style={styles.meta}>{request.recipientNumber}</Text>
-          {request.senderName ? (
-            <>
-              <Text style={[styles.label, { marginTop: 12 }]}>Sender</Text>
-              <Text style={styles.value}>{request.senderName}</Text>
-              <Text style={styles.meta}>{request.senderPhone}</Text>
-            </>
-          ) : null}
-          <Text style={[styles.label, { marginTop: 12 }]}>Item</Text>
-          <Text style={styles.value}>{request.itemType}</Text>
+          <Text style={styles.label}>Sender</Text>
+          <Text style={styles.value}>{request.senderName || '—'}</Text>
+          <Text style={styles.meta}>{request.senderPhone || 'No phone'}</Text>
+
+          <Text style={[styles.label, { marginTop: 14 }]}>Recipient</Text>
+          <Text style={styles.value}>{request.recipientName || '—'}</Text>
+          <Text style={styles.meta}>{request.recipientNumber || 'No phone'}</Text>
+
+          <Text style={[styles.label, { marginTop: 14 }]}>Item type</Text>
+          <Text style={styles.value}>{request.itemType || '—'}</Text>
           <Text style={styles.meta}>{request.orderId}</Text>
+        </View>
+
+        <View style={styles.checklist}>
+          <Check done={!!request.driverArrived} label="Driver at pickup" />
+          <Check done={!!request.userConfirmedArrival} label="Rider confirmed arrival" />
+          <Check done={request.status !== 'accepted' && request.status !== 'pending'} label="Package picked up" />
+          <Check done={!!request.userConfirmedPickup} label="Rider confirmed package taken" />
+          <Check done={request.status === 'in_transit' || request.status === 'completed'} label="Trip started" />
+          <Check done={request.status === 'completed'} label="Driver marked delivered" />
+          <Check done={!!request.userConfirmedDelivery} label="Rider confirmed received" />
         </View>
       </ScrollView>
 
-      {action ? (
+      {step ? (
         <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
-          <TouchableOpacity style={styles.primaryBtn} disabled={busy} onPress={action.onPress}>
-            {busy ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.primaryText}>{action.label}</Text>
-            )}
-          </TouchableOpacity>
+          {step.hint ? <Text style={styles.hint}>{step.hint}</Text> : null}
+          {step.kind === 'wait' ? (
+            <View style={styles.waitBox}>
+              <ActivityIndicator color="#000" />
+              <Text style={styles.waitText}>{step.label}</Text>
+            </View>
+          ) : null}
+          {step.kind === 'hold' && step.run ? (
+            <HoldToConfirmButton
+              label={step.label}
+              color={step.color || '#000'}
+              disabled={busy}
+              onConfirm={() => runAction(step.run!)}
+            />
+          ) : null}
+          {step.kind === 'tap' && step.run ? (
+            <TouchableOpacity
+              style={[styles.primaryBtn, { backgroundColor: step.color || '#000' }]}
+              disabled={busy}
+              onPress={() => runAction(step.run!, step.nextHome)}>
+              {busy ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.primaryText}>{step.label}</Text>
+              )}
+            </TouchableOpacity>
+          ) : null}
         </View>
       ) : null}
+    </View>
+  );
+}
+
+function Check({ done, label }: { done: boolean; label: string }) {
+  return (
+    <View style={styles.checkRow}>
+      <Ionicons
+        name={done ? 'checkmark-circle' : 'ellipse-outline'}
+        size={18}
+        color={done ? '#03C167' : '#BBB'}
+      />
+      <Text style={[styles.checkLabel, done && styles.checkDone]}>{label}</Text>
     </View>
   );
 }
@@ -206,6 +291,17 @@ const styles = StyleSheet.create({
   value: { fontSize: 16, fontWeight: '600', color: '#000' },
   meta: { fontSize: 13, color: '#666', marginTop: 2 },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: '#E6E6E6', marginVertical: 14 },
+  checklist: {
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    padding: 16,
+    gap: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#E6E6E6',
+  },
+  checkRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  checkLabel: { fontSize: 14, color: '#777' },
+  checkDone: { color: '#111', fontWeight: '600' },
   footer: {
     position: 'absolute',
     left: 0,
@@ -214,11 +310,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 12,
     backgroundColor: '#FFFDF7',
+    gap: 10,
   },
-  primaryBtn: {
-    minHeight: 52,
+  hint: { fontSize: 13, color: '#666', textAlign: 'center' },
+  waitBox: {
+    minHeight: 54,
     borderRadius: 12,
-    backgroundColor: '#000',
+    backgroundColor: '#F1F1F1',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingHorizontal: 14,
+  },
+  waitText: { fontSize: 15, fontWeight: '700', color: '#333', flexShrink: 1 },
+  primaryBtn: {
+    minHeight: 54,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },

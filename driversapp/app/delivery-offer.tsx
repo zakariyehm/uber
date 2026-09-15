@@ -139,12 +139,16 @@ export default function DeliveryOfferScreen() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.label}>Item</Text>
-          <Text style={styles.value}>{request.itemType}</Text>
-          <Text style={[styles.label, { marginTop: 12 }]}>Recipient</Text>
-          <Text style={styles.value}>
-            {request.recipientName} · {request.recipientNumber}
-          </Text>
+          <Text style={styles.label}>Sender</Text>
+          <Text style={styles.value}>{request.senderName || '—'}</Text>
+          <Text style={styles.meta}>{request.senderPhone || 'No phone'}</Text>
+
+          <Text style={[styles.label, { marginTop: 14 }]}>Recipient</Text>
+          <Text style={styles.value}>{request.recipientName || '—'}</Text>
+          <Text style={styles.meta}>{request.recipientNumber || 'No phone'}</Text>
+
+          <Text style={[styles.label, { marginTop: 14 }]}>Item type</Text>
+          <Text style={styles.value}>{request.itemType || '—'}</Text>
         </View>
       </ScrollView>
 
@@ -183,6 +187,7 @@ const styles = StyleSheet.create({
   rowText: { flex: 1 },
   label: { fontSize: 12, color: '#888', marginBottom: 4, fontWeight: '600' },
   value: { fontSize: 16, color: '#000', fontWeight: '600' },
+  meta: { fontSize: 14, color: '#666', marginTop: 2 },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: '#E6E6E6', marginVertical: 14 },
   footer: {
     position: 'absolute',

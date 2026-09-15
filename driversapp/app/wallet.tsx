@@ -1,119 +1,140 @@
+import { apiRequest } from '@/lib/api';
+import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import {
+  ActivityIndicator,
+  Dimensions,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
+
+type WalletPayload = {
+  balance: string;
+  tripsCompleted: number;
+  tripsCancelled: number;
+  todayCompleted: number;
+  todayEarnings: string;
+  updatedAt?: string;
+};
+
+async function fetchDriverWallet() {
+  return apiRequest<WalletPayload>('/wallet/me');
+}
 
 export default function WalletScreen() {
   const insets = useSafeAreaInsets();
   const [isLoading, setIsLoading] = useState(true);
-  const [balance, setBalance] = useState<string | null>(null);
-  const [tripsCompleted, setTripsCompleted] = useState<number | null>(null);
-  const [tipsCanceled, setTipsCanceled] = useState<number | null>(null);
-  const [isBalanceVisible, setIsBalanceVisible] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [wallet, setWallet] = useState<WalletPayload | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isBalanceVisible, setIsBalanceVisible] = useState(true);
 
-  useEffect(() => {
-    // Simulate data loading
-    const loadData = async () => {
-      setIsLoading(true);
-      // Simulate API call
-      setTimeout(() => {
-        setBalance('854.36');
-        setTripsCompleted(32);
-        setTipsCanceled(5);
-        setIsLoading(false);
-      }, 1000);
-    };
-
-    loadData();
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setIsLoading(true);
+    setError(null);
+    try {
+      const data = await fetchDriverWallet();
+      setWallet(data);
+    } catch (err: any) {
+      setError(err.message || 'Could not load wallet');
+    } finally {
+      setIsLoading(false);
+      setRefreshing(false);
+    }
   }, []);
 
-  const toggleBalanceVisibility = () => {
-    setIsBalanceVisible(!isBalanceVisible);
-  };
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load])
+  );
+
+  const balance = wallet?.balance ?? '0.00';
+  const todayCompleted = wallet?.todayCompleted ?? 0;
+  const todayEarnings = wallet?.todayEarnings ?? '0.00';
+  const tripsCompleted = wallet?.tripsCompleted ?? 0;
+  const tripsCancelled = wallet?.tripsCancelled ?? 0;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Dark Overlay Box - Centered */}
-      <View style={styles.overlayContainer}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true);
+              void load(true);
+            }}
+          />
+        }>
         <View style={styles.darkBox}>
-          {/* Top row: Back icon and Eye icon */}
           <View style={styles.topRow}>
-            <TouchableOpacity
-              onPress={() => router.back()}
-              activeOpacity={0.7}
-              style={styles.backButton}>
-              <Ionicons 
-                name="arrow-back" 
-                size={24} 
-                color="#FFFFFF" 
-              />
+            <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={toggleBalanceVisibility}
-              activeOpacity={0.7}
-              style={styles.eyeButton}>
-              <Ionicons 
-                name={isBalanceVisible ? 'eye-outline' : 'eye-off-outline'} 
-                size={24} 
-                color="#FFFFFF" 
+              onPress={() => setIsBalanceVisible((v) => !v)}
+              style={styles.iconBtn}>
+              <Ionicons
+                name={isBalanceVisible ? 'eye-outline' : 'eye-off-outline'}
+                size={24}
+                color="#FFFFFF"
               />
             </TouchableOpacity>
           </View>
 
-          {/* Centered Balance */}
+          <Text style={styles.caption}>Available balance</Text>
           <View style={styles.balanceContainer}>
             <Text style={styles.priceText}>
-              {isBalanceVisible && balance ? `$${balance}` : '••••'}
+              {isBalanceVisible ? `$${balance}` : '••••••'}
             </Text>
           </View>
 
-          {/* TODAY */}
+          <View style={styles.divider} />
+
           <Text style={styles.todayText}>TODAY</Text>
+          <Text style={styles.infoText}>{todayCompleted} trips completed</Text>
+          <Text style={styles.infoText}>${todayEarnings} earned today</Text>
 
-          {/* Trips completed */}
-          {tripsCompleted !== null && (
-            <Text style={styles.infoText}>{tripsCompleted} trips completed</Text>
-          )}
+          <View style={styles.divider} />
 
-          {/* Tips Canceled */}
-          {tipsCanceled !== null && (
-            <Text style={styles.infoText}>{tipsCanceled} tips canceled</Text>
-          )}
+          <Text style={styles.infoText}>{tripsCompleted} trips completed (all time)</Text>
+          <Text style={styles.infoText}>{tripsCancelled} trips cancelled</Text>
 
-          {/* Withdrawal Balance Button */}
-          <TouchableOpacity 
-            style={styles.summaryButton}
-            activeOpacity={0.8}>
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+          <TouchableOpacity style={styles.summaryButton} activeOpacity={0.8}>
             <Text style={styles.summaryButtonText}>Withdrawal Balance</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </ScrollView>
 
-      {/* Loading Overlay */}
-      {isLoading && (
+      {isLoading ? (
         <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#00FF00" />
+          <ActivityIndicator size="large" color="#03C167" />
         </View>
-      )}
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  overlayContainer: {
-    flex: 1,
-    justifyContent: 'flex-start',
-    alignItems: 'center',
-    width: '100%',
+  container: { flex: 1, backgroundColor: '#FFFFFF' },
+  scroll: {
     paddingHorizontal: width * 0.025,
     paddingTop: width * 0.05,
+    paddingBottom: 40,
+    alignItems: 'center',
   },
   darkBox: {
     backgroundColor: '#000',
@@ -121,15 +142,7 @@ const styles = StyleSheet.create({
     maxWidth: 600,
     paddingHorizontal: width * 0.06,
     paddingVertical: width * 0.06,
-    borderRadius: 4,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 10,
+    borderRadius: 12,
   },
   topRow: {
     flexDirection: 'row',
@@ -137,46 +150,45 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: width * 0.04,
   },
-  backButton: {
-    padding: width * 0.01,
-  },
-  eyeButton: {
-    padding: width * 0.01,
+  iconBtn: { padding: width * 0.01 },
+  caption: {
+    color: 'rgba(255,255,255,0.65)',
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   balanceContainer: {
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 8,
     marginBottom: width * 0.04,
   },
   priceText: {
-    fontSize: width * 0.08,
-    fontWeight: '700',
-    color: '#00FF00',
+    fontSize: width * 0.1,
+    fontWeight: '800',
+    color: '#03C167',
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    marginVertical: 16,
   },
   todayText: {
     fontSize: width * 0.045,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#FFFFFF',
-    textAlign: 'center',
-    marginTop: width * 0.04,
-    marginBottom: width * 0.05,
+    marginBottom: 8,
   },
   infoText: {
     fontSize: width * 0.04,
     fontWeight: '400',
     color: '#FFFFFF',
-    marginTop: width * 0.04,
+    marginTop: 8,
   },
-  pointsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: width * 0.03,
-  },
-  pointsText: {
-    fontSize: width * 0.04,
-    fontWeight: '400',
-    color: '#FFFFFF',
-    marginLeft: width * 0.02,
+  errorText: {
+    color: '#FF6B6B',
+    marginTop: 12,
+    fontSize: 13,
   },
   summaryButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
@@ -185,7 +197,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: width * 0.05,
+    marginTop: width * 0.06,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.2)',
   },
@@ -201,10 +213,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    backgroundColor: 'rgba(255, 255, 255, 0.75)',
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 1000,
   },
 });
-

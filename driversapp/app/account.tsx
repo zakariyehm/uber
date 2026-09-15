@@ -44,12 +44,12 @@ export default function AccountScreen() {
   }, []);
 
   const accountOptions: AccountOption[] = [
+    { id: 'history', title: 'Trip History', subtitle: 'Past and active deliveries', icon: 'time-outline' },
     { id: 'wallet', title: 'Wallet', icon: 'wallet-outline' },
     { id: 'payment', title: 'Payment', icon: 'card-outline' },
     { id: 'tax', title: 'Tax info', icon: 'calculator-outline' },
     { id: 'uber', title: 'Manage Raac account', icon: 'person-outline' },
     { id: 'address', title: 'Edit address', icon: 'create-outline' },
-    { id: 'history', title: 'History', icon: 'time-outline' },
     { id: 'about', title: 'About', icon: 'information-circle-outline' },
     { id: 'privacy', title: 'Privacy', icon: 'lock-closed-outline' },
     { id: 'settings', title: 'App settings', icon: 'settings-outline' },

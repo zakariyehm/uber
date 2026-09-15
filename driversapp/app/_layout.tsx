@@ -15,7 +15,7 @@ export default function RootLayout() {
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal', animation: 'none' }} />
         <Stack.Screen name="account" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="wallet" options={{ headerShown: false, animation: 'none' }} />
-        <Stack.Screen name="history" options={{ headerShown: true, title: 'Trip history', animation: 'none' }} />
+        <Stack.Screen name="history" options={{ headerShown: true, title: 'Trip History', headerBackTitle: 'Back', animation: 'none' }} />
         <Stack.Screen name="login" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="signup" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="forgot-password" options={{ headerShown: false, animation: 'none' }} />

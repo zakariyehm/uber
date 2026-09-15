@@ -49,10 +49,16 @@ export async function getBusyActiveRequestId(driverUserId: string): Promise<stri
     return null;
   }
 
-  if (
-    delivery.status === DeliveryStatus.COMPLETED ||
-    delivery.status === DeliveryStatus.CANCELLED
-  ) {
+  if (delivery.status === DeliveryStatus.CANCELLED) {
+    await prisma.driverActiveDelivery.update({
+      where: { driverUserId },
+      data: { requestId: null },
+    });
+    return null;
+  }
+
+  // Stay busy until rider confirms receipt after complete
+  if (delivery.status === DeliveryStatus.COMPLETED && delivery.userConfirmedDelivery) {
     await prisma.driverActiveDelivery.update({
       where: { driverUserId },
       data: { requestId: null },
@@ -213,41 +219,80 @@ export async function applyDeliveryAction(
     return getById(id);
   }
 
+  const current = await prisma.deliveryRequest.findUnique({ where: { id } });
+  if (!current) {
+    const error = new Error('Delivery not found') as Error & { statusCode?: number };
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const fail = (message: string, statusCode = 409) => {
+    const error = new Error(message) as Error & { statusCode?: number };
+    error.statusCode = statusCode;
+    throw error;
+  };
+
   const data: Record<string, unknown> = {};
 
   switch (action) {
-    case 'picked_up':
-      data.status = DeliveryStatus.PICKED_UP;
-      data.pickedUpAt = now;
-      break;
-    case 'start':
-      data.status = DeliveryStatus.IN_TRANSIT;
-      data.startedAt = now;
-      break;
-    case 'complete':
-      data.status = DeliveryStatus.COMPLETED;
-      data.completedAt = now;
-      break;
-    case 'request_payment':
-      data.paymentRequested = true;
-      data.paymentRequestedAt = now;
-      break;
-    case 'mark_arrived':
+    case 'mark_arrived': {
+      if (current.status !== DeliveryStatus.ACCEPTED) fail('Can only mark arrived after accept');
       data.driverArrived = true;
       data.driverArrivedAt = now;
       break;
-    case 'confirm_arrival':
+    }
+    case 'confirm_arrival': {
+      if (!current.driverArrived) fail('Wait until the driver marks arrived');
       data.userConfirmedArrival = true;
       data.userConfirmedArrivalAt = now;
       break;
-    case 'cancel':
+    }
+    case 'picked_up': {
+      if (current.status !== DeliveryStatus.ACCEPTED) fail('Pickup only after accept');
+      if (!current.userConfirmedArrival) fail('Wait for the rider to confirm you arrived');
+      data.status = DeliveryStatus.PICKED_UP;
+      data.pickedUpAt = now;
+      break;
+    }
+    case 'confirm_pickup': {
+      if (current.status !== DeliveryStatus.PICKED_UP) fail('Confirm pickup only after driver collects the item');
+      data.userConfirmedPickup = true;
+      data.userConfirmedPickupAt = now;
+      break;
+    }
+    case 'start': {
+      if (current.status !== DeliveryStatus.PICKED_UP) fail('Start only after pickup');
+      if (!current.userConfirmedPickup) fail('Wait for the rider to confirm the package was taken');
+      data.status = DeliveryStatus.IN_TRANSIT;
+      data.startedAt = now;
+      break;
+    }
+    case 'request_payment': {
+      if (current.status !== DeliveryStatus.IN_TRANSIT) fail('Payment only during trip');
+      data.paymentRequested = true;
+      data.paymentRequestedAt = now;
+      break;
+    }
+    case 'complete': {
+      if (current.status !== DeliveryStatus.IN_TRANSIT) fail('Complete only during an active trip');
+      data.status = DeliveryStatus.COMPLETED;
+      data.completedAt = now;
+      break;
+    }
+    case 'confirm_received': {
+      if (current.status !== DeliveryStatus.COMPLETED) fail('Confirm received only after driver completes delivery');
+      if (current.userConfirmedDelivery) fail('Delivery already confirmed');
+      data.userConfirmedDelivery = true;
+      data.userConfirmedDeliveryAt = now;
+      break;
+    }
+    case 'cancel': {
       data.status = DeliveryStatus.CANCELLED;
       data.cancelledAt = now;
       break;
+    }
     default: {
-      const error = new Error('Unknown delivery action') as Error & { statusCode?: number };
-      error.statusCode = 400;
-      throw error;
+      fail('Unknown delivery action', 400);
     }
   }
 
@@ -256,10 +301,25 @@ export async function applyDeliveryAction(
     data,
   });
 
-  if (action === 'complete' || action === 'cancel') {
+  // Clear active trip after rider confirms receipt, or on cancel
+  if (action === 'confirm_received' || action === 'cancel') {
     await prisma.driverActiveDelivery.updateMany({
       where: { requestId: id },
       data: { requestId: null },
+    });
+  }
+
+  // Credit wallet once the rider confirms they received the package
+  if (action === 'confirm_received' && row.driverUserId) {
+    const { creditDriverForDelivery } = await import('../wallet/wallet.service.ts');
+    await creditDriverForDelivery(row.driverUserId, row.deliveryPrice);
+  }
+
+  if (action === 'cancel' && row.driverUserId) {
+    await prisma.driverWallet.upsert({
+      where: { driverUserId: row.driverUserId },
+      update: { tripsCancelled: { increment: 1 } },
+      create: { driverUserId: row.driverUserId, tripsCancelled: 1 },
     });
   }
 

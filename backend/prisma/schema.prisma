@@ -117,6 +117,10 @@ model DeliveryRequest {
   driverArrivedAt        DateTime?
   userConfirmedArrival   Boolean        @default(false)
   userConfirmedArrivalAt DateTime?
+  userConfirmedPickup    Boolean        @default(false)
+  userConfirmedPickupAt  DateTime?
+  userConfirmedDelivery  Boolean        @default(false)
+  userConfirmedDeliveryAt DateTime?
   createdAt              DateTime       @default(now())
   acceptedAt             DateTime?
   pickedUpAt             DateTime?

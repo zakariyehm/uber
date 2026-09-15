@@ -28,6 +28,10 @@ export interface DeliveryRequest {
   driverArrivedAt?: string;
   userConfirmedArrival?: boolean;
   userConfirmedArrivalAt?: string;
+  userConfirmedPickup?: boolean;
+  userConfirmedPickupAt?: string;
+  userConfirmedDelivery?: boolean;
+  userConfirmedDeliveryAt?: string;
 }
 
 export const createDeliveryRequest = async (orderData: {
@@ -116,6 +120,9 @@ export const completeDelivery = async (requestId: string) => patchDelivery(reque
 export const requestPayment = async (requestId: string) => patchDelivery(requestId, 'request_payment');
 export const markDriverArrived = async (requestId: string) => patchDelivery(requestId, 'mark_arrived');
 export const confirmDriverArrival = async (requestId: string) => patchDelivery(requestId, 'confirm_arrival');
+export const confirmPackagePickup = async (requestId: string) => patchDelivery(requestId, 'confirm_pickup');
+export const confirmDeliveryReceived = async (requestId: string) =>
+  patchDelivery(requestId, 'confirm_received');
 
 export const setActiveDelivery = async (requestId: string | null): Promise<void> => {
   await apiRequest('/deliveries/drivers/me/active', {

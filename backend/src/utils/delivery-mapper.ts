@@ -36,6 +36,10 @@ export type DeliveryDto = {
   driverArrivedAt?: string;
   userConfirmedArrival: boolean;
   userConfirmedArrivalAt?: string;
+  userConfirmedPickup: boolean;
+  userConfirmedPickupAt?: string;
+  userConfirmedDelivery: boolean;
+  userConfirmedDeliveryAt?: string;
 };
 
 export function toDeliveryDto(row: DbDelivery): DeliveryDto {
@@ -65,5 +69,9 @@ export function toDeliveryDto(row: DbDelivery): DeliveryDto {
     driverArrivedAt: toIso(row.driverArrivedAt),
     userConfirmedArrival: row.userConfirmedArrival,
     userConfirmedArrivalAt: toIso(row.userConfirmedArrivalAt),
+    userConfirmedPickup: row.userConfirmedPickup,
+    userConfirmedPickupAt: toIso(row.userConfirmedPickupAt),
+    userConfirmedDelivery: row.userConfirmedDelivery,
+    userConfirmedDeliveryAt: toIso(row.userConfirmedDeliveryAt),
   };
 }

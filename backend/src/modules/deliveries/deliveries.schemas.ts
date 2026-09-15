@@ -24,6 +24,8 @@ export const deliveryActionSchema = z.object({
     'request_payment',
     'mark_arrived',
     'confirm_arrival',
+    'confirm_pickup',
+    'confirm_received',
     'cancel',
   ]),
   driverId: z.string().optional(),

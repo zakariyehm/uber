@@ -6,6 +6,7 @@ import { Prisma } from '@prisma/client';
 import { env } from './config/env.ts';
 import { authRoutes } from './modules/auth/auth.routes.ts';
 import { deliveryRoutes } from './modules/deliveries/deliveries.routes.ts';
+import { walletRoutes } from './modules/wallet/wallet.service.ts';
 
 declare module '@fastify/jwt' {
   interface FastifyJWT {
@@ -24,6 +25,7 @@ export async function buildApp() {
 
   await app.register(authRoutes, { prefix: '/auth' });
   await app.register(deliveryRoutes, { prefix: '/deliveries' });
+  await app.register(walletRoutes, { prefix: '/wallet' });
 
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ZodError) {
