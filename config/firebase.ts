@@ -2,11 +2,17 @@
 // Replace these values with your actual Firebase project credentials
 // Get them from: Firebase Console > Project Settings > Your apps
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FirebaseApp, getApps, initializeApp } from 'firebase/app';
-import { Auth, getAuth, initializeAuth, getReactNativePersistence } from 'firebase/auth';
+import {
+  Auth,
+  getAuth,
+  initializeAuth,
+  // @ts-expect-error Firebase RN persistence helper is omitted from public types.
+  getReactNativePersistence,
+} from 'firebase/auth';
 import { Firestore, getFirestore } from 'firebase/firestore';
 import { FirebaseStorage, getStorage } from 'firebase/storage';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Your Firebase configuration
 // TODO: Get the full client SDK config from Firebase Console:
