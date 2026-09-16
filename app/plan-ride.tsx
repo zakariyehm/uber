@@ -3,8 +3,9 @@ import { BANADIR_DISTRICTS } from '@/constants/somalia';
 import { AppColors } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import {
+  Dimensions,
   FlatList,
   KeyboardAvoidingView,
   Modal,
@@ -20,16 +21,10 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const DISTRICTS = [...BANADIR_DISTRICTS];
+const SCREEN_HEIGHT = Dimensions.get('window').height;
+const SHEET_HEIGHT = Math.round(SCREEN_HEIGHT * 0.68);
 
 type SearchTarget = 'pickup' | 'dropoff' | null;
-
-function filterDistricts(query: string) {
-  const q = query.trim().toLowerCase();
-  if (!q) return DISTRICTS;
-  const starts = DISTRICTS.filter((d) => d.toLowerCase().startsWith(q));
-  const rest = DISTRICTS.filter((d) => !d.toLowerCase().startsWith(q) && d.toLowerCase().includes(q));
-  return [...starts, ...rest];
-}
 
 export default function PlanRideScreen() {
   const insets = useSafeAreaInsets();
@@ -41,10 +36,9 @@ export default function PlanRideScreen() {
   const [dropoffDistrict, setDropoffDistrict] = useState('');
   const [dropoffNeighborhood, setDropoffNeighborhood] = useState('');
   const [searchTarget, setSearchTarget] = useState<SearchTarget>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [highlighted, setHighlighted] = useState<string | null>(null);
   const [showDeliverySheet, setShowDeliverySheet] = useState(false);
 
-  const filteredDistricts = useMemo(() => filterDistricts(searchQuery), [searchQuery]);
   const popupVisible = searchTarget !== null;
 
   const canContinue =
@@ -52,13 +46,14 @@ export default function PlanRideScreen() {
     Boolean(dropoffDistrict && dropoffNeighborhood.trim().length >= 2);
 
   const openDistrictPopup = (target: 'pickup' | 'dropoff') => {
+    const current = target === 'pickup' ? pickupDistrict : dropoffDistrict;
     setSearchTarget(target);
-    setSearchQuery('');
+    setHighlighted(current || null);
   };
 
   const closeDistrictPopup = () => {
     setSearchTarget(null);
-    setSearchQuery('');
+    setHighlighted(null);
   };
 
   const clearDistrict = (target: 'pickup' | 'dropoff') => {
@@ -72,12 +67,13 @@ export default function PlanRideScreen() {
     openDistrictPopup(target);
   };
 
-  const selectDistrict = (district: string) => {
+  const confirmDistrict = () => {
+    if (!highlighted || !searchTarget) return;
     if (searchTarget === 'pickup') {
-      setPickupDistrict(district);
+      setPickupDistrict(highlighted);
       setPickupNeighborhood('');
-    } else if (searchTarget === 'dropoff') {
-      setDropoffDistrict(district);
+    } else {
+      setDropoffDistrict(highlighted);
       setDropoffNeighborhood('');
     }
     closeDistrictPopup();
@@ -171,7 +167,7 @@ export default function PlanRideScreen() {
 
       <View style={[styles.content, { paddingBottom: insets.bottom + 12 }]}>
         <Text style={styles.title}>{params.rideType ? `Plan your ${params.rideType}` : 'Plan your ride'}</Text>
-        <Text style={styles.subtitle}>Dooro degmo popup-ka, kadib geli xaafadda.</Text>
+        <Text style={styles.subtitle}>Dooro degmo, kadib geli xaafadda.</Text>
 
         <View style={styles.card}>
           {renderLocationRow(
@@ -193,77 +189,65 @@ export default function PlanRideScreen() {
 
         <View style={styles.spacer} />
 
-        {canContinue ? (
-          <TouchableOpacity style={styles.continueBtn} activeOpacity={0.85} onPress={handleContinue}>
-            <Text style={styles.continueText}>Continue</Text>
-          </TouchableOpacity>
-        ) : null}
+        <TouchableOpacity
+          style={[styles.continueBtn, !canContinue && styles.continueBtnDisabled]}
+          activeOpacity={0.85}
+          disabled={!canContinue}
+          onPress={handleContinue}>
+          <Text style={styles.continueText}>Continue</Text>
+        </TouchableOpacity>
       </View>
 
       <Modal
         visible={popupVisible}
         transparent
-        animationType="fade"
-        onRequestClose={closeDistrictPopup}>
+        animationType="slide"
+        onRequestClose={closeDistrictPopup}
+        statusBarTranslucent>
         <View style={styles.modalRoot}>
           <Pressable style={styles.modalBackdrop} onPress={closeDistrictPopup} />
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            style={[styles.modalCardWrap, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-            <View style={styles.modalCard}>
-              <View style={styles.modalHandle} />
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>
-                  {searchTarget === 'pickup' ? 'Dooro pickup degmo' : 'Dooro drop-off degmo'}
-                </Text>
-                <TouchableOpacity onPress={closeDistrictPopup} hitSlop={10} style={styles.closeBtn}>
-                  <Ionicons name="close" size={20} color="#111" />
-                </TouchableOpacity>
-              </View>
+          <View style={[styles.sheet, { height: SHEET_HEIGHT, paddingBottom: Math.max(insets.bottom, 14) }]}>
+            <Text style={styles.sheetTitle}>
+              {searchTarget === 'pickup' ? 'Choose pickup district' : 'Choose drop-off district'}
+            </Text>
 
-              <View style={styles.searchBox}>
-                <Ionicons name="search" size={18} color="#8A8A8A" />
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder="Qor magaca degmada..."
-                  placeholderTextColor="#9A9A9A"
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  autoFocus
-                  autoCapitalize="words"
-                  autoCorrect={false}
-                  clearButtonMode="while-editing"
-                />
-              </View>
-
-              <FlatList
-                data={filteredDistricts}
-                keyExtractor={(item) => item}
-                keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator={false}
-                style={styles.list}
-                contentContainerStyle={styles.listContent}
-                ListEmptyComponent={
-                  <Text style={styles.emptyText}>Degmo lama helin. Isku day magac kale.</Text>
-                }
-                renderItem={({ item }) => (
+            <FlatList
+              data={DISTRICTS}
+              keyExtractor={(item) => item}
+              showsVerticalScrollIndicator={false}
+              style={styles.list}
+              contentContainerStyle={styles.listContent}
+              renderItem={({ item }) => {
+                const selected = highlighted === item;
+                return (
                   <TouchableOpacity
-                    style={styles.listItem}
-                    activeOpacity={0.7}
-                    onPress={() => selectDistrict(item)}>
-                    <View style={styles.listIcon}>
-                      <Ionicons name="location-outline" size={18} color="#111" />
+                    style={[styles.optionRow, selected && styles.optionRowSelected]}
+                    activeOpacity={0.85}
+                    onPress={() => setHighlighted(item)}>
+                    <View style={styles.optionIcon}>
+                      <Ionicons name="location" size={20} color="#000" />
                     </View>
-                    <View style={styles.listCopy}>
-                      <Text style={styles.listTitle}>{item}</Text>
-                      <Text style={styles.listMeta}>Banadir · Mogadishu</Text>
+                    <View style={styles.optionCopy}>
+                      <Text style={styles.optionTitle}>{item}</Text>
+                      <Text style={styles.optionMeta}>Banadir · Mogadishu</Text>
                     </View>
-                    <Ionicons name="chevron-forward" size={16} color="#C0C0C0" />
                   </TouchableOpacity>
-                )}
-              />
+                );
+              }}
+            />
+
+            <View style={styles.sheetFooter}>
+              <TouchableOpacity
+                style={[styles.chooseBtn, !highlighted && styles.chooseBtnDisabled]}
+                disabled={!highlighted}
+                activeOpacity={0.85}
+                onPress={confirmDistrict}>
+                <Text style={styles.chooseBtnText}>
+                  {highlighted ? `Choose ${highlighted}` : 'Choose a district'}
+                </Text>
+              </TouchableOpacity>
             </View>
-          </KeyboardAvoidingView>
+          </View>
         </View>
       </Modal>
 
@@ -307,11 +291,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF',
     paddingHorizontal: 14,
     paddingVertical: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
   },
   rowBlock: {
     paddingVertical: 12,
@@ -404,116 +383,106 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  continueBtnDisabled: {
+    backgroundColor: '#D0D0D0',
+  },
   continueText: {
     color: '#FFF',
     fontSize: 17,
     fontWeight: '700',
   },
+
+  // Uber-style bottom sheet
   modalRoot: {
     flex: 1,
     justifyContent: 'flex-end',
   },
   modalBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: 'rgba(0,0,0,0.35)',
   },
-  modalCardWrap: {
-    width: '100%',
-  },
-  modalCard: {
-    backgroundColor: '#FFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '78%',
-    minHeight: '55%',
+  sheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingTop: 18,
     paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: -4 },
+    elevation: 20,
   },
-  modalHandle: {
-    alignSelf: 'center',
-    width: 42,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#D8D8D8',
-    marginBottom: 12,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  modalTitle: {
-    fontSize: 18,
+  sheetTitle: {
+    fontSize: 22,
     fontWeight: '800',
-    color: '#111',
-  },
-  closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#F2F2F2',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  searchBox: {
-    minHeight: 48,
-    borderRadius: 12,
-    backgroundColor: '#F4F4F4',
-    paddingHorizontal: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: '#000',
-    fontWeight: '500',
-    paddingVertical: 10,
+    color: '#000000',
+    textAlign: 'center',
+    marginBottom: 14,
   },
   list: {
-    flexGrow: 0,
+    flex: 1,
   },
   listContent: {
-    paddingBottom: 20,
+    paddingBottom: 8,
   },
-  listItem: {
+  optionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#ECECEC',
+    minHeight: 72,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 2.5,
+    borderColor: 'transparent',
+    marginBottom: 4,
+    backgroundColor: '#FFFFFF',
   },
-  listIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F2F2F2',
+  optionRowSelected: {
+    borderColor: '#000000',
+    backgroundColor: '#FFFFFF',
+  },
+  optionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F1F1F1',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  listCopy: {
+  optionCopy: {
     flex: 1,
   },
-  listTitle: {
-    fontSize: 16,
+  optionTitle: {
+    fontSize: 17,
     fontWeight: '700',
-    color: '#111',
+    color: '#000000',
   },
-  listMeta: {
-    marginTop: 2,
+  optionMeta: {
+    marginTop: 3,
     fontSize: 13,
-    color: '#8A8A8A',
+    color: '#6B6B6B',
     fontWeight: '500',
   },
-  emptyText: {
-    marginTop: 24,
-    textAlign: 'center',
-    color: '#8A8A8A',
-    fontSize: 14,
+  sheetFooter: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#E8E8E8',
+    paddingTop: 12,
+  },
+  chooseBtn: {
+    minHeight: 54,
+    borderRadius: 12,
+    backgroundColor: '#000000',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chooseBtnDisabled: {
+    backgroundColor: '#D0D0D0',
+  },
+  chooseBtnText: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '700',
   },
 });

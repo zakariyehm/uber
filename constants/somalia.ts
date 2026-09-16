@@ -21,10 +21,11 @@ export const SOMALIA_STATES = [
   'Woqooyi Galbeed',
 ] as const;
 
-/** Pickup for Delivery State is always Banadir (Mogadishu). */
+/** All Banadir (Mogadishu) districts — 20 official districts. */
 export const BANADIR_DISTRICTS = [
   'Abdiaziz',
   'Bondhere',
+  'Darussalam',
   'Daynile',
   'Dharkenley',
   'Garasbaaley',
@@ -36,12 +37,11 @@ export const BANADIR_DISTRICTS = [
   'Howlwadag',
   'Karaan',
   'Kaxda',
-  'Madina',
   'Shangaani',
   'Shibis',
   'Waberi',
-  'Wadajir',
-  'Wardhiigley',
+  'Wadajir (Madina)',
+  'Warta Nabada',
   'Yaaqshiid',
 ] as const;
 
