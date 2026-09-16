@@ -135,7 +135,10 @@ export async function authRoutes(app: FastifyInstance) {
   });
 
   app.get('/me', { preHandler: authenticate }, async (request, reply) => {
-    const user = await prisma.user.findUnique({ where: { id: request.user.sub } });
+    const user = await prisma.user.findUnique({
+      where: { id: request.user.sub },
+      include: { driverProfile: true, riderProfile: true },
+    });
     if (!user || !user.isActive) {
       return reply.code(401).send({ error: 'Unauthorized', code: 'auth/unauthorized' });
     }

@@ -331,6 +331,7 @@ export async function createDriver(input: {
   password: string;
   firstName?: string;
   lastName?: string;
+  vehicleType: 'MOTORCYCLE' | 'BICYCLE';
 }) {
   const phone = somaliaPhone(input.phone);
   if (!/^\+252\d{8,10}$/.test(phone)) {
@@ -346,12 +347,14 @@ export async function createDriver(input: {
     firstName: input.firstName?.trim() || undefined,
     lastName: input.lastName?.trim() || undefined,
     role: 'DRIVER',
+    vehicleType: input.vehicleType,
   });
 
   return {
     ...toPublicUser(user),
     name: displayName(user),
     isActive: user.isActive,
+    vehicleType: user.driverProfile?.vehicleType || input.vehicleType,
   };
 }
 
@@ -420,6 +423,7 @@ export async function listUsers(input: {
           ? Number(user.driverProfile?.rating ?? 0).toFixed(2)
           : Number(user.riderProfile?.rating ?? 0).toFixed(2),
       isOnline: Boolean(user.driverProfile?.isOnline),
+      vehicleType: user.role === UserRole.DRIVER ? user.driverProfile?.vehicleType || 'MOTORCYCLE' : null,
       tripCount:
         user.role === UserRole.DRIVER ? user._count.driverDeliveries : user._count.riderDeliveries,
       todayBalance: user.wallet ? moneyStr(user.wallet.balance) : null,
@@ -430,7 +434,7 @@ export async function listUsers(input: {
 
 export async function patchUser(
   id: string,
-  input: { isActive?: boolean; forceOffline?: boolean }
+  input: { isActive?: boolean; forceOffline?: boolean; vehicleType?: 'MOTORCYCLE' | 'BICYCLE' }
 ) {
   const user = await prisma.user.findUnique({
     where: { id },
@@ -463,6 +467,13 @@ export async function patchUser(
     });
   }
 
+  if (updated.role === UserRole.DRIVER && input.vehicleType) {
+    await prisma.driverProfile.update({
+      where: { userId: id },
+      data: { vehicleType: input.vehicleType },
+    });
+  }
+
   return {
     id: updated.id,
     role: updated.role,
@@ -470,7 +481,52 @@ export async function patchUser(
     phone: updated.phone,
     isActive: updated.isActive,
     isOnline: shouldOffline ? false : Boolean(updated.driverProfile?.isOnline),
+    vehicleType: input.vehicleType || updated.driverProfile?.vehicleType || null,
   };
+}
+
+export async function deleteDriver(id: string) {
+  const user = await prisma.user.findUnique({
+    where: { id },
+    include: { driverProfile: true },
+  });
+  if (!user || user.role !== UserRole.DRIVER) {
+    throw adminError('Driver not found', 404);
+  }
+
+  const liveTrips = await prisma.deliveryRequest.findMany({
+    where: {
+      driverUserId: id,
+      status: {
+        in: [DeliveryStatus.ACCEPTED, DeliveryStatus.PICKED_UP, DeliveryStatus.IN_TRANSIT],
+      },
+    },
+    select: { id: true },
+  });
+  for (const trip of liveTrips) {
+    await cancelTrip(trip.id, 'driver_deleted');
+  }
+
+  if (user.driverProfile?.isOnline) {
+    await prisma.driverProfile.update({
+      where: { userId: id },
+      data: { isOnline: false },
+    });
+  }
+
+  await prisma.$transaction([
+    prisma.deliveryRequest.updateMany({
+      where: { offeredToDriverId: id, status: DeliveryStatus.PENDING },
+      data: { offeredToDriverId: null, offerExpiresAt: null },
+    }),
+    prisma.deliveryRequest.updateMany({
+      where: { driverUserId: id },
+      data: { driverUserId: null },
+    }),
+    prisma.user.delete({ where: { id } }),
+  ]);
+
+  return { ok: true, id };
 }
 
 export async function listPayments(input: {

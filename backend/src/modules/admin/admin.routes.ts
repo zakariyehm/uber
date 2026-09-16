@@ -4,6 +4,7 @@ import { requireAdmin } from '../../middleware/authenticate.ts';
 import {
   cancelTrip,
   createDriver,
+  deleteDriver,
   getLiveOps,
   getOverview,
   getTrip,
@@ -15,6 +16,7 @@ import {
 } from './admin.service.ts';
 import {
   createServiceMethod,
+  deleteServiceMethod,
   listAdminMethods,
   patchServiceMethod,
 } from '../catalog/catalog.service.ts';
@@ -31,6 +33,7 @@ const listQuery = z.object({
 const patchUserSchema = z.object({
   isActive: z.boolean().optional(),
   forceOffline: z.boolean().optional(),
+  vehicleType: z.enum(['MOTORCYCLE', 'BICYCLE']).optional(),
 });
 
 const cancelSchema = z.object({
@@ -42,6 +45,7 @@ const createDriverSchema = z.object({
   password: z.string().min(6).max(64),
   firstName: z.string().min(1).max(40).optional(),
   lastName: z.string().min(1).max(40).optional(),
+  vehicleType: z.enum(['MOTORCYCLE', 'BICYCLE']),
 });
 
 const methodQuery = z.object({
@@ -69,6 +73,7 @@ const createMethodSchema = z.object({
   price: priceSchema,
   icon: z.string().optional(),
   sortOrder: z.coerce.number().int().optional(),
+  vehicleType: z.enum(['MOTORCYCLE', 'BICYCLE']).optional(),
 });
 
 const patchMethodSchema = z.object({
@@ -77,6 +82,7 @@ const patchMethodSchema = z.object({
   price: priceSchema.optional(),
   isActive: z.boolean().optional(),
   sortOrder: z.coerce.number().int().optional(),
+  vehicleType: z.enum(['MOTORCYCLE', 'BICYCLE']).optional(),
 });
 
 export async function adminRoutes(app: FastifyInstance) {
@@ -118,11 +124,17 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   app.post('/drivers', async (request, reply) => {
-    const body = createDriverSchema.parse(request.body);
     try {
+      const body = createDriverSchema.parse(request.body ?? {});
       const driver = await createDriver(body);
       return reply.code(201).send(driver);
     } catch (error: any) {
+      if (error?.name === 'ZodError') {
+        return reply.code(400).send({
+          error: error.issues?.[0]?.message || 'Choose motorcycle or bicycle',
+          details: error.issues,
+        });
+      }
       return reply
         .code(error.statusCode || 400)
         .send({ error: error.message || 'Could not create driver', code: error.code });
@@ -138,6 +150,17 @@ export async function adminRoutes(app: FastifyInstance) {
       return reply
         .code(error.statusCode || 400)
         .send({ error: error.message || 'Could not update user' });
+    }
+  });
+
+  app.delete('/drivers/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    try {
+      return await deleteDriver(id);
+    } catch (error: any) {
+      return reply
+        .code(error.statusCode || 400)
+        .send({ error: error.message || 'Could not delete driver' });
     }
   });
 
@@ -182,6 +205,15 @@ export async function adminRoutes(app: FastifyInstance) {
         });
       }
       return reply.code(error.statusCode || 400).send({ error: error.message || 'Could not update method' });
+    }
+  });
+
+  app.delete('/methods/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    try {
+      return await deleteServiceMethod(id);
+    } catch (error: any) {
+      return reply.code(error.statusCode || 400).send({ error: error.message || 'Could not delete method' });
     }
   });
 }

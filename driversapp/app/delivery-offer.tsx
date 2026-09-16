@@ -43,6 +43,15 @@ export default function DeliveryOfferScreen() {
         if (params.requestId) {
           const byId = await getDeliveryRequestById(params.requestId);
           if (byId && byId.status === 'pending') {
+            const driver = await getStoredUser();
+            if (
+              driver?.vehicleType &&
+              byId.vehicleType &&
+              driver.vehicleType !== byId.vehicleType
+            ) {
+              if (!cancelled) setRequest(null);
+              return;
+            }
             if (!cancelled) setRequest(byId);
             return;
           }
@@ -187,6 +196,8 @@ export default function DeliveryOfferScreen() {
   });
 
   const serviceLabel = (request.deliveryMethod || 'Delivery').replace('Delivery ', '');
+  const vehicleLabel = request.vehicleType === 'BICYCLE' ? 'Bicycle' : 'Motorcycle';
+  const vehicleIcon = request.vehicleType === 'BICYCLE' ? 'bicycle' : 'speedometer-outline';
 
   return (
     <View style={styles.root}>
@@ -200,8 +211,8 @@ export default function DeliveryOfferScreen() {
 
         <View style={styles.topBlock}>
           <View style={styles.serviceBadge}>
-            <Ionicons name="cube" size={12} color="#fff" />
-            <Text style={styles.serviceBadgeText}>{serviceLabel}</Text>
+            <Ionicons name={vehicleIcon} size={12} color="#fff" />
+            <Text style={styles.serviceBadgeText}>{serviceLabel} · {vehicleLabel}</Text>
           </View>
 
           <Text style={styles.price}>${request.deliveryPrice}</Text>

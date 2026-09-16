@@ -20,6 +20,19 @@ declare module '@fastify/jwt' {
 export async function buildApp() {
   const app = Fastify({ logger: true });
 
+  app.removeContentTypeParser('application/json');
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (_request, body, done) => {
+    if (!body) {
+      done(null, {});
+      return;
+    }
+    try {
+      done(null, JSON.parse(String(body)));
+    } catch (error) {
+      done(error as Error, undefined);
+    }
+  });
+
   await app.register(cors, {
     origin: true,
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],

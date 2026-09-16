@@ -78,19 +78,27 @@ model RiderProfile {
   createdAt   DateTime @default(now())
 }
 
+enum VehicleType {
+  MOTORCYCLE
+  BICYCLE
+}
+
 model DriverProfile {
-  userId        String   @id
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String      @id
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   displayName   String?
-  rating        Decimal  @default(3.0) @db.Decimal(3, 2)
-  isOnline      Boolean  @default(false)
+  rating        Decimal     @default(3.0) @db.Decimal(3, 2)
+  isOnline      Boolean     @default(false)
+  vehicleType   VehicleType @default(MOTORCYCLE)
   licenseNumber String?
   vehicleMake   String?
   vehicleModel  String?
   vehiclePlate  String?
   address       String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([isOnline, vehicleType])
 }
 
 model UserFile {
@@ -118,6 +126,7 @@ model DeliveryRequest {
   senderPhone            String?
   itemType               String
   deliveryMethod         String
+  vehicleType            VehicleType    @default(MOTORCYCLE)
   deliveryPrice          Decimal        @db.Decimal(10, 2)
   referenceId            String?
   deliveryTimeLabel      String?
@@ -165,6 +174,7 @@ model DeliveryRequest {
   @@index([status])
   @@index([driverUserId])
   @@index([offeredToDriverId, status])
+  @@index([status, vehicleType])
 }
 
 model DriverActiveDelivery {
@@ -223,17 +233,18 @@ enum ServiceCategory {
 }
 
 model ServiceMethod {
-  id        String          @id @default(uuid())
-  category  ServiceCategory
-  slug      String          @unique
-  name      String
-  icon      String          @default("motorbike")
-  timeLabel String
-  price     Decimal         @db.Decimal(10, 2)
-  isActive  Boolean         @default(true)
-  sortOrder Int             @default(0)
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
+  id          String          @id @default(uuid())
+  category    ServiceCategory
+  slug        String          @unique
+  name        String
+  icon        String          @default("motorbike")
+  timeLabel   String
+  price       Decimal         @db.Decimal(10, 2)
+  vehicleType VehicleType     @default(MOTORCYCLE)
+  isActive    Boolean         @default(true)
+  sortOrder   Int             @default(0)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
 
   @@index([category, isActive, sortOrder])
 }

@@ -3,7 +3,7 @@
 import { Shell } from "@/components/Shell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { api, errorMessage } from "@/lib/api";
-import { money } from "@/lib/format";
+import { money, vehicleLabel, VEHICLE_TYPES } from "@/lib/format";
 import type { AdminUserRow } from "@/lib/types";
 import { useEffect, useState } from "react";
 
@@ -18,8 +18,15 @@ export function UsersBoard({ role }: { role: "DRIVER" | "RIDER" }) {
   const [data, setData] = useState<{ users: AdminUserRow[]; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({ firstName: "", lastName: "", phone: "", password: "" });
-  const [created, setCreated] = useState<{ phone: string; password: string; name: string } | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    firstName: "",
+    lastName: "",
+    phone: "",
+    password: "",
+    vehicleType: "" as "" | "MOTORCYCLE" | "BICYCLE",
+  });
+  const [created, setCreated] = useState<{ phone: string; password: string; name: string; vehicleType: string } | null>(null);
 
   const load = async () => {
     try {
@@ -38,7 +45,10 @@ export function UsersBoard({ role }: { role: "DRIVER" | "RIDER" }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role, q, page]);
 
-  const patch = async (id: string, body: { isActive?: boolean; forceOffline?: boolean }) => {
+  const patch = async (
+    id: string,
+    body: { isActive?: boolean; forceOffline?: boolean; vehicleType?: "MOTORCYCLE" | "BICYCLE" }
+  ) => {
     try {
       await api(`/admin/users/${id}`, { method: "PATCH", body: JSON.stringify(body) });
       await load();
@@ -48,20 +58,30 @@ export function UsersBoard({ role }: { role: "DRIVER" | "RIDER" }) {
   };
 
   const createDriver = async () => {
+    if (!form.vehicleType) {
+      setError("Choose motorcycle or bicycle");
+      return;
+    }
     setCreating(true);
     setError(null);
     try {
-      const driver = await api<{ phone: string; name: string }>("/admin/drivers", {
+      const driver = await api<{ phone: string; name: string; vehicleType?: string }>("/admin/drivers", {
         method: "POST",
         body: JSON.stringify({
           firstName: form.firstName.trim() || undefined,
           lastName: form.lastName.trim() || undefined,
           phone: form.phone.trim(),
           password: form.password,
+          vehicleType: form.vehicleType,
         }),
       });
-      setCreated({ phone: driver.phone, password: form.password, name: driver.name });
-      setForm({ firstName: "", lastName: "", phone: "", password: "" });
+      setCreated({
+        phone: driver.phone,
+        password: form.password,
+        name: driver.name,
+        vehicleType: driver.vehicleType || form.vehicleType,
+      });
+      setForm({ firstName: "", lastName: "", phone: "", password: "", vehicleType: "" });
       setPage(1);
       await load();
     } catch (err) {
@@ -72,6 +92,23 @@ export function UsersBoard({ role }: { role: "DRIVER" | "RIDER" }) {
   };
 
   const title = role === "DRIVER" ? "Drivers" : "Riders";
+
+  const removeDriver = async (user: AdminUserRow) => {
+    const ok = window.confirm(
+      `Delete ${user.name === "—" ? "this driver" : user.name} (${user.phone})? Any live trip will be cancelled and they will lose login access.`
+    );
+    if (!ok) return;
+    setDeleting(user.id);
+    setError(null);
+    try {
+      await api(`/admin/drivers/${user.id}`, { method: "DELETE" });
+      await load();
+    } catch (err) {
+      setError(errorMessage(err, "Could not delete driver"));
+    } finally {
+      setDeleting(null);
+    }
+  };
 
   return (
     <Shell>
@@ -97,7 +134,7 @@ export function UsersBoard({ role }: { role: "DRIVER" | "RIDER" }) {
           <div className="mb-3 flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold">Issue driver login</h3>
-              <p className="text-xs text-muted">Drivers cannot sign up. Create a phone number and password here.</p>
+              <p className="text-xs text-muted">Drivers cannot sign up. Choose motorcycle or bicycle — they only receive matching offers.</p>
             </div>
             <button
               type="button"
@@ -109,11 +146,31 @@ export function UsersBoard({ role }: { role: "DRIVER" | "RIDER" }) {
           </div>
           {created ? (
             <p className="mb-3 rounded-lg border border-raac/30 bg-raac-dim px-3 py-2 text-sm">
-              Created {created.name === "—" ? "driver" : created.name} · login{" "}
+              Created {created.name === "—" ? "driver" : created.name} · {vehicleLabel(created.vehicleType)} · login{" "}
               <span className="font-semibold">{created.phone}</span> · password{" "}
               <span className="font-mono font-semibold">{created.password}</span>
             </p>
           ) : null}
+          <div className="mb-3 grid grid-cols-2 gap-2">
+            {VEHICLE_TYPES.map((type) => {
+              const selected = form.vehicleType === type.id;
+              return (
+                <button
+                  key={type.id}
+                  type="button"
+                  onClick={() => setForm((current) => ({ ...current, vehicleType: type.id }))}
+                  className={`rounded-lg border px-3 py-3 text-left text-sm ${
+                    selected ? "border-raac bg-raac-dim font-semibold" : "border-line bg-panel-2 text-muted"
+                  }`}
+                >
+                  <span className="block text-ink">{type.label}</span>
+                  <span className="text-[11px] text-muted">
+                    {type.id === "MOTORCYCLE" ? "Gets Moto motorcycle offers only" : "Gets bicycle offers only"}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
           <div className="grid gap-3 md:grid-cols-5">
             <input
               className="rounded-lg border border-line bg-panel-2 px-3 py-2 text-sm outline-none"
@@ -141,7 +198,7 @@ export function UsersBoard({ role }: { role: "DRIVER" | "RIDER" }) {
             />
             <button
               type="button"
-              disabled={creating || !form.phone.trim() || form.password.length < 6}
+              disabled={creating || !form.phone.trim() || form.password.length < 6 || !form.vehicleType}
               className="rounded-lg bg-raac px-3 py-2 text-sm font-semibold text-black disabled:opacity-40"
               onClick={() => void createDriver()}
             >
@@ -156,6 +213,7 @@ export function UsersBoard({ role }: { role: "DRIVER" | "RIDER" }) {
           <thead className="text-xs uppercase text-muted">
             <tr>
               <th className="px-4 py-3">Person</th>
+              {role === "DRIVER" ? <th className="px-4 py-3">Type</th> : null}
               <th className="px-4 py-3">Rating</th>
               <th className="px-4 py-3">Trips</th>
               <th className="px-4 py-3">{role === "DRIVER" ? "Today" : "Pending"}</th>
@@ -170,6 +228,25 @@ export function UsersBoard({ role }: { role: "DRIVER" | "RIDER" }) {
                   <p className="font-medium">{user.name}</p>
                   <p className="text-xs text-muted">{user.phone}</p>
                 </td>
+                {role === "DRIVER" ? (
+                  <td className="px-4 py-3">
+                    <select
+                      className="rounded-lg border border-line bg-panel-2 px-2 py-1 text-xs outline-none"
+                      value={user.vehicleType || "MOTORCYCLE"}
+                      onChange={(e) =>
+                        void patch(user.id, {
+                          vehicleType: e.target.value as "MOTORCYCLE" | "BICYCLE",
+                        })
+                      }
+                    >
+                      {VEHICLE_TYPES.map((type) => (
+                        <option key={type.id} value={type.id}>
+                          {type.label}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                ) : null}
                 <td className="px-4 py-3">{user.rating}</td>
                 <td className="px-4 py-3">{user.tripCount}</td>
                 <td className="px-4 py-3">
@@ -193,11 +270,20 @@ export function UsersBoard({ role }: { role: "DRIVER" | "RIDER" }) {
                     </button>
                   ) : null}
                   <button
-                    className="text-xs font-semibold text-raac"
+                    className="mr-3 text-xs font-semibold text-raac"
                     onClick={() => void patch(user.id, { isActive: !user.isActive })}
                   >
                     {user.isActive ? "Disable" : "Enable"}
                   </button>
+                  {role === "DRIVER" ? (
+                    <button
+                      className="text-xs font-semibold text-danger"
+                      disabled={deleting === user.id}
+                      onClick={() => void removeDriver(user)}
+                    >
+                      {deleting === user.id ? "Deleting…" : "Delete"}
+                    </button>
+                  ) : null}
                 </td>
               </tr>
             ))}

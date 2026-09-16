@@ -24,6 +24,7 @@ export type StoredDriverUser = {
   role: string;
   firstName?: string | null;
   lastName?: string | null;
+  vehicleType?: string | null;
 };
 
 export async function getAuthToken() {

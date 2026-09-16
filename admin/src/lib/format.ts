@@ -18,6 +18,15 @@ export function statusLabel(status?: string | null) {
   return (status || "unknown").replace(/_/g, " ");
 }
 
+export const VEHICLE_TYPES = [
+  { id: "MOTORCYCLE" as const, label: "Motorcycle" },
+  { id: "BICYCLE" as const, label: "Bicycle" },
+];
+
+export function vehicleLabel(type?: string | null) {
+  return type === "BICYCLE" ? "Bicycle" : "Motorcycle";
+}
+
 const ORDER_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 export function formatOrderCode(orderId?: string | null) {

@@ -13,6 +13,7 @@ export interface DeliveryRequest {
   senderPhone?: string;
   itemType: string;
   deliveryMethod: string;
+  vehicleType?: string;
   deliveryPrice: string;
   status: DeliveryStatus;
   createdAt: string;

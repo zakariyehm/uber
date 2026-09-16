@@ -1,7 +1,8 @@
 import bcrypt from 'bcryptjs';
-import { UserRole } from '@prisma/client';
+import { UserRole, VehicleType } from '@prisma/client';
 import { prisma } from '../../lib/prisma.ts';
 import { normalizePhone } from '../../utils/dates.ts';
+import { parseVehicleType } from '../../utils/vehicle-type.ts';
 
 export class AuthError extends Error {
   constructor(
@@ -19,6 +20,7 @@ export async function registerUser(input: {
   firstName?: string;
   lastName?: string;
   role: 'RIDER' | 'DRIVER';
+  vehicleType?: string;
 }) {
   const phone = normalizePhone(input.phone);
   const existing = await prisma.user.findUnique({ where: { phone } });
@@ -29,6 +31,7 @@ export async function registerUser(input: {
   const passwordHash = await bcrypt.hash(input.password, 10);
   const role = input.role === 'DRIVER' ? UserRole.DRIVER : UserRole.RIDER;
   const displayName = [input.firstName, input.lastName].filter(Boolean).join(' ') || null;
+  const vehicleType = parseVehicleType(input.vehicleType);
 
   const user = await prisma.user.create({
     data: {
@@ -38,10 +41,12 @@ export async function registerUser(input: {
       lastName: input.lastName,
       role,
       riderProfile: role === UserRole.RIDER ? { create: { displayName } } : undefined,
-      driverProfile: role === UserRole.DRIVER ? { create: { displayName } } : undefined,
+      driverProfile:
+        role === UserRole.DRIVER ? { create: { displayName, vehicleType } } : undefined,
       wallet: role === UserRole.DRIVER ? { create: {} } : undefined,
       riderWallet: role === UserRole.RIDER ? { create: {} } : undefined,
     },
+    include: { driverProfile: true, riderProfile: true },
   });
 
   return user;
@@ -88,6 +93,7 @@ export function toPublicUser(user: {
   lastName: string | null;
   gender?: string | null;
   state?: string | null;
+  driverProfile?: { vehicleType?: VehicleType | string | null } | null;
 }) {
   return {
     id: user.id,
@@ -98,5 +104,9 @@ export function toPublicUser(user: {
     lastName: user.lastName,
     gender: user.gender ?? null,
     state: user.state ?? null,
+    vehicleType:
+      user.role === UserRole.DRIVER
+        ? parseVehicleType(user.driverProfile?.vehicleType)
+        : undefined,
   };
 }

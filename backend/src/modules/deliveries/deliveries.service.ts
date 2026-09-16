@@ -1,7 +1,8 @@
-import { DeliveryStatus, type DeliveryRequest as DbDelivery } from '@prisma/client';
+import { DeliveryStatus, VehicleType, type DeliveryRequest as DbDelivery } from '@prisma/client';
 import { prisma } from '../../lib/prisma.ts';
 import { allocateOrderId } from '../../utils/order-id.ts';
 import { toDeliveryDto } from '../../utils/delivery-mapper.ts';
+import { resolveVehicleTypeForMethod } from '../../utils/vehicle-type.ts';
 
 /** Uber-style: each online driver gets 30s to accept/decline, then offer rotates. */
 export const OFFER_TTL_SEC = 30;
@@ -57,9 +58,9 @@ export async function getBusyActiveRequestId(driverUserId: string): Promise<stri
   return delivery.id;
 }
 
-async function listOnlineAvailableDrivers(): Promise<string[]> {
+async function listOnlineAvailableDrivers(vehicleType: VehicleType): Promise<string[]> {
   const profiles = await prisma.driverProfile.findMany({
-    where: { isOnline: true },
+    where: { isOnline: true, vehicleType },
     select: { userId: true },
     orderBy: { updatedAt: 'asc' },
   });
@@ -149,13 +150,19 @@ export async function ensureOfferAssignment(delivery: DbDelivery): Promise<DbDel
   const now = Date.now();
   const expiresAt = delivery.offerExpiresAt?.getTime() ?? 0;
 
-  // Active offer still within its 30s window.
-  if (delivery.offeredToDriverId && expiresAt > now + 250) return delivery;
+  // Active offer still within its 30s window — only keep it if the driver can serve this vehicle type.
+  if (delivery.offeredToDriverId && expiresAt > now + 250) {
+    const offered = await prisma.driverProfile.findUnique({
+      where: { userId: delivery.offeredToDriverId },
+      select: { vehicleType: true, isOnline: true },
+    });
+    if (offered?.isOnline && offered.vehicleType === delivery.vehicleType) return delivery;
+  }
 
   // Full cycle declined — wait 60s before looping back to driver 1.
   if (isCyclePaused(delivery, now)) return delivery;
 
-  const onlineIds = await listOnlineAvailableDrivers();
+  const onlineIds = await listOnlineAvailableDrivers(delivery.vehicleType);
   const declinedIds = parseDeclinedIds(delivery.offerDeclinedIds);
   const resumingAfterPause = !delivery.offeredToDriverId && expiresAt > 0 && expiresAt <= now;
 
@@ -250,6 +257,7 @@ export async function createDelivery(
       senderPhone: input.senderPhone || payerPhone,
       itemType: input.itemType,
       deliveryMethod: input.deliveryMethod,
+      vehicleType: await resolveVehicleTypeForMethod(input.deliveryMethod),
       deliveryPrice: amount,
       referenceId: input.referenceId,
       deliveryTimeLabel: input.deliveryTimeLabel,
@@ -278,8 +286,14 @@ export async function listPendingForDriver(driverUserId: string) {
   const busyId = await getBusyActiveRequestId(driverUserId);
   if (busyId) return [];
 
+  const profile = await prisma.driverProfile.findUnique({
+    where: { userId: driverUserId },
+    select: { vehicleType: true },
+  });
+  if (!profile) return [];
+
   const rows = await prisma.deliveryRequest.findMany({
-    where: { status: DeliveryStatus.PENDING },
+    where: { status: DeliveryStatus.PENDING, vehicleType: profile.vehicleType },
     orderBy: { createdAt: 'asc' },
   });
 
@@ -316,7 +330,7 @@ export async function declineDeliveryForDriver(deliveryId: string, driverUserId:
   const declinedIds = parseDeclinedIds(row.offerDeclinedIds);
   declinedIds.push(driverUserId);
 
-  const onlineIds = await listOnlineAvailableDrivers();
+  const onlineIds = await listOnlineAvailableDrivers(row.vehicleType);
   const nextDeclined = [...new Set(declinedIds)];
   const allDeclined =
     onlineIds.length > 0 && onlineIds.every((id) => nextDeclined.includes(id));
@@ -422,6 +436,17 @@ export async function applyDeliveryAction(
     }
     if (current.offerExpiresAt && current.offerExpiresAt.getTime() < Date.now() - 2000) {
       const error = new Error('Offer timed out') as Error & { statusCode?: number };
+      error.statusCode = 409;
+      throw error;
+    }
+
+    const profile = await prisma.driverProfile.findUnique({
+      where: { userId: actor.id },
+      select: { vehicleType: true },
+    });
+    if (!profile || profile.vehicleType !== current.vehicleType) {
+      const needed = current.vehicleType === VehicleType.BICYCLE ? 'bicycle' : 'motorcycle';
+      const error = new Error(`This trip is for a ${needed} driver`) as Error & { statusCode?: number };
       error.statusCode = 409;
       throw error;
     }

@@ -1,5 +1,6 @@
-import { Prisma, ServiceCategory } from '@prisma/client';
+import { Prisma, ServiceCategory, VehicleType } from '@prisma/client';
 import { prisma } from '../../lib/prisma.ts';
+import { iconForVehicleType, parseVehicleType } from '../../utils/vehicle-type.ts';
 
 const MOTO_DEFAULTS = [
   {
@@ -9,6 +10,7 @@ const MOTO_DEFAULTS = [
     timeLabel: '10-15 minutes',
     price: 1,
     sortOrder: 1,
+    vehicleType: VehicleType.MOTORCYCLE,
   },
   {
     slug: 'moto-bajaj',
@@ -17,6 +19,16 @@ const MOTO_DEFAULTS = [
     timeLabel: '15-20 minutes',
     price: 2.5,
     sortOrder: 2,
+    vehicleType: VehicleType.MOTORCYCLE,
+  },
+  {
+    slug: 'moto-bicycle',
+    name: 'Moto Bicycle',
+    icon: 'bicycle',
+    timeLabel: '15-25 minutes',
+    price: 0.8,
+    sortOrder: 3,
+    vehicleType: VehicleType.BICYCLE,
   },
 ];
 
@@ -32,6 +44,7 @@ function toDto(row: {
   icon: string;
   timeLabel: string;
   price: Prisma.Decimal;
+  vehicleType: VehicleType;
   isActive: boolean;
   sortOrder: number;
 }) {
@@ -40,11 +53,12 @@ function toDto(row: {
     category: row.category,
     slug: row.slug,
     name: row.name,
-    icon: row.icon,
+    icon: row.icon || iconForVehicleType(row.vehicleType),
     time: row.timeLabel,
     timeLabel: row.timeLabel,
     price: moneyStr(row.price),
     displayPrice: `$${moneyStr(row.price)}`,
+    vehicleType: row.vehicleType,
     isActive: row.isActive,
     sortOrder: row.sortOrder,
   };
@@ -56,6 +70,9 @@ function parseCategory(value?: string) {
 }
 
 export async function ensureDefaultMethods() {
+  const existing = await prisma.serviceMethod.count({ where: { category: ServiceCategory.MOTO } });
+  if (existing > 0) return;
+
   for (const method of MOTO_DEFAULTS) {
     await prisma.serviceMethod.upsert({
       where: { slug: method.slug },
@@ -103,8 +120,10 @@ export async function createServiceMethod(input: {
   price: number;
   icon?: string;
   sortOrder?: number;
+  vehicleType?: string;
 }) {
   const category = parseCategory(input.category);
+  const vehicleType = parseVehicleType(input.vehicleType);
   let slug = slugify(input.name);
   const existing = await prisma.serviceMethod.findUnique({ where: { slug } });
   if (existing) slug = `${slug}-${Date.now().toString().slice(-4)}`;
@@ -115,9 +134,10 @@ export async function createServiceMethod(input: {
       category,
       slug,
       name: input.name.trim(),
-      icon: input.icon || 'motorbike',
+      icon: input.icon || iconForVehicleType(vehicleType),
       timeLabel: input.timeLabel.trim(),
       price: input.price,
+      vehicleType,
       sortOrder: input.sortOrder ?? count + 1,
     },
   });
@@ -132,6 +152,7 @@ export async function patchServiceMethod(
     price?: number;
     isActive?: boolean;
     sortOrder?: number;
+    vehicleType?: string;
   }
 ) {
   const row = await prisma.serviceMethod.findUnique({ where: { id } });
@@ -149,7 +170,21 @@ export async function patchServiceMethod(
       price: input.price != null ? input.price : undefined,
       isActive: input.isActive,
       sortOrder: input.sortOrder,
+      vehicleType: input.vehicleType ? parseVehicleType(input.vehicleType) : undefined,
+      icon: input.vehicleType ? iconForVehicleType(input.vehicleType) : undefined,
     },
   });
   return toDto(updated);
+}
+
+export async function deleteServiceMethod(id: string) {
+  const row = await prisma.serviceMethod.findUnique({ where: { id } });
+  if (!row) {
+    const error = new Error('Method not found') as Error & { statusCode?: number };
+    error.statusCode = 404;
+    throw error;
+  }
+
+  await prisma.serviceMethod.delete({ where: { id } });
+  return { ok: true, id };
 }

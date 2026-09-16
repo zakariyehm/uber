@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { PrismaClient, UserRole } from '@prisma/client';
+import { PrismaClient, UserRole, VehicleType } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -31,7 +31,7 @@ async function main() {
       firstName: 'Zakariye',
       lastName: 'Driver',
       driverProfile: {
-        create: { displayName: 'Driver Zakariyee' },
+        create: { displayName: 'Driver Zakariyee', vehicleType: VehicleType.MOTORCYCLE },
       },
       wallet: {
         create: {},
@@ -73,7 +73,7 @@ async function main() {
 
   const { ensureDefaultMethods } = await import('../src/modules/catalog/catalog.service.ts');
   await ensureDefaultMethods();
-  console.log('Seeded Moto methods: Moto Fekon, Moto Bajaj');
+  console.log('Seeded Moto methods: Moto Fekon, Moto Bajaj, Moto Bicycle');
 }
 
 main()

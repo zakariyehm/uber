@@ -21,7 +21,7 @@ export function errorMessage(err: unknown, fallback = "Request failed") {
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const headers = new Headers(options.headers);
-  headers.set("Content-Type", "application/json");
+  if (options.body) headers.set("Content-Type", "application/json");
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
   const response = await fetch(`${API_BASE}${path}`, { ...options, headers });

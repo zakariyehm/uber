@@ -23,7 +23,7 @@ const SHEET_HEIGHT = SCREEN_HEIGHT * 0.5;
 interface DeliveryOption {
   id: string;
   name: string;
-  icon: 'motorbike';
+  icon: 'motorbike' | 'bicycle';
   time: string;
   price: string;
 }
@@ -32,7 +32,7 @@ function toOption(method: CatalogMethod): DeliveryOption {
   return {
     id: method.id,
     name: method.name,
-    icon: 'motorbike',
+    icon: method.icon === 'bicycle' || method.vehicleType === 'BICYCLE' ? 'bicycle' : 'motorbike',
     time: method.time,
     price: method.displayPrice || `$${method.price}`,
   };

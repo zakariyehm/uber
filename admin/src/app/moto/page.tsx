@@ -2,8 +2,8 @@
 
 import { Shell } from "@/components/Shell";
 import { StatusBadge } from "@/components/StatusBadge";
-import { api, errorMessage } from "@/lib/api";
-import { money } from "@/lib/format";
+import { api, ApiError, errorMessage } from "@/lib/api";
+import { money, VEHICLE_TYPES } from "@/lib/format";
 import type { ServiceMethod } from "@/lib/types";
 import { useEffect, useState } from "react";
 
@@ -16,6 +16,7 @@ type Draft = {
   name: string;
   timeLabel: string;
   price: string;
+  vehicleType: string;
 };
 
 export default function MotoPage() {
@@ -23,9 +24,15 @@ export default function MotoPage() {
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", timeLabel: "", price: "" });
+  const [form, setForm] = useState({
+    name: "",
+    timeLabel: "",
+    price: "",
+    vehicleType: "MOTORCYCLE" as "MOTORCYCLE" | "BICYCLE",
+  });
 
   const load = async () => {
     try {
@@ -35,7 +42,12 @@ export default function MotoPage() {
         Object.fromEntries(
           result.methods.map((method) => [
             method.id,
-            { name: method.name, timeLabel: method.timeLabel, price: method.price },
+            {
+              name: method.name,
+              timeLabel: method.timeLabel,
+              price: method.price,
+              vehicleType: method.vehicleType || "MOTORCYCLE",
+            },
           ])
         )
       );
@@ -59,6 +71,7 @@ export default function MotoPage() {
           name: existing?.name || method?.name || "",
           timeLabel: existing?.timeLabel || method?.timeLabel || "",
           price: existing?.price || method?.price || "",
+          vehicleType: existing?.vehicleType || method?.vehicleType || "MOTORCYCLE",
           ...patch,
         },
       };
@@ -75,6 +88,7 @@ export default function MotoPage() {
     }
     setSaving(id);
     setError(null);
+    setNotice(null);
     try {
       await api(`/admin/methods/${id}`, {
         method: "PATCH",
@@ -82,13 +96,38 @@ export default function MotoPage() {
           name: draft.name.trim(),
           timeLabel: draft.timeLabel.trim(),
           price,
+          vehicleType: draft.vehicleType,
         }),
       });
+      setNotice(`${draft.name.trim() || "Method"} saved`);
       await load();
     } catch (err) {
       setError(errorMessage(err, "Could not save method"));
     } finally {
       setSaving(null);
+    }
+  };
+
+  const remove = async (method: ServiceMethod) => {
+    const ok = window.confirm(`Delete ${method.name}? Riders will no longer see this option.`);
+    if (!ok) return;
+    setDeleting(method.id);
+    setError(null);
+    setNotice(null);
+    try {
+      await api(`/admin/methods/${method.id}`, { method: "DELETE" });
+      setMethods((current) => current.filter((row) => row.id !== method.id));
+      setNotice(`${method.name} deleted`);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        setMethods((current) => current.filter((row) => row.id !== method.id));
+        setNotice(`${method.name} deleted`);
+      } else {
+        setError(errorMessage(err, "Could not delete method"));
+      }
+    } finally {
+      setDeleting(null);
+      await load();
     }
   };
 
@@ -131,9 +170,10 @@ export default function MotoPage() {
           name,
           timeLabel,
           price,
+          vehicleType: form.vehicleType,
         }),
       });
-      setForm({ name: "", timeLabel: "", price: "" });
+      setForm({ name: "", timeLabel: "", price: "", vehicleType: "MOTORCYCLE" });
       setNotice(`${name} added`);
       await load();
     } catch (err) {
@@ -148,7 +188,7 @@ export default function MotoPage() {
       <div className="mb-6">
         <h2 className="text-2xl font-semibold">Moto</h2>
         <p className="text-sm text-muted">
-          Price and ETA riders see when they choose Moto. Delivery State will be configured later.
+          Price, ETA, and vehicle type riders see when they choose Moto. Motorcycle orders only go to motorcycle drivers.
         </p>
       </div>
 
@@ -158,7 +198,7 @@ export default function MotoPage() {
       <section className="mb-6 rounded-xl border border-line bg-panel p-4">
         <h3 className="mb-3 text-sm font-semibold">Add Moto method</h3>
         <form
-          className="grid gap-3 md:grid-cols-4"
+          className="grid gap-3 md:grid-cols-5"
           onSubmit={(event) => {
             event.preventDefault();
             void create();
@@ -186,6 +226,22 @@ export default function MotoPage() {
               onChange={(e) => setForm((current) => ({ ...current, price: e.target.value }))}
             />
           </div>
+          <select
+            className="rounded-lg border border-line bg-panel-2 px-3 py-2 text-sm outline-none"
+            value={form.vehicleType}
+            onChange={(e) =>
+              setForm((current) => ({
+                ...current,
+                vehicleType: e.target.value as "MOTORCYCLE" | "BICYCLE",
+              }))
+            }
+          >
+            {VEHICLE_TYPES.map((type) => (
+              <option key={type.id} value={type.id}>
+                {type.label}
+              </option>
+            ))}
+          </select>
           <button
             type="submit"
             disabled={creating}
@@ -201,6 +257,7 @@ export default function MotoPage() {
           <thead className="text-xs uppercase text-muted">
             <tr>
               <th className="px-4 py-3">Method</th>
+              <th className="px-4 py-3">Type</th>
               <th className="px-4 py-3">Time</th>
               <th className="px-4 py-3">Price</th>
               <th className="px-4 py-3">Status</th>
@@ -209,7 +266,13 @@ export default function MotoPage() {
           </thead>
           <tbody>
             {methods.map((method) => {
-              const draft = drafts[method.id] || { name: method.name, timeLabel: method.timeLabel, price: method.price };
+              const draft =
+                drafts[method.id] || {
+                  name: method.name,
+                  timeLabel: method.timeLabel,
+                  price: method.price,
+                  vehicleType: method.vehicleType || "MOTORCYCLE",
+                };
               return (
                 <tr key={method.id} className="border-t border-line/70">
                   <td className="px-4 py-3">
@@ -218,6 +281,19 @@ export default function MotoPage() {
                       value={draft.name}
                       onChange={(e) => updateDraft(method.id, { name: e.target.value })}
                     />
+                  </td>
+                  <td className="px-4 py-3">
+                    <select
+                      className="rounded-lg border border-line bg-panel-2 px-2 py-2 text-sm outline-none"
+                      value={draft.vehicleType}
+                      onChange={(e) => updateDraft(method.id, { vehicleType: e.target.value })}
+                    >
+                      {VEHICLE_TYPES.map((type) => (
+                        <option key={type.id} value={type.id}>
+                          {type.label}
+                        </option>
+                      ))}
+                    </select>
                   </td>
                   <td className="px-4 py-3">
                     <input
@@ -249,11 +325,18 @@ export default function MotoPage() {
                       {method.isActive ? "Hide" : "Show"}
                     </button>
                     <button
-                      className="text-xs font-semibold text-raac"
-                      disabled={saving === method.id}
+                      className="mr-3 text-xs font-semibold text-raac"
+                      disabled={saving === method.id || deleting === method.id}
                       onClick={() => void save(method.id)}
                     >
                       {saving === method.id ? "Saving…" : "Save"}
+                    </button>
+                    <button
+                      className="text-xs font-semibold text-danger"
+                      disabled={deleting === method.id || saving === method.id}
+                      onClick={() => void remove(method)}
+                    >
+                      {deleting === method.id ? "Deleting…" : "Delete"}
                     </button>
                   </td>
                 </tr>

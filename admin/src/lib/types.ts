@@ -74,6 +74,7 @@ export type AdminUserRow = {
   createdAt: string;
   rating: string;
   isOnline: boolean;
+  vehicleType?: string | null;
   tripCount: number;
   todayBalance: string | null;
   pendingBalance: string | null;
@@ -89,6 +90,7 @@ export type ServiceMethod = {
   timeLabel: string;
   price: string;
   displayPrice: string;
+  vehicleType: string;
   isActive: boolean;
   sortOrder: number;
 };

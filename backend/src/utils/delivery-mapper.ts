@@ -26,6 +26,7 @@ export type DeliveryDto = {
   senderPhone?: string;
   itemType: string;
   deliveryMethod: string;
+  vehicleType?: string;
   deliveryPrice: string;
   status: string;
   createdAt: string;
@@ -82,6 +83,7 @@ export function toDeliveryDto(row: DbDelivery): DeliveryDto {
     senderPhone: row.senderPhone ?? undefined,
     itemType: row.itemType,
     deliveryMethod: row.deliveryMethod,
+    vehicleType: row.vehicleType,
     deliveryPrice: row.deliveryPrice.toFixed(2),
     status: statusMap[row.status],
     createdAt: row.createdAt.toISOString(),
