@@ -130,6 +130,8 @@ model DeliveryRequest {
   startedAt              DateTime?
   completedAt            DateTime?
   cancelledAt            DateTime?
+  cancelledBy            String?
+  cancelReason           String?
   updatedAt              DateTime       @updatedAt
 
   activeForDrivers DriverActiveDelivery[]

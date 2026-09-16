@@ -32,6 +32,9 @@ export interface DeliveryRequest {
   userConfirmedPickupAt?: string;
   userConfirmedDelivery?: boolean;
   userConfirmedDeliveryAt?: string;
+  cancelledAt?: string;
+  cancelledBy?: string;
+  cancelReason?: string;
 }
 
 export const createDeliveryRequest = async (orderData: {

@@ -102,7 +102,10 @@ export default function DeliveryDetailsScreen() {
           onPress: async () => {
             setBusy(true);
             try {
-              await cancelDeliveryRequest(request.id);
+              await cancelDeliveryRequest(request.id, {
+                cancelledBy: 'driver',
+                cancelReason: 'rider_not_responding',
+              });
               await goHome();
             } catch (error: any) {
               if (error?.status === 404) {

@@ -35,6 +35,9 @@ export interface DeliveryRequest {
   offeredToDriverId?: string;
   offerExpiresAt?: string;
   offerSecondsRemaining?: number;
+  cancelledAt?: string;
+  cancelledBy?: string;
+  cancelReason?: string;
 }
 
 export const createDeliveryRequest = async (orderData: {
@@ -151,7 +154,16 @@ export const confirmDriverArrival = async (requestId: string) => patchDelivery(r
 export const confirmPackagePickup = async (requestId: string) => patchDelivery(requestId, 'confirm_pickup');
 export const confirmDeliveryReceived = async (requestId: string) =>
   patchDelivery(requestId, 'confirm_received');
-export const cancelDeliveryRequest = async (requestId: string) => patchDelivery(requestId, 'cancel');
+export const cancelDeliveryRequest = async (
+  requestId: string,
+  options?: { cancelledBy?: 'driver' | 'rider' | 'system'; cancelReason?: string }
+) =>
+  patchDelivery(requestId, 'cancel', {
+    ...(options?.cancelledBy ? { cancelledBy: options.cancelledBy } : { cancelledBy: 'driver' }),
+    ...(options?.cancelReason
+      ? { cancelReason: options.cancelReason }
+      : { cancelReason: 'rider_not_responding' }),
+  });
 
 export const setActiveDelivery = async (requestId: string | null): Promise<void> => {
   await apiRequest('/deliveries/drivers/me/active', {

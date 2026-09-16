@@ -333,7 +333,8 @@ export async function getById(id: string) {
 export async function applyDeliveryAction(
   id: string,
   action: string,
-  actor?: { id: string; name?: string }
+  actor?: { id: string; name?: string },
+  meta?: { cancelledBy?: 'driver' | 'rider' | 'system'; cancelReason?: string }
 ) {
   const now = new Date();
 
@@ -473,10 +474,14 @@ export async function applyDeliveryAction(
       break;
     }
     case 'cancel': {
+      if (current.status === DeliveryStatus.CANCELLED) fail('Delivery already cancelled');
+      if (current.status === DeliveryStatus.COMPLETED) fail('Cannot cancel a completed delivery');
       data.status = DeliveryStatus.CANCELLED;
       data.cancelledAt = now;
       data.offeredToDriverId = null;
       data.offerExpiresAt = null;
+      data.cancelledBy = meta?.cancelledBy || (actor?.id ? 'driver' : 'system');
+      data.cancelReason = meta?.cancelReason || 'cancelled';
       break;
     }
     default: {

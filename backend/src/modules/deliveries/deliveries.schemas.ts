@@ -30,4 +30,6 @@ export const deliveryActionSchema = z.object({
   ]),
   driverId: z.string().optional(),
   driverName: z.string().optional(),
+  cancelledBy: z.enum(['driver', 'rider', 'system']).optional(),
+  cancelReason: z.string().max(120).optional(),
 });

@@ -43,6 +43,9 @@ export type DeliveryDto = {
   offeredToDriverId?: string;
   offerExpiresAt?: string;
   offerSecondsRemaining?: number;
+  cancelledAt?: string;
+  cancelledBy?: string;
+  cancelReason?: string;
 };
 
 export function toDeliveryDto(row: DbDelivery): DeliveryDto {
@@ -84,5 +87,8 @@ export function toDeliveryDto(row: DbDelivery): DeliveryDto {
     offeredToDriverId: row.offeredToDriverId ?? undefined,
     offerExpiresAt,
     offerSecondsRemaining: remaining,
+    cancelledAt: toIso(row.cancelledAt),
+    cancelledBy: row.cancelledBy ?? undefined,
+    cancelReason: row.cancelReason ?? undefined,
   };
 }

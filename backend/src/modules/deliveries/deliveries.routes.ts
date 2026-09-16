@@ -99,7 +99,10 @@ export async function deliveryRoutes(app: FastifyInstance) {
     }
 
     try {
-      return await applyDeliveryAction(id, body.action, actor);
+      return await applyDeliveryAction(id, body.action, actor, {
+        cancelledBy: body.cancelledBy,
+        cancelReason: body.cancelReason,
+      });
     } catch (error: any) {
       return reply
         .code(error.statusCode || 400)

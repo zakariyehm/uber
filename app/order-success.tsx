@@ -144,7 +144,15 @@ export default function OrderSuccessScreen() {
       return 'Driver marked delivery complete. Hold to confirm you received the package.';
     }
     if (deliveryStatus === 'completed') return 'Delivery completed and confirmed. Thank you!';
-    if (deliveryStatus === 'cancelled') return 'Your delivery request was cancelled.';
+    if (deliveryStatus === 'cancelled') {
+      if (deliveryRequest?.cancelReason === 'rider_not_responding') {
+        return 'Your driver cancelled because confirmation was not received in time.';
+      }
+      if (deliveryRequest?.cancelledBy === 'driver') {
+        return 'Your driver cancelled this delivery.';
+      }
+      return 'This delivery was cancelled.';
+    }
     return 'Your order has been confirmed.';
   })();
 
@@ -178,19 +186,49 @@ export default function OrderSuccessScreen() {
           minHeight: SCREEN_HEIGHT - insets.top - insets.bottom - scaleHeight(100),
         }}>
         <View style={styles.successIconContainer}>
-          <View style={[styles.successCircle, { backgroundColor: isDark ? '#1A5F1A' : '#E8F5E9' }]}>
-            <Ionicons name="checkmark-circle" size={scaleFont(80)} color="#4CAF50" />
+          <View
+            style={[
+              styles.successCircle,
+              {
+                backgroundColor:
+                  deliveryStatus === 'cancelled'
+                    ? isDark
+                      ? '#4A1C1C'
+                      : '#FFEBEE'
+                    : isDark
+                      ? '#1A5F1A'
+                      : '#E8F5E9',
+              },
+            ]}>
+            <Ionicons
+              name={deliveryStatus === 'cancelled' ? 'close-circle' : 'checkmark-circle'}
+              size={scaleFont(80)}
+              color={deliveryStatus === 'cancelled' ? '#FF3B30' : '#4CAF50'}
+            />
           </View>
         </View>
 
         <View style={styles.messageContainer}>
           <Text style={[styles.successTitle, { color: colors.text }]}>
-            {fromOrders ? 'Track your order' : 'Order placed successfully'}
+            {deliveryStatus === 'cancelled'
+              ? 'Order cancelled'
+              : fromOrders
+                ? 'Track your order'
+                : 'Order placed successfully'}
           </Text>
           <Text style={[styles.successMessage, { color: colors.icon }]}>{statusMessage}</Text>
         </View>
 
-        {deliveryStatus !== 'cancelled' ? (
+        {deliveryStatus === 'cancelled' ? (
+          <View style={[styles.statusContainer, { backgroundColor: isDark ? '#3A1C1C' : '#FFEBEE' }]}>
+            <View style={styles.statusRow}>
+              <View style={[styles.statusDot, { backgroundColor: '#FF3B30' }]} />
+              <Text style={[styles.statusText, { color: isDark ? '#FF8A80' : '#C62828' }]}>
+                Status: Cancelled
+              </Text>
+            </View>
+          </View>
+        ) : (
           <View style={[styles.statusContainer, { backgroundColor: isDark ? '#1C1C1E' : '#F0F0F0' }]}>
             <View style={styles.statusRow}>
               <View
@@ -205,21 +243,32 @@ export default function OrderSuccessScreen() {
                 {deliveryStatus === 'picked_up' && 'Items picked up'}
                 {deliveryStatus === 'in_transit' && 'In transit'}
                 {deliveryStatus === 'completed' &&
-                  (deliveryRequest?.userConfirmedDelivery ? 'Confirmed received' : 'Awaiting your confirmation')}
+                  (deliveryRequest?.userConfirmedDelivery
+                    ? 'Confirmed received'
+                    : 'Awaiting your confirmation')}
               </Text>
             </View>
           </View>
-        ) : null}
+        )}
 
-        <View style={[styles.infoContainer, { backgroundColor: isDark ? '#1C1C1E' : '#E3F2FD' }]}>
-          <Ionicons name="information-circle" size={scaleFont(20)} color={colors.icon} />
-          <Text style={[styles.infoText, { color: colors.icon }]}>
-            Critical steps use Hold to confirm on both Raac and Driver apps so nobody taps by mistake.
-          </Text>
-        </View>
+        {deliveryStatus !== 'cancelled' ? (
+          <View style={[styles.infoContainer, { backgroundColor: isDark ? '#1C1C1E' : '#E3F2FD' }]}>
+            <Ionicons name="information-circle" size={scaleFont(20)} color={colors.icon} />
+            <Text style={[styles.infoText, { color: colors.icon }]}>
+              Critical steps use Hold to confirm on both Raac and Driver apps so nobody taps by mistake.
+            </Text>
+          </View>
+        ) : (
+          <View style={[styles.infoContainer, { backgroundColor: isDark ? '#1C1C1E' : '#FFF3E0' }]}>
+            <Ionicons name="information-circle" size={scaleFont(20)} color="#FF9500" />
+            <Text style={[styles.infoText, { color: isDark ? '#FFCC80' : '#E65100' }]}>
+              You can place a new delivery anytime from Home.
+            </Text>
+          </View>
+        )}
 
         <View style={styles.buttonContainer}>
-          {showArrivalHold ? (
+          {deliveryStatus !== 'cancelled' && showArrivalHold ? (
             <HoldToConfirmButton
               label="Hold to confirm driver arrived"
               color="#34C759"
@@ -230,7 +279,9 @@ export default function OrderSuccessScreen() {
             />
           ) : null}
 
-          {deliveryRequest?.userConfirmedArrival && deliveryStatus === 'accepted' ? (
+          {deliveryStatus !== 'cancelled' &&
+          deliveryRequest?.userConfirmedArrival &&
+          deliveryStatus === 'accepted' ? (
             <View style={[styles.infoMessage, { backgroundColor: isDark ? '#1C1C1E' : '#E8F5E9' }]}>
               <Ionicons name="checkmark-circle" size={scaleFont(20)} color="#4CAF50" />
               <Text style={[styles.infoMessageText, { color: isDark ? '#FFFFFF' : '#2E7D32' }]}>
@@ -239,7 +290,7 @@ export default function OrderSuccessScreen() {
             </View>
           ) : null}
 
-          {showPickupHold ? (
+          {deliveryStatus !== 'cancelled' && showPickupHold ? (
             <HoldToConfirmButton
               label="Hold to confirm package taken"
               color="#000"
@@ -250,7 +301,8 @@ export default function OrderSuccessScreen() {
             />
           ) : null}
 
-          {deliveryRequest?.userConfirmedPickup &&
+          {deliveryStatus !== 'cancelled' &&
+          deliveryRequest?.userConfirmedPickup &&
           (deliveryStatus === 'picked_up' || deliveryStatus === 'in_transit') ? (
             <View style={[styles.infoMessage, { backgroundColor: isDark ? '#1C1C1E' : '#E8F5E9' }]}>
               <Ionicons name="checkmark-circle" size={scaleFont(20)} color="#4CAF50" />
@@ -260,7 +312,7 @@ export default function OrderSuccessScreen() {
             </View>
           ) : null}
 
-          {showReceivedHold ? (
+          {deliveryStatus !== 'cancelled' && showReceivedHold ? (
             <HoldToConfirmButton
               label="Hold to confirm I received the package"
               color="#03C167"
@@ -271,7 +323,7 @@ export default function OrderSuccessScreen() {
             />
           ) : null}
 
-          {deliveryRequest?.userConfirmedDelivery ? (
+          {deliveryStatus !== 'cancelled' && deliveryRequest?.userConfirmedDelivery ? (
             <View style={[styles.infoMessage, { backgroundColor: isDark ? '#1C1C1E' : '#E8F5E9' }]}>
               <Ionicons name="checkmark-circle" size={scaleFont(20)} color="#4CAF50" />
               <Text style={[styles.infoMessageText, { color: isDark ? '#FFFFFF' : '#2E7D32' }]}>
