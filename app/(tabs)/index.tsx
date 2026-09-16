@@ -7,10 +7,13 @@ import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import {
   Dimensions,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -29,12 +32,14 @@ export default function HomeScreen() {
   const cardHeight = height * 0.3;
   const [showDeliverySheet, setShowDeliverySheet] = useState(false);
   const [pickupDistrict, setPickupDistrict] = useState('');
+  const [pickupNeighborhood, setPickupNeighborhood] = useState('');
   const [dropoffState, setDropoffState] = useState('');
   const [picker, setPicker] = useState<PickerKind>(null);
 
   const canContinue = useMemo(
-    () => Boolean(pickupDistrict && dropoffState),
-    [pickupDistrict, dropoffState]
+    () =>
+      Boolean(pickupDistrict && pickupNeighborhood.trim().length >= 2 && dropoffState),
+    [pickupDistrict, pickupNeighborhood, dropoffState]
   );
 
   const openDeliverySheet = () => setShowDeliverySheet(true);
@@ -49,7 +54,7 @@ export default function HomeScreen() {
     router.push({
       pathname: '/delivery',
       params: {
-        pickup: `${pickupDistrict}, Banadir`,
+        pickup: `${pickupDistrict}, ${pickupNeighborhood.trim()}`,
         destination: dropoffState,
         deliveryMethod: 'Delivery State',
         deliveryTime: 'State delivery',
@@ -154,8 +159,12 @@ export default function HomeScreen() {
                     style={[styles.pickerItem, selected && styles.pickerItemSelected]}
                     activeOpacity={0.7}
                     onPress={() => {
-                      if (picker === 'district') setPickupDistrict(item);
-                      else setDropoffState(item);
+                      if (picker === 'district') {
+                        setPickupDistrict(item);
+                        setPickupNeighborhood('');
+                      } else {
+                        setDropoffState(item);
+                      }
                       setPicker(null);
                     }}>
                     <Text style={[styles.pickerItemText, { color: colors.text }]}>{item}</Text>
@@ -166,10 +175,13 @@ export default function HomeScreen() {
             </ScrollView>
           </View>
         ) : (
+          <KeyboardAvoidingView
+            style={styles.pickerInline}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
             <Text style={[styles.sheetTitle, { color: colors.text }]}>Delivery State</Text>
             <Text style={[styles.sheetSubtitle, { color: colors.icon }]}>
-              Dooro goobta alaabta laga qaadayo iyo goobta la geeynayo.
+              Dooro degmada, kadib geli xaafadda. Destination-ka waa gobol.
             </Text>
 
             <Text style={[styles.fieldLabel, { color: colors.icon }]}>Goobta laga qaadayo</Text>
@@ -193,6 +205,24 @@ export default function HomeScreen() {
               </View>
               <Ionicons name="chevron-down" size={18} color={colors.icon} />
             </TouchableOpacity>
+
+            {pickupDistrict ? (
+              <View style={[styles.selectField, { backgroundColor: isDark ? '#2A2A2A' : '#F3F3F3', marginTop: 10 }]}>
+                <View style={styles.selectFieldBody}>
+                  <Text style={[styles.selectLabel, { color: colors.icon }]}>Xaafadda</Text>
+                  <TextInput
+                    style={[styles.neighborhoodInput, { color: colors.text }]}
+                    placeholder="Geli xaafadda (tusaale Taleex)"
+                    placeholderTextColor={colors.icon}
+                    value={pickupNeighborhood}
+                    onChangeText={setPickupNeighborhood}
+                    autoCapitalize="words"
+                    autoCorrect={false}
+                    returnKeyType="done"
+                  />
+                </View>
+              </View>
+            ) : null}
 
             <Text style={[styles.fieldLabel, { color: colors.icon, marginTop: 18 }]}>Goobta la geeynayo</Text>
             <TouchableOpacity
@@ -222,6 +252,7 @@ export default function HomeScreen() {
               <Text style={[styles.chooseButtonText, { color: canContinue ? '#FFF' : '#999' }]}>Continue</Text>
             </TouchableOpacity>
           </ScrollView>
+          </KeyboardAvoidingView>
         )}
       </BottomSheet>
     </View>
@@ -363,6 +394,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   selectValue: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  neighborhoodInput: {
+    minHeight: 28,
+    padding: 0,
     fontSize: 16,
     fontWeight: '600',
   },
