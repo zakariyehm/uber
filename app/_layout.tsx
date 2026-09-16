@@ -58,6 +58,7 @@ function RootNavigator() {
         />
         <Stack.Screen name="plan-ride" options={{ title: 'Plan your ride' }} />
         <Stack.Screen name="profile" options={{ title: 'Profile' }} />
+        <Stack.Screen name="wallet" options={{ title: 'Wallet', headerShown: false }} />
         <Stack.Screen name="orders" options={{ title: 'Orders' }} />
       </Stack.Protected>
 

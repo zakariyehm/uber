@@ -1,7 +1,7 @@
-import { PaymentHoldStatus, Prisma, SettlementType } from '@prisma/client';
+import { PaymentHoldStatus, Prisma, SettlementType, UserRole } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../../lib/prisma.ts';
-import { requireDriver } from '../../middleware/authenticate.ts';
+import { authenticate, requireDriver } from '../../middleware/authenticate.ts';
 
 function startOfToday() {
   const d = new Date();
@@ -73,11 +73,37 @@ export async function syncDriverWallet(driverUserId: string) {
   });
 
   return {
+    role: 'DRIVER' as const,
     balance: Number(todayEarnings).toFixed(2),
+    pendingBalance: '0.00',
     tripsCompleted: todayRows.length,
     tripsCancelled: wallet.tripsCancelled,
     todayCompleted: todayRows.length,
     todayEarnings: Number(todayEarnings).toFixed(2),
+    updatedAt: wallet.updatedAt.toISOString(),
+  };
+}
+
+export async function getRiderWallet(riderUserId: string) {
+  const wallet = await prisma.riderWallet.upsert({
+    where: { riderUserId },
+    update: {},
+    create: { riderUserId },
+  });
+
+  const creditEvents = await prisma.deliveryRequest.count({
+    where: {
+      riderUserId,
+      settlementType: SettlementType.NO_SHOW,
+      riderRefundPending: { gt: 0 },
+    },
+  });
+
+  return {
+    role: 'RIDER' as const,
+    balance: '0.00',
+    pendingBalance: Number(wallet.pendingBalance).toFixed(2),
+    creditEvents,
     updatedAt: wallet.updatedAt.toISOString(),
   };
 }
@@ -87,7 +113,17 @@ export async function creditDriverForDelivery(driverUserId: string, _amount?: Pr
 }
 
 export async function walletRoutes(app: FastifyInstance) {
-  app.get('/me', { preHandler: requireDriver }, async (request) => {
+  app.get('/me', { preHandler: authenticate }, async (request, reply) => {
+    if (request.user.role === UserRole.DRIVER || request.user.role === 'DRIVER') {
+      return syncDriverWallet(request.user.sub);
+    }
+    if (request.user.role === UserRole.RIDER || request.user.role === 'RIDER') {
+      return getRiderWallet(request.user.sub);
+    }
+    return reply.code(403).send({ error: 'Unsupported account role' });
+  });
+
+  app.get('/driver/me', { preHandler: requireDriver }, async (request) => {
     return syncDriverWallet(request.user.sub);
   });
 }

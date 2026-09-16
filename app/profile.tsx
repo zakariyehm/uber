@@ -58,9 +58,8 @@ export default function ProfileScreen() {
       id: '3',
       title: 'Wallet',
       icon: 'wallet-outline',
-      onPress: () => {
-        // Handle wallet
-      },
+      description: 'Pending credits from no-show refunds',
+      onPress: () => router.push('/wallet'),
     },
     {
       id: '8',

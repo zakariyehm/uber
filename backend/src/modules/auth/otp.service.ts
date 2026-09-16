@@ -117,6 +117,7 @@ export async function completeOtpProfile(input: {
       riderProfile: role === UserRole.RIDER ? { create: { displayName } } : undefined,
       driverProfile: role === UserRole.DRIVER ? { create: { displayName } } : undefined,
       wallet: role === UserRole.DRIVER ? { create: {} } : undefined,
+      riderWallet: role === UserRole.RIDER ? { create: {} } : undefined,
     },
   });
   return toPublicUser(user);
