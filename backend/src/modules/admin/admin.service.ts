@@ -197,6 +197,7 @@ export async function getOverview() {
       deliveryStateBalance: allSettled.deliveryStateBalance,
     },
     driverFeePercent: feeSettings.driverFeePercent,
+    stateDriverPayout: feeSettings.stateDriverPayout,
   };
 }
 
@@ -739,8 +740,10 @@ export async function listWallets() {
     })
   );
 
+  const settings = await getPlatformSettings();
   return {
     deliveryStateBalance: (await settledSums()).deliveryStateBalance,
+    stateDriverPayout: settings.stateDriverPayout,
     drivers: driverRows,
     riders: riders.map((wallet) => ({
       userId: wallet.riderUserId,

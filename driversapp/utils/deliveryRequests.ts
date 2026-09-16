@@ -51,7 +51,7 @@ export interface DeliveryRequest {
   arrivalWaitMinutes?: number;
 }
 
-/** What the driver keeps. Delivery State is always $0.50; Moto stays the trip fare. */
+/** What the driver keeps. Delivery State uses the live admin payout; Moto stays the trip fare. */
 export function driverPayoutLabel(request: Pick<DeliveryRequest, 'openToAllVehicleTypes' | 'driverEarnings' | 'deliveryPrice'>) {
   const raw = request.openToAllVehicleTypes
     ? request.driverEarnings || '0.50'

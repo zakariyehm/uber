@@ -33,6 +33,7 @@ export type Overview = {
   };
   wallets: { riderPendingCredits: string; deliveryStateBalance?: string };
   driverFeePercent?: number;
+  stateDriverPayout?: number;
 };
 
 export type TripRow = {

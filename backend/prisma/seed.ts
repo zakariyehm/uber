@@ -78,9 +78,9 @@ async function main() {
   await prisma.platformSetting.upsert({
     where: { id: 'default' },
     update: {},
-    create: { id: 'default', driverFeeRate: 0.05 },
+    create: { id: 'default', driverFeeRate: 0.05, stateDriverPayout: 0.5 },
   });
-  console.log('Seeded platform driver fee: 5%');
+  console.log('Seeded platform driver fee: 5% · Delivery State driver payout $0.50');
 }
 
 main()

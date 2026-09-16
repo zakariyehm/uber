@@ -4,7 +4,7 @@ import { KpiCard } from "@/components/KpiCard";
 import { Shell } from "@/components/Shell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { api, errorMessage } from "@/lib/api";
-import { DRIVER_FEE_EVENT, DRIVER_FEE_STORAGE_KEY } from "@/lib/fee";
+import { DRIVER_FEE_EVENT, DRIVER_FEE_STORAGE_KEY, STATE_PAYOUT_STORAGE_KEY } from "@/lib/fee";
 import { OrderCode } from "@/components/OrderCode";
 import { money, vehicleLabel, when } from "@/lib/format";
 import type { LiveOps, Overview } from "@/lib/types";
@@ -16,11 +16,15 @@ export default function CommandPage() {
   const [live, setLive] = useState<LiveOps | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [storedFeePercent, setStoredFeePercent] = useState<number | null>(null);
+  const [storedStatePayout, setStoredStatePayout] = useState<number | null>(null);
 
   useEffect(() => {
     const raw = localStorage.getItem(DRIVER_FEE_STORAGE_KEY);
     const n = raw == null ? NaN : Number(raw);
     if (Number.isFinite(n)) setStoredFeePercent(n);
+    const payoutRaw = localStorage.getItem(STATE_PAYOUT_STORAGE_KEY);
+    const payout = payoutRaw == null ? NaN : Number(payoutRaw);
+    if (Number.isFinite(payout)) setStoredStatePayout(payout);
   }, []);
 
   useEffect(() => {
@@ -38,6 +42,9 @@ export default function CommandPage() {
           if (typeof ov.driverFeePercent === "number") {
             setStoredFeePercent(ov.driverFeePercent);
           }
+          if (typeof ov.stateDriverPayout === "number") {
+            setStoredStatePayout(ov.stateDriverPayout);
+          }
         }
       } catch (err) {
         if (!cancelled) setError(errorMessage(err, "Could not load operations"));
@@ -47,7 +54,9 @@ export default function CommandPage() {
     const id = setInterval(load, 20000);
     const onFee = () => void load();
     const onStorage = (event: StorageEvent) => {
-      if (event.key === DRIVER_FEE_STORAGE_KEY) void load();
+      if (event.key === DRIVER_FEE_STORAGE_KEY || event.key === STATE_PAYOUT_STORAGE_KEY) {
+        void load();
+      }
     };
     window.addEventListener(DRIVER_FEE_EVENT, onFee);
     window.addEventListener("storage", onStorage);
@@ -98,7 +107,9 @@ export default function CommandPage() {
         <KpiCard
           label="Delivery State balance"
           value={money(overview?.allTime.deliveryStateBalance)}
-          hint={`Today ${money(overview?.today.deliveryStateBalance)} · driver keeps $0.50`}
+          hint={`Today ${money(overview?.today.deliveryStateBalance)} · driver keeps ${money(
+            overview?.stateDriverPayout ?? storedStatePayout ?? 0.5
+          )}`}
         />
         <KpiCard
           label="Online drivers"

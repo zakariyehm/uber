@@ -1,14 +1,19 @@
 import { DeliveryStatus, PaymentHoldStatus, Prisma, SettlementType } from '@prisma/client';
 import { prisma } from '../../lib/prisma.ts';
 import { isOpenFleetMethod } from '../../utils/vehicle-type.ts';
-import { DEFAULT_PLATFORM_FEE_RATE, getDriverFeeRate } from '../admin/settings.service.ts';
+import {
+  DEFAULT_PLATFORM_FEE_RATE,
+  DEFAULT_STATE_DRIVER_PAYOUT,
+  getDriverFeeRate,
+  getStateDriverPayout,
+} from '../admin/settings.service.ts';
 import { waafiCancel, waafiCommit, waafiPreAuthorize } from './waafi.client.ts';
 import { toFriendlyPaymentError } from './payment-errors.ts';
 
 /** Driver no-show fee after waiting 15 minutes for Confirm Arrival. */
 export const NO_SHOW_FEE_USD = 0.5;
-/** Delivery State complete: driver keeps this; the rest is Delivery State balance. */
-export const STATE_DRIVER_PAYOUT_USD = 0.5;
+/** Fallback only. Live Delivery State driver payout comes from admin Fees after Save. */
+export const STATE_DRIVER_PAYOUT_USD = DEFAULT_STATE_DRIVER_PAYOUT;
 /** Fallback only. Live rate comes from admin Fees after Save. */
 export const PLATFORM_FEE_RATE = DEFAULT_PLATFORM_FEE_RATE;
 /** Minutes driver must wait at pickup before no-show cancel is allowed. */
@@ -25,9 +30,9 @@ export function splitTripEarnings(price: number, rate: number) {
   return { platformFee, driverEarnings };
 }
 
-/** Delivery State only: no % service fee. Driver $0.50, remainder is state balance. */
-export function splitStateTripEarnings(price: number) {
-  const driverEarnings = roundMoney(Math.min(STATE_DRIVER_PAYOUT_USD, Math.max(0, price)));
+/** Delivery State only: no % service fee. Driver keeps live payout, remainder is state balance. */
+export function splitStateTripEarnings(price: number, payout = DEFAULT_STATE_DRIVER_PAYOUT) {
+  const driverEarnings = roundMoney(Math.min(Math.max(0, payout), Math.max(0, price)));
   const stateShare = roundMoney(Math.max(0, price - driverEarnings));
   return { driverEarnings, stateShare, platformFee: 0 };
 }
@@ -100,8 +105,8 @@ async function refreshDriverDailyWallet(driverUserId: string) {
 }
 
 /**
- * Successful trip Done: Moto keeps the live % fee; Delivery State pays the driver $0.50
- * and the remainder is Delivery State balance (no system service fee).
+ * Successful trip Done: Moto keeps the live % fee; Delivery State pays the live driver
+ * payout and the remainder is Delivery State balance (no system service fee).
  */
 export async function settleFullTrip(deliveryId: string) {
   const row = await prisma.deliveryRequest.findUnique({ where: { id: deliveryId } });
@@ -112,7 +117,7 @@ export async function settleFullTrip(deliveryId: string) {
   const price = Number(row.deliveryPrice);
   const stateTrip = await isOpenFleetMethod(row.deliveryMethod);
   const split = stateTrip
-    ? splitStateTripEarnings(price)
+    ? splitStateTripEarnings(price, await getStateDriverPayout())
     : { ...splitTripEarnings(price, await getDriverFeeRate()), stateShare: 0 };
   const { platformFee, driverEarnings, stateShare } = split;
 

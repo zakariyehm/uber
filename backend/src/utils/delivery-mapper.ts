@@ -1,4 +1,5 @@
 import type { DeliveryRequest as DbDelivery, DeliveryStatus } from '@prisma/client';
+import { getLiveStateDriverPayout } from '../modules/admin/settings.service.ts';
 import {
   ARRIVAL_WAIT_MS,
   arrivalWaitRemainingSec,
@@ -77,7 +78,7 @@ export function toDeliveryDto(row: DbDelivery): DeliveryDto {
   const waitSec = waitingArrivalConfirm ? arrivalWaitRemainingSec(row.driverArrivedAt) : undefined;
   const openFleet = looksLikeOpenFleetMethod(row.deliveryMethod);
   const price = Number(row.deliveryPrice);
-  const stateSplit = openFleet ? splitStateTripEarnings(price) : null;
+  const stateSplit = openFleet ? splitStateTripEarnings(price, getLiveStateDriverPayout()) : null;
   const driverEarnings =
     row.driverEarnings != null
       ? Number(row.driverEarnings).toFixed(2)

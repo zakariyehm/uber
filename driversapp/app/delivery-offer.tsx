@@ -3,6 +3,7 @@ import {
   acceptDeliveryRequest,
   declineDeliveryRequest,
   DeliveryRequest,
+  driverPayoutLabel,
   getDeliveryRequestById,
   getPendingRequests,
 } from '@/utils/deliveryRequests';
@@ -230,7 +231,7 @@ export default function DeliveryOfferScreen() {
           </Text>
           <Text style={styles.priceHint}>
             {openFleet
-              ? `${secondsLeft}s to accept · fare $${request.deliveryPrice} · you earn $0.50`
+              ? `${secondsLeft}s to accept · fare $${request.deliveryPrice} · you earn ${driverPayoutLabel(request)}`
               : `${secondsLeft}s to accept · ${request.itemType}`}
           </Text>
         </View>

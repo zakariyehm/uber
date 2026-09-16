@@ -187,7 +187,11 @@ export async function adminRoutes(app: FastifyInstance) {
     try {
       const body = z
         .object({
-          driverFeePercent: z.coerce.number().min(0).max(30),
+          driverFeePercent: z.coerce.number().min(0).max(30).optional(),
+          stateDriverPayout: z.coerce.number().min(0).max(50).optional(),
+        })
+        .refine((value) => value.driverFeePercent != null || value.stateDriverPayout != null, {
+          message: 'Enter a Moto fee or a Delivery State driver payout',
         })
         .parse(request.body ?? {});
       return await patchPlatformSettings(body);

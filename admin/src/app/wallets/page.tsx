@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 
 type WalletPayload = {
   deliveryStateBalance?: string;
+  stateDriverPayout?: number;
   drivers: {
     userId: string;
     name: string;
@@ -59,7 +60,9 @@ export default function WalletsPage() {
               Delivery State balance
             </p>
             <p className="mt-1 text-xl font-semibold">{money(data.deliveryStateBalance || "0")}</p>
-            <p className="text-xs text-muted">Kept after each $0.50 driver payout</p>
+            <p className="text-xs text-muted">
+              Kept after each {money(data.stateDriverPayout ?? 0.5)} driver payout
+            </p>
           </div>
         ) : null}
       </div>

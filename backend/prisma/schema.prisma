@@ -253,6 +253,7 @@ model ServiceMethod {
 model PlatformSetting {
   id                    String   @id @default("default")
   driverFeeRate         Decimal  @default(0.05) @db.Decimal(5, 4)
+  stateDriverPayout     Decimal  @default(0.50) @db.Decimal(10, 2)
   deliveryStateBalance  Decimal  @default(0) @db.Decimal(12, 2)
   updatedAt             DateTime @updatedAt
 }
