@@ -1,5 +1,4 @@
-import { useColorScheme as useRNColorScheme } from 'react-native';
-
+/** Raac app is light-mode only. */
 export function useColorScheme(): 'light' | 'dark' {
-  return useRNColorScheme() === 'dark' ? 'dark' : 'light';
+  return 'light';
 }

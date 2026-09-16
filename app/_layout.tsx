@@ -1,4 +1,4 @@
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import { Platform } from 'react-native';
@@ -7,10 +7,8 @@ import 'react-native-reanimated';
 import { SplashView } from '@/components/splash-view';
 import { AppColors } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/contexts/auth';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
   const [fontsLoaded] = useFonts({
     'Poppins-ExtraBold': require('../assets/fonts/Poppins-ExtraBold.ttf'),
   });
@@ -20,10 +18,10 @@ export default function RootLayout() {
   }
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <ThemeProvider value={DefaultTheme}>
       <AuthProvider>
         <RootNavigator />
-        <StatusBar style="auto" />
+        <StatusBar style="dark" />
       </AuthProvider>
     </ThemeProvider>
   );
