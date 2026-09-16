@@ -44,10 +44,19 @@ export interface DeliveryRequest {
   settlementType?: string;
   driverEarnings?: string;
   platformFee?: string;
+  stateShare?: string;
   riderRefundPending?: string;
   arrivalWaitSecondsRemaining?: number;
   canCancelForNoShow?: boolean;
   arrivalWaitMinutes?: number;
+}
+
+/** What the driver keeps. Delivery State is always $0.50; Moto stays the trip fare. */
+export function driverPayoutLabel(request: Pick<DeliveryRequest, 'openToAllVehicleTypes' | 'driverEarnings' | 'deliveryPrice'>) {
+  const raw = request.openToAllVehicleTypes
+    ? request.driverEarnings || '0.50'
+    : request.deliveryPrice || '0.00';
+  return raw.startsWith('$') ? raw : `$${raw}`;
 }
 
 export const createDeliveryRequest = async (orderData: {

@@ -15,7 +15,9 @@ type PaymentRow = {
   settlementType: string;
   driverEarnings: string | null;
   platformFee: string | null;
+  stateShare: string | null;
   riderRefundPending: string | null;
+  openToAllVehicleTypes?: boolean;
   waafiTransactionId: string | null;
   heldAt: string | null;
   committedAt: string | null;
@@ -98,7 +100,9 @@ export default function PaymentsPage() {
                   <p className="mt-1 text-xs text-muted">{row.settlementType}</p>
                 </td>
                 <td className="px-4 py-3 text-xs text-muted">
-                  fee {money(row.platformFee)} · driver {money(row.driverEarnings)}
+                  {row.openToAllVehicleTypes
+                    ? `state ${money(row.stateShare)} · driver ${money(row.driverEarnings)}`
+                    : `fee ${money(row.platformFee)} · driver ${money(row.driverEarnings)}`}
                   {row.riderRefundPending ? ` · credit ${money(row.riderRefundPending)}` : ""}
                 </td>
                 <td className="px-4 py-3 text-xs text-muted">

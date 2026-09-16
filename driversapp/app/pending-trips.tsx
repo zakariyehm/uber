@@ -1,5 +1,6 @@
 import {
   DeliveryRequest,
+  driverPayoutLabel,
   getActiveDelivery,
   getDeliveryRequestById,
   getPendingRequests,
@@ -87,7 +88,7 @@ export default function PendingTripsScreen() {
               {active.pickupLocation} → {active.destinationLocation}
             </Text>
             <Text style={styles.meta}>
-              {active.status} · ${active.deliveryPrice}
+              {active.status} · {driverPayoutLabel(active)}
             </Text>
           </TouchableOpacity>
           <View style={styles.empty}>
@@ -117,7 +118,7 @@ export default function PendingTripsScreen() {
                   {item.pickupLocation} → {item.destinationLocation}
                 </Text>
                 <Text style={styles.meta}>
-                  ${item.deliveryPrice} · {item.itemType}
+                  {driverPayoutLabel(item)} · {item.itemType}
                 </Text>
               </TouchableOpacity>
             ))

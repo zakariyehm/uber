@@ -25,9 +25,11 @@ type Detail = {
     userConfirmedDeliveryAt?: string;
     driverEarnings?: string;
     platformFee?: string;
+    stateShare?: string;
     riderRefundPending?: string;
     paymentHoldStatus?: string;
     settlementType?: string;
+    openToAllVehicleTypes?: boolean;
   };
   rider: { id: string; name: string; phone: string; rating: string | null; pendingBalance: string; isActive: boolean } | null;
   driver: { id: string; name: string; phone: string; rating: string | null; isOnline: boolean; todayBalance: string; isActive: boolean; vehicleType?: string | null } | null;
@@ -149,8 +151,23 @@ export default function TripDetailPage() {
                 <h3 className="text-sm font-semibold">Fare split</h3>
                 <dl className="mt-3 space-y-2 text-sm">
                   <div className="flex justify-between"><dt>Fare</dt><dd>{money(trip.deliveryPrice)}</dd></div>
-                  <div className="flex justify-between"><dt>Platform</dt><dd>{money(trip.platformFee)}</dd></div>
-                  <div className="flex justify-between"><dt>Driver</dt><dd>{money(trip.driverEarnings)}</dd></div>
+                  {trip.openToAllVehicleTypes ? (
+                    <>
+                      <div className="flex justify-between">
+                        <dt>Driver</dt>
+                        <dd>{money(trip.driverEarnings)}</dd>
+                      </div>
+                      <div className="flex justify-between">
+                        <dt>Delivery State</dt>
+                        <dd>{money(trip.stateShare)}</dd>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex justify-between"><dt>Platform</dt><dd>{money(trip.platformFee)}</dd></div>
+                      <div className="flex justify-between"><dt>Driver</dt><dd>{money(trip.driverEarnings)}</dd></div>
+                    </>
+                  )}
                   <div className="flex justify-between"><dt>Rider credit</dt><dd>{money(trip.riderRefundPending)}</dd></div>
                   <div className="flex justify-between"><dt>Settlement</dt><dd>{trip.settlementType || "NONE"}</dd></div>
                 </dl>
@@ -168,8 +185,11 @@ export default function TripDetailPage() {
                     {data?.driver?.vehicleType ? ` · ${vehicleLabel(data.driver.vehicleType)}` : ""}
                   </span>
                 </p>
-                <Link href="/trips" className="mt-4 inline-block text-xs text-raac">
-                  All trips
+                <Link
+                  href={trip.openToAllVehicleTypes ? "/trips/state" : "/trips/local"}
+                  className="mt-4 inline-block text-xs text-raac"
+                >
+                  {trip.openToAllVehicleTypes ? "All state trips" : "All local trips"}
                 </Link>
               </section>
             </div>

@@ -1,11 +1,14 @@
 import { DeliveryStatus, PaymentHoldStatus, Prisma, SettlementType } from '@prisma/client';
 import { prisma } from '../../lib/prisma.ts';
+import { isOpenFleetMethod } from '../../utils/vehicle-type.ts';
 import { DEFAULT_PLATFORM_FEE_RATE, getDriverFeeRate } from '../admin/settings.service.ts';
 import { waafiCancel, waafiCommit, waafiPreAuthorize } from './waafi.client.ts';
 import { toFriendlyPaymentError } from './payment-errors.ts';
 
 /** Driver no-show fee after waiting 15 minutes for Confirm Arrival. */
 export const NO_SHOW_FEE_USD = 0.5;
+/** Delivery State complete: driver keeps this; the rest is Delivery State balance. */
+export const STATE_DRIVER_PAYOUT_USD = 0.5;
 /** Fallback only. Live rate comes from admin Fees after Save. */
 export const PLATFORM_FEE_RATE = DEFAULT_PLATFORM_FEE_RATE;
 /** Minutes driver must wait at pickup before no-show cancel is allowed. */
@@ -20,6 +23,13 @@ export function splitTripEarnings(price: number, rate: number) {
   const platformFee = roundMoney(price * rate);
   const driverEarnings = roundMoney(price - platformFee);
   return { platformFee, driverEarnings };
+}
+
+/** Delivery State only: no % service fee. Driver $0.50, remainder is state balance. */
+export function splitStateTripEarnings(price: number) {
+  const driverEarnings = roundMoney(Math.min(STATE_DRIVER_PAYOUT_USD, Math.max(0, price)));
+  const stateShare = roundMoney(Math.max(0, price - driverEarnings));
+  return { driverEarnings, stateShare, platformFee: 0 };
 }
 
 export async function fullTripDriverEarnings(price: number) {
@@ -90,7 +100,8 @@ async function refreshDriverDailyWallet(driverUserId: string) {
 }
 
 /**
- * Successful trip Done: Commit Waafi hold, keep platform fee, credit driver net.
+ * Successful trip Done: Moto keeps the live % fee; Delivery State pays the driver $0.50
+ * and the remainder is Delivery State balance (no system service fee).
  */
 export async function settleFullTrip(deliveryId: string) {
   const row = await prisma.deliveryRequest.findUnique({ where: { id: deliveryId } });
@@ -99,8 +110,10 @@ export async function settleFullTrip(deliveryId: string) {
   if (row.paymentHoldStatus === PaymentHoldStatus.COMMITTED) return row;
 
   const price = Number(row.deliveryPrice);
-  const feeRate = await getDriverFeeRate();
-  const { platformFee, driverEarnings } = splitTripEarnings(price, feeRate);
+  const stateTrip = await isOpenFleetMethod(row.deliveryMethod);
+  const { platformFee, driverEarnings } = stateTrip
+    ? splitStateTripEarnings(price)
+    : splitTripEarnings(price, await getDriverFeeRate());
 
   if (row.paymentHoldStatus === PaymentHoldStatus.HELD && row.waafiTransactionId) {
     const commit = await waafiCommit(row.waafiTransactionId, `Commit order ${row.orderId}`);

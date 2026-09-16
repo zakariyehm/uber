@@ -7,6 +7,7 @@ import { money } from "@/lib/format";
 import { useEffect, useState } from "react";
 
 type WalletPayload = {
+  deliveryStateBalance?: string;
   drivers: {
     userId: string;
     name: string;
@@ -46,9 +47,20 @@ export default function WalletsPage() {
 
   return (
     <Shell>
-      <div className="mb-6">
-        <h2 className="text-2xl font-semibold">Wallets</h2>
-        <p className="text-sm text-muted">Driver daily earnings and rider pending credits</p>
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-semibold">Wallets</h2>
+          <p className="text-sm text-muted">Driver daily earnings and rider pending credits</p>
+        </div>
+        {data ? (
+          <div className="rounded-xl border border-line bg-panel px-4 py-3 text-right">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+              Delivery State balance
+            </p>
+            <p className="mt-1 text-xl font-semibold">{money(data.deliveryStateBalance || "0")}</p>
+            <p className="text-xs text-muted">Total after $0.50 driver payout</p>
+          </div>
+        ) : null}
       </div>
       {error ? <p className="mb-4 text-sm text-danger">{error}</p> : null}
 

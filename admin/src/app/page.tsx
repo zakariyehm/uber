@@ -80,7 +80,7 @@ export default function CommandPage() {
         <KpiCard
           label="Platform fee"
           value={money(overview?.today.platformFee)}
-          hint={`Live ${overview?.driverFeePercent ?? storedFeePercent ?? 5}% · next completed trip`}
+          hint={`Moto ${overview?.driverFeePercent ?? storedFeePercent ?? 5}% · next completed trip`}
         />
         <KpiCard
           label="Driver earnings"
@@ -94,7 +94,12 @@ export default function CommandPage() {
         />
       </div>
 
-      <div className="mt-4 grid gap-4 md:grid-cols-3">
+      <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <KpiCard
+          label="Delivery State balance"
+          value={money(overview?.allTime.deliveryStateBalance)}
+          hint={`Today ${money(overview?.today.deliveryStateBalance)} · driver keeps $0.50`}
+        />
         <KpiCard
           label="Online drivers"
           value={`${overview?.fleet.onlineDrivers ?? 0}`}
@@ -116,9 +121,14 @@ export default function CommandPage() {
         <section className="rounded-xl border border-line bg-panel">
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
             <h3 className="text-sm font-semibold">Live trips</h3>
-            <Link href="/trips" className="text-xs text-raac">
-              View all
-            </Link>
+            <div className="flex gap-3 text-xs">
+              <Link href="/trips/local" className="text-raac">
+                Local
+              </Link>
+              <Link href="/trips/state" className="text-raac">
+                State
+              </Link>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -144,7 +154,10 @@ export default function CommandPage() {
                     </td>
                     <td className="px-4 py-3">
                       <p>{trip.deliveryMethod || "—"}</p>
-                      <p className="text-xs text-muted">{vehicleLabel(trip.vehicleType)}</p>
+                      <p className="text-xs text-muted">
+                        {trip.openToAllVehicleTypes ? "State" : "Local"}
+                        {trip.vehicleType ? ` · ${vehicleLabel(trip.vehicleType)}` : ""}
+                      </p>
                     </td>
                     <td className="px-4 py-3">
                       <StatusBadge value={trip.status} />

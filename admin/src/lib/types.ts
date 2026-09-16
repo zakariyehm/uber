@@ -5,6 +5,7 @@ export type Overview = {
     platformFee: string;
     driverEarnings: string;
     riderRefundPending: string;
+    deliveryStateBalance: string;
     settledCount: number;
     fullTrips: number;
     noShows: number;
@@ -17,6 +18,7 @@ export type Overview = {
     platformFee: string;
     driverEarnings: string;
     riderRefundPending: string;
+    deliveryStateBalance: string;
     settledCount: number;
     riders: number;
     drivers: number;
@@ -29,7 +31,7 @@ export type Overview = {
     liveTrips: number;
     pendingOffers: number;
   };
-  wallets: { riderPendingCredits: string };
+  wallets: { riderPendingCredits: string; deliveryStateBalance?: string };
   driverFeePercent?: number;
 };
 
@@ -40,6 +42,7 @@ export type TripRow = {
   destinationLocation: string;
   deliveryMethod: string;
   vehicleType?: string | null;
+  openToAllVehicleTypes?: boolean;
   deliveryPrice: string;
   status: string;
   createdAt: string;

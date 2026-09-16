@@ -2,11 +2,13 @@ import {
   DeliveryStatus,
   PaymentHoldStatus,
   Prisma,
+  ServiceCategory,
   SettlementType,
   UserRole,
 } from '@prisma/client';
 import { prisma } from '../../lib/prisma.ts';
 import { toDeliveryDto } from '../../utils/delivery-mapper.ts';
+import { looksLikeOpenFleetMethod } from '../../utils/vehicle-type.ts';
 import { AuthError, registerUser, toPublicUser } from '../auth/auth.service.ts';
 import { applyDeliveryAction } from '../deliveries/deliveries.service.ts';
 import { syncDriverWallet } from '../wallet/wallet.service.ts';
@@ -65,30 +67,46 @@ async function settledSums(from?: Date) {
     ...(from ? { settledAt: { gte: from } } : {}),
   };
 
-  const grouped = await prisma.deliveryRequest.groupBy({
-    by: ['settlementType'],
+  const rows = await prisma.deliveryRequest.findMany({
     where,
-    _sum: {
+    select: {
+      settlementType: true,
+      deliveryMethod: true,
       deliveryPrice: true,
       platformFee: true,
       driverEarnings: true,
       riderRefundPending: true,
     },
-    _count: { _all: true },
   });
 
-  const totals = grouped.reduce(
+  const totals = rows.reduce(
     (acc, row) => {
-      acc.gmv += money(row._sum.deliveryPrice);
-      acc.platformFee += money(row._sum.platformFee);
-      acc.driverEarnings += money(row._sum.driverEarnings);
-      acc.riderRefundPending += money(row._sum.riderRefundPending);
-      acc.count += row._count._all;
-      if (row.settlementType === SettlementType.FULL) acc.fullTrips += row._count._all;
-      if (row.settlementType === SettlementType.NO_SHOW) acc.noShows += row._count._all;
+      const price = money(row.deliveryPrice);
+      const driver = money(row.driverEarnings);
+      acc.gmv += price;
+      acc.driverEarnings += driver;
+      acc.riderRefundPending += money(row.riderRefundPending);
+      acc.count += 1;
+      if (row.settlementType === SettlementType.FULL) acc.fullTrips += 1;
+      if (row.settlementType === SettlementType.NO_SHOW) acc.noShows += 1;
+
+      if (row.settlementType === SettlementType.FULL && looksLikeOpenFleetMethod(row.deliveryMethod)) {
+        acc.deliveryStateBalance += Math.max(0, Math.round((price - driver) * 100) / 100);
+      } else {
+        acc.platformFee += money(row.platformFee);
+      }
       return acc;
     },
-    { gmv: 0, platformFee: 0, driverEarnings: 0, riderRefundPending: 0, count: 0, fullTrips: 0, noShows: 0 }
+    {
+      gmv: 0,
+      platformFee: 0,
+      driverEarnings: 0,
+      riderRefundPending: 0,
+      deliveryStateBalance: 0,
+      count: 0,
+      fullTrips: 0,
+      noShows: 0,
+    }
   );
 
   return {
@@ -96,6 +114,7 @@ async function settledSums(from?: Date) {
     platformFee: moneyStr(totals.platformFee),
     driverEarnings: moneyStr(totals.driverEarnings),
     riderRefundPending: moneyStr(totals.riderRefundPending),
+    deliveryStateBalance: moneyStr(totals.deliveryStateBalance),
     settledCount: totals.count,
     fullTrips: totals.fullTrips,
     noShows: totals.noShows,
@@ -172,6 +191,7 @@ export async function getOverview() {
     },
     wallets: {
       riderPendingCredits: moneyStr(riderPendingAgg._sum.pendingBalance),
+      deliveryStateBalance: allSettled.deliveryStateBalance,
     },
     driverFeePercent: feeSettings.driverFeePercent,
   };
@@ -232,17 +252,57 @@ function parseDeliveryStatus(raw?: string): DeliveryStatus | null {
     : null;
 }
 
-async function listTripMethodOptions() {
+async function stateMethodNames() {
+  const rows = await prisma.serviceMethod.findMany({
+    where: { category: ServiceCategory.DELIVERY_STATE },
+    select: { name: true },
+  });
+  return rows.map((row) => row.name).filter(Boolean);
+}
+
+function methodInList(names: string[]): Prisma.DeliveryRequestWhereInput {
+  if (!names.length) return { id: { in: [] } };
+  return {
+    OR: names.map((name) => ({
+      deliveryMethod: { equals: name, mode: 'insensitive' as const },
+    })),
+  };
+}
+
+async function tripKindWhere(kind?: string): Promise<Prisma.DeliveryRequestWhereInput | null> {
+  const raw = String(kind || '').trim().toUpperCase();
+  if (raw !== 'LOCAL' && raw !== 'STATE' && raw !== 'MOTO' && raw !== 'DELIVERY_STATE') {
+    return null;
+  }
+  const stateNames = await stateMethodNames();
+  const isState = raw === 'STATE' || raw === 'DELIVERY_STATE';
+  if (isState) return methodInList(stateNames);
+  if (!stateNames.length) return {};
+  return { NOT: methodInList(stateNames) };
+}
+
+async function listTripMethodOptions(kind?: string) {
+  const raw = String(kind || '').trim().toUpperCase();
+  const category =
+    raw === 'STATE' || raw === 'DELIVERY_STATE'
+      ? ServiceCategory.DELIVERY_STATE
+      : raw === 'LOCAL' || raw === 'MOTO'
+        ? ServiceCategory.MOTO
+        : undefined;
+
   const [catalog, used] = await Promise.all([
     prisma.serviceMethod.findMany({
+      where: category ? { category } : undefined,
       select: { name: true, category: true, sortOrder: true },
       orderBy: [{ category: 'asc' }, { sortOrder: 'asc' }, { name: 'asc' }],
     }),
-    prisma.deliveryRequest.findMany({
-      distinct: ['deliveryMethod'],
-      select: { deliveryMethod: true },
-      orderBy: { deliveryMethod: 'asc' },
-    }),
+    category
+      ? Promise.resolve([] as { deliveryMethod: string }[])
+      : prisma.deliveryRequest.findMany({
+          distinct: ['deliveryMethod'],
+          select: { deliveryMethod: true },
+          orderBy: { deliveryMethod: 'asc' },
+        }),
   ]);
 
   const seen = new Set<string>();
@@ -261,6 +321,7 @@ export async function listTrips(input: {
   status?: string;
   method?: string;
   vehicleType?: string;
+  category?: string;
   q?: string;
   page?: number;
   limit?: number;
@@ -269,31 +330,37 @@ export async function listTrips(input: {
   const limit = Math.min(50, Math.max(1, input.limit || 20));
   const skip = (page - 1) * limit;
 
-  const where: Prisma.DeliveryRequestWhereInput = {};
+  const and: Prisma.DeliveryRequestWhereInput[] = [];
   const status = parseDeliveryStatus(input.status);
-  if (status) where.status = status;
+  if (status) and.push({ status });
   const method = input.method?.trim();
   if (method) {
-    where.deliveryMethod = { equals: method, mode: 'insensitive' };
+    and.push({ deliveryMethod: { equals: method, mode: 'insensitive' } });
   }
   if (input.vehicleType === 'MOTORCYCLE' || input.vehicleType === 'BICYCLE') {
-    where.vehicleType = input.vehicleType;
+    and.push({ vehicleType: input.vehicleType });
   }
+  const kindWhere = await tripKindWhere(input.category);
+  if (kindWhere) and.push(kindWhere);
   if (input.q) {
     const q = input.q.trim().replace(/^#/, '');
-    where.OR = [
-      { orderId: { contains: q, mode: 'insensitive' } },
-      { pickupLocation: { contains: q, mode: 'insensitive' } },
-      { destinationLocation: { contains: q, mode: 'insensitive' } },
-      { senderName: { contains: q, mode: 'insensitive' } },
-      { senderPhone: { contains: q, mode: 'insensitive' } },
-      { recipientName: { contains: q, mode: 'insensitive' } },
-      { recipientNumber: { contains: q, mode: 'insensitive' } },
-      { driverName: { contains: q, mode: 'insensitive' } },
-      { rider: { phone: { contains: q, mode: 'insensitive' } } },
-      { driver: { phone: { contains: q, mode: 'insensitive' } } },
-    ];
+    and.push({
+      OR: [
+        { orderId: { contains: q, mode: 'insensitive' } },
+        { pickupLocation: { contains: q, mode: 'insensitive' } },
+        { destinationLocation: { contains: q, mode: 'insensitive' } },
+        { senderName: { contains: q, mode: 'insensitive' } },
+        { senderPhone: { contains: q, mode: 'insensitive' } },
+        { recipientName: { contains: q, mode: 'insensitive' } },
+        { recipientNumber: { contains: q, mode: 'insensitive' } },
+        { driverName: { contains: q, mode: 'insensitive' } },
+        { rider: { phone: { contains: q, mode: 'insensitive' } } },
+        { driver: { phone: { contains: q, mode: 'insensitive' } } },
+      ],
+    });
   }
+
+  const where: Prisma.DeliveryRequestWhereInput = and.length ? { AND: and } : {};
 
   const [rows, total, methods] = await Promise.all([
     prisma.deliveryRequest.findMany({
@@ -307,7 +374,7 @@ export async function listTrips(input: {
       take: limit,
     }),
     prisma.deliveryRequest.count({ where }),
-    listTripMethodOptions(),
+    listTripMethodOptions(input.category),
   ]);
 
   return {
@@ -608,24 +675,30 @@ export async function listPayments(input: {
     page,
     limit,
     total,
-    payments: rows.map((row) => ({
-      id: row.id,
-      orderId: row.orderId,
-      amount: moneyStr(row.deliveryPrice),
-      status: row.paymentHoldStatus,
-      settlementType: row.settlementType,
-      driverEarnings: row.driverEarnings != null ? moneyStr(row.driverEarnings) : null,
-      platformFee: row.platformFee != null ? moneyStr(row.platformFee) : null,
-      riderRefundPending: row.riderRefundPending != null ? moneyStr(row.riderRefundPending) : null,
-      waafiTransactionId: row.waafiTransactionId,
-      heldAt: row.paymentHeldAt?.toISOString() || null,
-      committedAt: row.paymentCommittedAt?.toISOString() || null,
-      releasedAt: row.paymentReleasedAt?.toISOString() || null,
-      settledAt: row.settledAt?.toISOString() || null,
-      riderPhone: row.rider?.phone || row.senderPhone || null,
-      driverName: row.driverName,
-      tripStatus: row.status,
-    })),
+    payments: rows.map((row) => {
+      const dto = toDeliveryDto(row);
+      return {
+        id: row.id,
+        orderId: row.orderId,
+        amount: moneyStr(row.deliveryPrice),
+        status: row.paymentHoldStatus,
+        settlementType: row.settlementType,
+        deliveryMethod: row.deliveryMethod,
+        openToAllVehicleTypes: dto.openToAllVehicleTypes,
+        driverEarnings: dto.driverEarnings || null,
+        platformFee: dto.platformFee || null,
+        stateShare: dto.stateShare || null,
+        riderRefundPending: row.riderRefundPending != null ? moneyStr(row.riderRefundPending) : null,
+        waafiTransactionId: row.waafiTransactionId,
+        heldAt: row.paymentHeldAt?.toISOString() || null,
+        committedAt: row.paymentCommittedAt?.toISOString() || null,
+        releasedAt: row.paymentReleasedAt?.toISOString() || null,
+        settledAt: row.settledAt?.toISOString() || null,
+        riderPhone: row.rider?.phone || row.senderPhone || null,
+        driverName: row.driverName,
+        tripStatus: row.status,
+      };
+    }),
   };
 }
 
@@ -663,6 +736,7 @@ export async function listWallets() {
   );
 
   return {
+    deliveryStateBalance: (await settledSums()).deliveryStateBalance,
     drivers: driverRows,
     riders: riders.map((wallet) => ({
       userId: wallet.riderUserId,

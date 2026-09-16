@@ -4,6 +4,7 @@ import {
   cancelDeliveryRequest,
   completeDelivery,
   DeliveryRequest,
+  driverPayoutLabel,
   getDeliveryRequestById,
   markAsPickedUp,
   markDriverArrived,
@@ -53,7 +54,10 @@ function sheetCopy(request: DeliveryRequest): { title: string; subtitle: string 
     return { title: 'Waiting for receipt confirm', subtitle: 'Rider must confirm received' };
   }
   if (request.status === 'completed') {
-    return { title: 'Delivery complete', subtitle: `$${request.deliveryPrice} earned` };
+    const earned = request.openToAllVehicleTypes
+      ? request.driverEarnings || '0.50'
+      : request.deliveryPrice;
+    return { title: 'Delivery complete', subtitle: `$${earned} earned` };
   }
   return { title: 'Trip details', subtitle: request.pickupLocation };
 }
@@ -295,9 +299,7 @@ export default function DeliveryDetailsScreen() {
   const step = currentStep();
   const senderLine = [request.senderName, request.senderPhone].filter(Boolean).join(' · ');
   const recipientLine = [request.recipientName, request.recipientNumber].filter(Boolean).join(' · ');
-  const priceLabel = request.deliveryPrice?.startsWith('$')
-    ? request.deliveryPrice
-    : `$${request.deliveryPrice || '0.00'}`;
+  const priceLabel = driverPayoutLabel(request);
   const isWaitingOnRider = step?.kind === 'wait';
   const waitingArrivalConfirm =
     request.status === 'accepted' && request.driverArrived && !request.userConfirmedArrival;

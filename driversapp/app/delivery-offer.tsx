@@ -225,8 +225,14 @@ export default function DeliveryOfferScreen() {
             <Text style={styles.serviceBadgeText}>{serviceLabel} · {vehicleLabel}</Text>
           </View>
 
-          <Text style={styles.price}>${request.deliveryPrice}</Text>
-          <Text style={styles.priceHint}>{secondsLeft}s to accept · {request.itemType}</Text>
+          <Text style={styles.price}>
+            ${openFleet ? request.driverEarnings || '0.50' : request.deliveryPrice}
+          </Text>
+          <Text style={styles.priceHint}>
+            {openFleet
+              ? `${secondsLeft}s to accept · fare $${request.deliveryPrice} · you earn $0.50`
+              : `${secondsLeft}s to accept · ${request.itemType}`}
+          </Text>
         </View>
 
         <View style={styles.divider} />

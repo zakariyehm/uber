@@ -76,7 +76,12 @@ export default function HistoryScreen() {
 
   const stats = useMemo(() => {
     const completed = trips.filter((t) => t.status === 'completed');
-    const earnings = completed.reduce((sum, t) => sum + (Number.parseFloat(t.deliveryPrice) || 0), 0);
+    const earnings = completed.reduce((sum, t) => {
+      const amount = t.openToAllVehicleTypes
+        ? Number.parseFloat(t.driverEarnings || '0.50')
+        : Number.parseFloat(t.deliveryPrice) || 0;
+      return sum + (Number.isFinite(amount) ? amount : 0);
+    }, 0);
     return {
       total: trips.length,
       completed: completed.length,
@@ -169,7 +174,12 @@ export default function HistoryScreen() {
             <Ionicons name="cube-outline" size={16} color="#666" />
             <Text style={styles.footerChipText}>{item.itemType}</Text>
           </View>
-          <Text style={styles.price}>${item.deliveryPrice}</Text>
+          <Text style={styles.price}>
+            $
+            {item.openToAllVehicleTypes
+              ? item.driverEarnings || '0.50'
+              : item.deliveryPrice}
+          </Text>
         </View>
       </TouchableOpacity>
     );

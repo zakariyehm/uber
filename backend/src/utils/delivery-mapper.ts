@@ -3,6 +3,7 @@ import {
   ARRIVAL_WAIT_MS,
   arrivalWaitRemainingSec,
   canCancelForNoShow,
+  splitStateTripEarnings,
 } from '../modules/payments/payment.settlement.ts';
 import { toIso } from './dates.ts';
 import { looksLikeOpenFleetMethod } from './vehicle-type.ts';
@@ -58,6 +59,7 @@ export type DeliveryDto = {
   settlementType?: string;
   driverEarnings?: string;
   platformFee?: string;
+  stateShare?: string;
   riderRefundPending?: string;
   arrivalWaitSecondsRemaining?: number;
   canCancelForNoShow?: boolean;
@@ -73,6 +75,28 @@ export function toDeliveryDto(row: DbDelivery): DeliveryDto {
   const waitingArrivalConfirm =
     row.status === 'ACCEPTED' && row.driverArrived && !row.userConfirmedArrival;
   const waitSec = waitingArrivalConfirm ? arrivalWaitRemainingSec(row.driverArrivedAt) : undefined;
+  const openFleet = looksLikeOpenFleetMethod(row.deliveryMethod);
+  const price = Number(row.deliveryPrice);
+  const stateSplit = openFleet ? splitStateTripEarnings(price) : null;
+  const driverEarnings =
+    row.driverEarnings != null
+      ? Number(row.driverEarnings).toFixed(2)
+      : stateSplit
+        ? stateSplit.driverEarnings.toFixed(2)
+        : undefined;
+  const platformFee =
+    row.platformFee != null
+      ? Number(row.platformFee).toFixed(2)
+      : stateSplit
+        ? '0.00'
+        : undefined;
+  const stateShare = stateSplit
+    ? (
+        row.driverEarnings != null
+          ? Math.max(0, Math.round((price - Number(row.driverEarnings)) * 100) / 100)
+          : stateSplit.stateShare
+      ).toFixed(2)
+    : undefined;
 
   return {
     id: row.id,
@@ -86,7 +110,7 @@ export function toDeliveryDto(row: DbDelivery): DeliveryDto {
     itemType: row.itemType,
     deliveryMethod: row.deliveryMethod,
     vehicleType: row.vehicleType,
-    openToAllVehicleTypes: looksLikeOpenFleetMethod(row.deliveryMethod),
+    openToAllVehicleTypes: openFleet,
     deliveryPrice: row.deliveryPrice.toFixed(2),
     status: statusMap[row.status],
     createdAt: row.createdAt.toISOString(),
@@ -114,8 +138,9 @@ export function toDeliveryDto(row: DbDelivery): DeliveryDto {
     cancelReason: row.cancelReason ?? undefined,
     paymentHoldStatus: row.paymentHoldStatus,
     settlementType: row.settlementType,
-    driverEarnings: row.driverEarnings != null ? Number(row.driverEarnings).toFixed(2) : undefined,
-    platformFee: row.platformFee != null ? Number(row.platformFee).toFixed(2) : undefined,
+    driverEarnings,
+    platformFee,
+    stateShare,
     riderRefundPending:
       row.riderRefundPending != null ? Number(row.riderRefundPending).toFixed(2) : undefined,
     arrivalWaitSecondsRemaining: waitSec,

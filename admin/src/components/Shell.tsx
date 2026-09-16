@@ -6,13 +6,18 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
-const NAV = [
+const NAV: { href?: string; label: string; section?: boolean }[] = [
   { href: "/", label: "Command" },
-  { href: "/trips", label: "Trips" },
+  { label: "Trips", section: true },
+  { href: "/trips/local", label: "Local" },
+  { href: "/trips/state", label: "State" },
+  { label: "Catalog", section: true },
   { href: "/moto", label: "Moto" },
   { href: "/states", label: "States" },
+  { label: "Network", section: true },
   { href: "/drivers", label: "Drivers" },
   { href: "/riders", label: "Riders" },
+  { label: "Finance", section: true },
   { href: "/payments", label: "Payments" },
   { href: "/fees", label: "Fees" },
   { href: "/wallets", label: "Wallets" },
@@ -66,6 +71,16 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </div>
         <nav className="flex-1 space-y-1 p-3">
           {NAV.map((item) => {
+            if (item.section || !item.href) {
+              return (
+                <p
+                  key={item.label}
+                  className="px-3 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted/80 first:pt-1"
+                >
+                  {item.label}
+                </p>
+              );
+            }
             const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
             return (
               <Link

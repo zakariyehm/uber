@@ -41,6 +41,7 @@ export interface DeliveryRequest {
   settlementType?: string;
   driverEarnings?: string;
   platformFee?: string;
+  stateShare?: string;
   riderRefundPending?: string;
 }
 

@@ -26,6 +26,7 @@ const listQuery = z.object({
   q: z.string().optional(),
   status: z.string().optional(),
   method: z.string().optional(),
+  category: z.enum(['LOCAL', 'STATE', 'MOTO', 'DELIVERY_STATE']).optional(),
   vehicleType: z.enum(['MOTORCYCLE', 'BICYCLE']).optional(),
   role: z.enum(['RIDER', 'DRIVER']).optional(),
   page: z.coerce.number().optional(),

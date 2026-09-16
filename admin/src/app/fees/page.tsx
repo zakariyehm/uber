@@ -88,7 +88,8 @@ export default function FeesPage() {
         <div>
           <h2 className="text-2xl font-semibold">Fees</h2>
           <p className="text-sm text-muted">
-            Change the driver service fee and Save. It goes live immediately.
+            Change the Moto driver service fee and Save. It goes live immediately. Delivery State
+            does not use this fee.
           </p>
         </div>
         <div className="rounded-full border border-raac/30 bg-raac-dim px-3 py-1 text-xs font-semibold text-raac">
@@ -100,9 +101,10 @@ export default function FeesPage() {
       {notice ? <p className="mb-4 text-sm text-raac">{notice}</p> : null}
 
       <section className="max-w-xl rounded-xl border border-line bg-panel p-5">
-        <h3 className="text-sm font-semibold">Driver service fee</h3>
+        <h3 className="text-sm font-semibold">Moto driver service fee</h3>
         <p className="mt-1 text-xs text-muted">
-          Applied automatically the moment a trip is completed. No-show fees stay $0.50 with 0% platform cut.
+          Applied automatically when a Moto trip is completed. Delivery State is not included.
+          No-show fees stay $0.50 with 0% platform cut.
         </p>
         <form className="mt-4" onSubmit={(event) => void save(event)}>
           <div className="flex items-center gap-3">
@@ -149,6 +151,24 @@ export default function FeesPage() {
           {saved?.updatedAt ? (
             <p className="mt-2 text-[11px] text-muted">Went live {when(saved.updatedAt)}</p>
           ) : null}
+        </div>
+      </section>
+
+      <section className="mt-6 max-w-xl rounded-xl border border-line bg-panel p-5">
+        <h3 className="text-sm font-semibold">Delivery State</h3>
+        <p className="mt-1 text-xs text-muted">
+          No system service fee. On complete the driver receives $0.50. The rest goes to Delivery
+          State balance on Command and Wallets.
+        </p>
+        <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+          <div className="rounded-lg border border-line bg-panel-2 px-3 py-3">
+            <p className="text-xs text-muted">On a $3.00 Delivery State trip</p>
+            <p className="mt-1 font-semibold">$0.50 to driver</p>
+          </div>
+          <div className="rounded-lg border border-line bg-panel-2 px-3 py-3">
+            <p className="text-xs text-muted">Delivery State keeps</p>
+            <p className="mt-1 font-semibold">$2.50</p>
+          </div>
         </div>
       </section>
     </Shell>
