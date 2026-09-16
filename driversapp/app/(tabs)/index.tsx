@@ -279,15 +279,15 @@ export default function HomeScreen() {
   const getStatusColor = (): string => {
     switch (driverStatus) {
       case 'offline':
-        return '#3B89EB';
+        return '#161616';
       case 'waiting':
         return '#FF9500';
       case 'online':
-        return '#34C759';
+        return '#3B89EB';
       case 'deactivating':
         return '#8E8E93';
       default:
-        return '#3B89EB';
+        return '#8E8E93';
     }
   };
 
@@ -298,16 +298,11 @@ export default function HomeScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" translucent />
       <ImageBackground
-        source={require('../../assets/images/raacmap.png')}
+        source={require('@/assets/images/racapp.png')}
         style={styles.mapBackground}
         resizeMode="cover">
         <View style={styles.homeContainer}>
-          <DriverHomeHeader
-            balance={walletBalance}
-            onMenuPress={handleMenuPress}
-            onWalletPress={handleWalletPress}
-            onSettingsPress={handleSettingsPress}
-          />
+          <DriverHomeHeader balance={walletBalance} onWalletPress={handleWalletPress} />
           <View style={styles.goButtonContainer}>
             <TouchableOpacity
               style={[
@@ -336,7 +331,12 @@ export default function HomeScreen() {
       </ImageBackground>
 
       <View style={styles.divider} />
-      <BottomNav statusText={getStatusText()} statusColor={getStatusColor()} />
+      <BottomNav
+        statusText={getStatusText()}
+        statusColor={getStatusColor()}
+        onLeftIconPress={handleMenuPress}
+        onRightIconPress={handleSettingsPress}
+      />
 
       {isLoading && driverStatus === 'online' ? (
         <View style={styles.loadingOverlay}>
@@ -351,14 +351,16 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0B1220',
+    backgroundColor: '#E8ECE8',
   },
   mapBackground: {
     flex: 1,
     width: '100%',
+    backgroundColor: '#E8ECE8',
   },
   homeContainer: {
     flex: 1,
+    backgroundColor: 'transparent',
   },
   goButtonContainer: {
     position: 'absolute',

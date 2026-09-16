@@ -75,6 +75,10 @@ export default function DeliveryOfferScreen() {
 
   const leaveHome = () => {
     void stopOfferAlert();
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
     router.replace('/(tabs)');
   };
 

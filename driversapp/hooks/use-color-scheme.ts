@@ -1,5 +1,4 @@
-import { useColorScheme as useRNColorScheme } from 'react-native';
-
+/** Driversapp is light-only — ignore system dark mode. */
 export function useColorScheme(): 'light' | 'dark' {
-  return useRNColorScheme() === 'dark' ? 'dark' : 'light';
+  return 'light';
 }

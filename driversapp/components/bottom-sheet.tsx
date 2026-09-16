@@ -1,14 +1,12 @@
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import React, { useEffect, useRef } from 'react';
 import {
-    Animated,
-    Dimensions,
-    Modal,
-    PanResponder,
-    StyleSheet,
-    TouchableWithoutFeedback,
-    View
+  Animated,
+  Dimensions,
+  Modal,
+  PanResponder,
+  StyleSheet,
+  TouchableWithoutFeedback,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -23,9 +21,6 @@ interface BottomSheetProps {
 
 export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
   const insets = useSafeAreaInsets();
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
-  const isDark = colorScheme === 'dark';
   const translateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
   const pan = useRef(new Animated.ValueXY()).current;
 
@@ -80,11 +75,7 @@ export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
   if (!visible) return null;
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="none"
-      onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={styles.overlay}>
           <TouchableWithoutFeedback>
@@ -92,13 +83,12 @@ export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
               style={[
                 styles.sheet,
                 {
-                  backgroundColor: isDark ? '#1A1A1A' : '#FFFFFF',
+                  backgroundColor: '#FFFFFF',
                   paddingBottom: insets.bottom,
-                  transform: [
-                    { translateY: Animated.add(translateY, pan.y) },
-                  ],
+                  transform: [{ translateY: Animated.add(translateY, pan.y) }],
                 },
-              ]}>
+              ]}
+              {...panResponder.panHandlers}>
               {children}
             </Animated.View>
           </TouchableWithoutFeedback>
@@ -116,10 +106,8 @@ const styles = StyleSheet.create({
   },
   sheet: {
     height: SHEET_HEIGHT,
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 0,
-    paddingTop: 12,
-    paddingHorizontal: 20,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    overflow: 'hidden',
   },
 });
-

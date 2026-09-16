@@ -1,5 +1,3 @@
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { DeliveryRequest, getMyDriverDeliveries } from '@/utils/deliveryRequests';
 import { toUserFriendlyError } from '@/utils/errors';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,6 +13,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+
+const TEXT = '#11181C';
 
 type TripFilter = 'all' | 'completed' | 'active' | 'cancelled';
 
@@ -47,9 +47,6 @@ function isActiveStatus(status: string) {
 }
 
 export default function HistoryScreen() {
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
-  const isDark = colorScheme === 'dark';
   const router = useRouter();
   const [selectedFilter, setSelectedFilter] = useState<TripFilter>('all');
   const [trips, setTrips] = useState<DeliveryRequest[]>([]);
@@ -108,14 +105,14 @@ export default function HistoryScreen() {
 
     return (
       <TouchableOpacity
-        style={[styles.card, { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF' }]}
+        style={styles.card}
         activeOpacity={0.75}
         onPress={() =>
           router.push({ pathname: '/delivery-details', params: { requestId: item.id } })
         }>
         <View style={styles.cardHeader}>
           <View>
-            <Text style={[styles.dateText, { color: colors.text }]}>
+            <Text style={styles.dateText}>
               {when.date} · {when.time}
             </Text>
             <Text style={styles.orderId}>{item.orderId}</Text>
@@ -130,7 +127,7 @@ export default function HistoryScreen() {
             <View style={[styles.dot, { backgroundColor: '#34C759' }]} />
             <View style={{ flex: 1 }}>
               <Text style={styles.routeLabel}>Pickup</Text>
-              <Text style={[styles.routeValue, { color: colors.text }]} numberOfLines={1}>
+              <Text style={styles.routeValue} numberOfLines={1}>
                 {item.pickupLocation}
               </Text>
             </View>
@@ -139,17 +136,17 @@ export default function HistoryScreen() {
             <View style={[styles.dot, { backgroundColor: '#FF3B30' }]} />
             <View style={{ flex: 1 }}>
               <Text style={styles.routeLabel}>Drop-off</Text>
-              <Text style={[styles.routeValue, { color: colors.text }]} numberOfLines={1}>
+              <Text style={styles.routeValue} numberOfLines={1}>
                 {item.destinationLocation}
               </Text>
             </View>
           </View>
         </View>
 
-        <View style={[styles.infoGrid, { borderTopColor: isDark ? '#2C2C2E' : '#EFEFEF' }]}>
+        <View style={styles.infoGrid}>
           <View style={styles.infoCol}>
             <Text style={styles.infoLabel}>Sender</Text>
-            <Text style={[styles.infoValue, { color: colors.text }]} numberOfLines={1}>
+            <Text style={styles.infoValue} numberOfLines={1}>
               {item.senderName || '—'}
             </Text>
             <Text style={styles.infoMeta} numberOfLines={1}>
@@ -158,7 +155,7 @@ export default function HistoryScreen() {
           </View>
           <View style={styles.infoCol}>
             <Text style={styles.infoLabel}>Recipient</Text>
-            <Text style={[styles.infoValue, { color: colors.text }]} numberOfLines={1}>
+            <Text style={styles.infoValue} numberOfLines={1}>
               {item.recipientName || '—'}
             </Text>
             <Text style={styles.infoMeta} numberOfLines={1}>
@@ -180,9 +177,9 @@ export default function HistoryScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+      <StatusBar barStyle="dark-content" />
 
-      <View style={[styles.summary, { backgroundColor: isDark ? '#111' : '#000' }]}>
+      <View style={styles.summary}>
         <View style={styles.summaryItem}>
           <Text style={styles.summaryValue}>{stats.completed}</Text>
           <Text style={styles.summaryLabel}>Completed</Text>
@@ -270,6 +267,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#000',
   },
   summaryItem: { flex: 1, alignItems: 'center' },
   summaryValue: { color: '#fff', fontSize: 18, fontWeight: '800' },
@@ -303,6 +301,7 @@ const styles = StyleSheet.create({
     padding: 14,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: '#E6E6E6',
+    backgroundColor: '#FFFFFF',
   },
   cardHeader: {
     flexDirection: 'row',
@@ -310,7 +309,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 12,
   },
-  dateText: { fontSize: 15, fontWeight: '700' },
+  dateText: { fontSize: 15, fontWeight: '700', color: TEXT },
   orderId: { fontSize: 12, color: '#888', marginTop: 2 },
   badge: {
     paddingHorizontal: 8,
@@ -322,17 +321,18 @@ const styles = StyleSheet.create({
   routeRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
   dot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },
   routeLabel: { fontSize: 11, fontWeight: '700', color: '#888', marginBottom: 2 },
-  routeValue: { fontSize: 15, fontWeight: '600' },
+  routeValue: { fontSize: 15, fontWeight: '600', color: TEXT },
   infoGrid: {
     flexDirection: 'row',
     gap: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#EFEFEF',
     paddingTop: 12,
     marginBottom: 12,
   },
   infoCol: { flex: 1 },
   infoLabel: { fontSize: 11, fontWeight: '700', color: '#888', marginBottom: 2 },
-  infoValue: { fontSize: 14, fontWeight: '700' },
+  infoValue: { fontSize: 14, fontWeight: '700', color: TEXT },
   infoMeta: { fontSize: 12, color: '#777', marginTop: 2 },
   footerRow: {
     flexDirection: 'row',

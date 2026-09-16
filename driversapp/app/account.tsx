@@ -1,16 +1,23 @@
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuth } from '@/contexts/auth';
 import { driverDisplayName } from '@/utils/driverAuth';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Alert, Dimensions, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  Alert,
+  Dimensions,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-// Responsive helper functions
 const scaleWidth = (size: number) => (SCREEN_WIDTH / 375) * size;
 const scaleHeight = (size: number) => (SCREEN_HEIGHT / 812) * size;
 const scaleFont = (size: number) => {
@@ -19,19 +26,17 @@ const scaleFont = (size: number) => {
   return Platform.OS === 'ios' ? Math.round(newSize) : Math.round(newSize);
 };
 
+const TEXT = '#11181C';
+
 interface AccountOption {
   id: string;
   title: string;
   subtitle?: string;
   icon: keyof typeof Ionicons.glyphMap;
-  onPress?: () => void;
 }
 
 export default function AccountScreen() {
   const insets = useSafeAreaInsets();
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
-  const isDark = colorScheme === 'dark';
   const router = useRouter();
   const { user, signOut } = useAuth();
   const [username, setUsername] = useState('Driver');
@@ -63,91 +68,105 @@ export default function AccountScreen() {
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await signOut();
+            router.replace('/login');
+          } catch {
+            Alert.alert('Error', 'Failed to logout. Please try again.');
+          }
         },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              console.log('[Account] Logging out driver...');
-              await signOut();
-              console.log('[Account] Driver logged out successfully');
-              router.replace('/login');
-            } catch (error: any) {
-              console.error('[Account] Logout error:', error);
-              Alert.alert('Error', 'Failed to logout. Please try again.');
-            }
-          },
-        },
-      ]
-    );
+      },
+    ]);
   };
 
   return (
-    <View style={[styles.container, { paddingTop: Math.max(insets.top, Platform.OS === 'ios' ? 0 : StatusBar.currentHeight || 0) }]}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent />
-      
-      {/* Content */}
-      <ScrollView 
-        style={[styles.content]}
+    <View
+      style={[
+        styles.container,
+        {
+          paddingTop: Math.max(insets.top, Platform.OS === 'ios' ? 0 : StatusBar.currentHeight || 0),
+        },
+      ]}>
+      <StatusBar barStyle="dark-content" translucent />
+
+      <View style={[styles.topBar, { paddingHorizontal: scaleWidth(16) }]}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))}
+          activeOpacity={0.7}
+          hitSlop={10}>
+          <Ionicons name="chevron-back" size={scaleFont(28)} color={TEXT} />
+        </TouchableOpacity>
+        <Text style={[styles.topTitle, { fontSize: scaleFont(17) }]}>Settings</Text>
+        <View style={styles.backBtn} />
+      </View>
+
+      <ScrollView
+        style={styles.content}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: scaleHeight(32) }}>
-        
-        {/* Profile Header */}
-        <View style={[styles.profileHeader, { paddingHorizontal: scaleWidth(20), paddingTop: scaleHeight(24), paddingBottom: scaleHeight(32) }]}>
-          <View style={[
-            styles.avatarContainer,
+        <View
+          style={[
+            styles.profileHeader,
             {
-              backgroundColor: isDark ? '#3A3A3A' : '#E0E0E0',
-              width: scaleWidth(60),
-              height: scaleWidth(60),
-              borderRadius: scaleWidth(30),
-              marginRight: scaleWidth(16),
-            }
+              paddingHorizontal: scaleWidth(20),
+              paddingTop: scaleHeight(12),
+              paddingBottom: scaleHeight(32),
+            },
           ]}>
-            <Ionicons name="person" size={scaleFont(30)} color={colors.text} />
+          <View
+            style={[
+              styles.avatarContainer,
+              {
+                backgroundColor: '#E0E0E0',
+                width: scaleWidth(60),
+                height: scaleWidth(60),
+                borderRadius: scaleWidth(30),
+                marginRight: scaleWidth(16),
+              },
+            ]}>
+            <Ionicons name="person" size={scaleFont(30)} color={TEXT} />
           </View>
           <View style={styles.profileInfo}>
             <View style={styles.nameRatingContainer}>
-              <Text style={[styles.username, { color: colors.text, fontSize: scaleFont(28) }]}>{username}</Text>
-              <View style={[styles.ratingBadge, { backgroundColor: '#000' }]}>
+              <Text style={[styles.username, { fontSize: scaleFont(28) }]}>{username}</Text>
+              <View style={styles.ratingBadge}>
                 <Ionicons name="star" size={scaleFont(14)} color="#FFF" />
-                <Text style={[styles.ratingText, { color: '#FFF', fontSize: scaleFont(14), marginLeft: scaleWidth(4) }]}>{rating}</Text>
+                <Text style={[styles.ratingText, { fontSize: scaleFont(14), marginLeft: scaleWidth(4) }]}>
+                  {rating}
+                </Text>
               </View>
             </View>
           </View>
         </View>
 
-        {/* Menu Items */}
         <View style={[styles.menuContainer, { paddingHorizontal: scaleWidth(20) }]}>
-          {accountOptions.map((option) => (
-            <TouchableOpacity
-              key={option.id}
-              style={styles.menuItem}
-              activeOpacity={0.7}
-              onPress={() => handleOptionPress(option)}>
-              <View style={styles.menuItemContent}>
-                <Ionicons 
-                  name={option.icon} 
-                  size={scaleFont(24)} 
-                  color={option.id === 'logout' ? '#FF3B30' : colors.text}
-                  style={styles.menuIcon}
-                />
-                <View style={styles.menuTextContainer}>
-                  <Text style={[styles.menuItemText, { color: option.id === 'logout' ? '#FF3B30' : colors.text, fontSize: scaleFont(16) }]}>
-                    {option.title}
-                  </Text>
+          {accountOptions.map((option) => {
+            const isLogout = option.id === 'logout';
+            const color = isLogout ? '#FF3B30' : TEXT;
+            return (
+              <TouchableOpacity
+                key={option.id}
+                style={styles.menuItem}
+                activeOpacity={0.7}
+                onPress={() => handleOptionPress(option)}>
+                <View style={styles.menuItemContent}>
+                  <Ionicons name={option.icon} size={scaleFont(24)} color={color} style={styles.menuIcon} />
+                  <View style={styles.menuTextContainer}>
+                    <Text style={[styles.menuItemText, { color, fontSize: scaleFont(16) }]}>
+                      {option.title}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-            </TouchableOpacity>
-          ))}
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </ScrollView>
     </View>
@@ -157,7 +176,24 @@ export default function AccountScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFFFF',
+  },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 44,
+    marginBottom: 4,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+  topTitle: {
+    fontWeight: '600',
+    color: TEXT,
   },
   content: {
     flex: 1,
@@ -178,6 +214,7 @@ const styles = StyleSheet.create({
   },
   username: {
     fontWeight: '700',
+    color: TEXT,
   },
   ratingBadge: {
     flexDirection: 'row',
@@ -185,9 +222,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: scaleWidth(8),
     paddingVertical: scaleHeight(4),
     borderRadius: scaleWidth(4),
+    backgroundColor: '#000',
   },
   ratingText: {
     fontWeight: '600',
+    color: '#FFF',
   },
   avatarContainer: {
     justifyContent: 'center',
@@ -215,4 +254,3 @@ const styles = StyleSheet.create({
     fontWeight: '400',
   },
 });
-

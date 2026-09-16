@@ -1,5 +1,4 @@
 import { useAuth } from '@/contexts/auth';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Dimensions, Image, StatusBar, StyleSheet, Text, View } from 'react-native';
@@ -8,24 +7,19 @@ const { width, height } = Dimensions.get('window');
 
 const SPLASH_CONFIG = {
   duration: 1200,
-  backgroundColorLight: '#000000',
-  backgroundColorDark: '#000000',
+  backgroundColor: '#000000',
   logoImage: require('@/assets/images/splash-icon.png'),
   logoSize: 100,
   appName: 'Driver',
   appNameSize: 36,
-  appNameColorLight: '#FFFFFF',
-  appNameColorDark: '#FFFFFF',
+  appNameColor: '#FFFFFF',
   tagline: 'Drive with us',
   taglineSize: 14,
-  taglineColorLight: '#9BA1A6',
-  taglineColorDark: '#9BA1A6',
+  taglineColor: '#9BA1A6',
   fadeInDuration: 600,
 };
 
 export default function SplashScreen() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
   const router = useRouter();
   const { isReady, isLoggedIn } = useAuth();
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -57,15 +51,7 @@ export default function SplashScreen() {
   }, [isReady, isLoggedIn, minSplashDone, router]);
 
   return (
-    <View
-      style={[
-        styles.container,
-        {
-          backgroundColor: isDark
-            ? SPLASH_CONFIG.backgroundColorDark
-            : SPLASH_CONFIG.backgroundColorLight,
-        },
-      ]}>
+    <View style={[styles.container, { backgroundColor: SPLASH_CONFIG.backgroundColor }]}>
       <StatusBar barStyle="light-content" translucent />
       <Animated.View
         style={[
@@ -86,7 +72,7 @@ export default function SplashScreen() {
           style={[
             styles.appName,
             {
-              color: isDark ? SPLASH_CONFIG.appNameColorDark : SPLASH_CONFIG.appNameColorLight,
+              color: SPLASH_CONFIG.appNameColor,
               fontSize: SPLASH_CONFIG.appNameSize,
             },
           ]}>
@@ -96,7 +82,7 @@ export default function SplashScreen() {
           style={[
             styles.tagline,
             {
-              color: isDark ? SPLASH_CONFIG.taglineColorDark : SPLASH_CONFIG.taglineColorLight,
+              color: SPLASH_CONFIG.taglineColor,
               fontSize: SPLASH_CONFIG.taglineSize,
             },
           ]}>
