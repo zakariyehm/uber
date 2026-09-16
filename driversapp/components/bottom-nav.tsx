@@ -19,13 +19,13 @@ export function BottomNav({
   statusColor = "#3B89EB"
 }: BottomNavProps) {
   const insets = useSafeAreaInsets();
-  const iconSize = width * 0.06; // ~6% of screen width
+  const iconSize = Math.round(width * 0.075);
 
   return (
     <View style={[
       styles.bottomNav,
       {
-        paddingBottom: Math.max(insets.bottom, width * 0.03),
+        paddingBottom: Math.max(insets.bottom, 20),
         backgroundColor: statusColor,
       }
     ]}>
@@ -56,16 +56,17 @@ export function BottomNav({
 const styles = StyleSheet.create({
   bottomNav: {
     width: '100%',
+    minHeight: 96,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: width * 0.05,
-    paddingTop: width * 0.03,
+    paddingTop: 28,
     borderTopWidth: 0,
   },
   iconButton: {
-    width: width * 0.1,
-    height: width * 0.1,
+    width: width * 0.13,
+    height: width * 0.13,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -73,12 +74,11 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: width * 0.05,
+    paddingHorizontal: width * 0.04,
   },
   statusText: {
-    fontSize: width * 0.04,
-    fontWeight: '600',
+    fontSize: Math.round(width * 0.05),
+    fontWeight: '700',
     color: '#fff',
   },
 });
-

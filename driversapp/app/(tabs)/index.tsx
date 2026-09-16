@@ -160,7 +160,7 @@ export default function HomeScreen() {
   }, [driverStatus]);
 
   const handleLeftIconPress = () => {
-    router.push('/pending-trips');
+    router.push('/history');
   };
 
   const handleRightIconPress = () => {
@@ -338,11 +338,12 @@ const styles = StyleSheet.create({
   },
   goButtonContainer: {
     position: 'absolute',
-    bottom: width * 0.1,
+    bottom: width * 0.22,
     left: 0,
     right: 0,
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 2,
   },
   goButton: {
     backgroundColor: '#007AFF',
@@ -363,7 +364,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     position: 'absolute',
-    bottom: width * 0.12,
+    bottom: width * 0.24,
     left: 0,
     right: 0,
     height: 1,
