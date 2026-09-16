@@ -163,32 +163,6 @@ export default function HomeScreen() {
             </View>
           </TouchableOpacity>
         </View>
-
-        <View style={styles.savedLocations}>
-          <TouchableOpacity
-            style={[
-              styles.locationItem,
-              {
-                backgroundColor: isDark ? '#2A2A2A' : '#F8F8F8',
-              },
-            ]}
-            activeOpacity={0.7}
-            onPress={() => router.push('/plan-ride')}>
-            <View
-              style={[
-                styles.locationIconContainer,
-                {
-                  backgroundColor: isDark ? '#3A3A3A' : '#E0E0E0',
-                },
-              ]}>
-              <Ionicons name="bag" size={24} color={colors.text} />
-            </View>
-            <View style={styles.locationInfo}>
-              <Text style={[styles.locationName, { color: colors.text }]}>Delivery</Text>
-              <Text style={[styles.locationAddress, { color: colors.icon }]}>Code Street, London, UK</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
       </View>
 
       <BottomSheet visible={showDeliverySheet} onClose={closeDeliverySheet} heightRatio={0.78}>
@@ -418,38 +392,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  savedLocations: {
-    width: '100%',
-    marginTop: 25,
-    gap: 12,
-  },
-  locationItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 12,
-    width: '100%',
-  },
-  locationIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  locationInfo: {
-    flex: 1,
-  },
-  locationName: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  locationAddress: {
-    fontSize: 14,
-    fontWeight: '400',
   },
   sheetHandle: {
     alignSelf: 'center',
