@@ -7,6 +7,7 @@ import {
   getPendingRequests,
 } from '@/utils/deliveryRequests';
 import { driverDisplayName } from '@/utils/driverAuth';
+import { toUserFriendlyError } from '@/utils/errors';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
@@ -51,7 +52,7 @@ export default function DeliveryOfferScreen() {
           : pending[0];
         if (!cancelled) setRequest(match || null);
       } catch (error: any) {
-        if (!cancelled) Alert.alert('Error', error.message || 'Could not load offer');
+        if (!cancelled) Alert.alert('Error', toUserFriendlyError(error, 'Could not load offer'));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -112,7 +113,7 @@ export default function DeliveryOfferScreen() {
       await declineDeliveryRequest(request.id);
       leaveHome();
     } catch (error: any) {
-      Alert.alert('Decline failed', error.message || 'Try again');
+      Alert.alert('Decline failed', toUserFriendlyError(error, 'Try again'));
       setBusy(false);
     }
   };
@@ -133,7 +134,7 @@ export default function DeliveryOfferScreen() {
         params: { requestId: accepted.id },
       });
     } catch (error: any) {
-      Alert.alert('Could not accept', error.message || 'Offer timed out or was taken');
+      Alert.alert('Could not accept', toUserFriendlyError(error, 'Offer timed out or was taken'));
       leaveHome();
     }
   };

@@ -1,6 +1,7 @@
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { DeliveryRequest, getMyDriverDeliveries } from '@/utils/deliveryRequests';
+import { toUserFriendlyError } from '@/utils/errors';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
@@ -63,8 +64,7 @@ export default function HistoryScreen() {
       const rows = await getMyDriverDeliveries();
       setTrips(rows);
     } catch (err: any) {
-      console.error('[History]', err);
-      setError(err.message || 'Could not load trip history');
+      setError(toUserFriendlyError(err, 'Could not load trip history'));
     } finally {
       setLoading(false);
       setRefreshing(false);

@@ -1,4 +1,5 @@
 import { apiRequest } from '@/lib/api';
+import { toUserFriendlyError } from '@/utils/errors';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -45,7 +46,7 @@ export default function WalletScreen() {
       const data = await fetchDriverWallet();
       setWallet(data);
     } catch (err: any) {
-      setError(err.message || 'Could not load wallet');
+      setError(toUserFriendlyError(err, 'Could not load wallet'));
     } finally {
       setIsLoading(false);
       setRefreshing(false);

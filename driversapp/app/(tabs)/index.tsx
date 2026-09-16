@@ -3,10 +3,13 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
   DeliveryRequest,
   getActiveDelivery,
+  getDeliveryRequestById,
   getDriverOnline,
   listenForPendingRequests,
+  setActiveDelivery,
   setDriverOnline,
 } from '@/utils/deliveryRequests';
+import { toUserFriendlyError } from '@/utils/errors';
 import { useFocusEffect, router } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -58,9 +61,30 @@ export default function HomeScreen() {
           const activeId = await getActiveDelivery();
           if (cancelled) return;
           if (activeId) {
-            offerInFlightRef.current = true;
-            router.push({ pathname: '/delivery-details', params: { requestId: activeId } });
-            return;
+            try {
+              const trip = await getDeliveryRequestById(activeId);
+              if (!trip || trip.status === 'cancelled') {
+                await setActiveDelivery(null);
+              } else if (
+                trip.status === 'completed' &&
+                trip.userConfirmedDelivery
+              ) {
+                await setActiveDelivery(null);
+              } else {
+                offerInFlightRef.current = true;
+                router.push({ pathname: '/delivery-details', params: { requestId: activeId } });
+                return;
+              }
+            } catch (error: any) {
+              if (error?.status === 404) {
+                await setActiveDelivery(null);
+              } else {
+                // Network busy — still open the trip sheet; it will retry.
+                offerInFlightRef.current = true;
+                router.push({ pathname: '/delivery-details', params: { requestId: activeId } });
+                return;
+              }
+            }
           }
 
           // Decline should keep driver online — restore status from server
@@ -145,13 +169,30 @@ export default function HomeScreen() {
       try {
         const activeId = await getActiveDelivery();
         if (activeId) {
-          router.push({ pathname: '/delivery-details', params: { requestId: activeId } });
-          return;
+          try {
+            const trip = await getDeliveryRequestById(activeId);
+            if (!trip || trip.status === 'cancelled') {
+              await setActiveDelivery(null);
+            } else {
+              router.push({ pathname: '/delivery-details', params: { requestId: activeId } });
+              return;
+            }
+          } catch (error: any) {
+            if (error?.status === 404) {
+              await setActiveDelivery(null);
+            } else {
+              router.push({ pathname: '/delivery-details', params: { requestId: activeId } });
+              return;
+            }
+          }
         }
         await setDriverOnline(true);
         setDriverStatus('waiting');
       } catch (error: any) {
-        Alert.alert('Could not go online', error.message || 'Check your connection to the Raac API');
+        Alert.alert(
+          'Could not go online',
+          toUserFriendlyError(error, 'Network busy. Check your connection and try again.')
+        );
       }
       return;
     }
@@ -162,7 +203,7 @@ export default function HomeScreen() {
       try {
         await setDriverOnline(false);
       } catch (error: any) {
-        Alert.alert('Could not go offline', error.message || 'Try again');
+        Alert.alert('Could not go offline', toUserFriendlyError(error, 'Try again'));
         return;
       }
       setDriverStatus('deactivating');

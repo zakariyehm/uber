@@ -1,7 +1,7 @@
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { getStoredUser } from '@/lib/api';
-import { driverDisplayName, logoutDriver } from '@/utils/driverAuth';
+import { useAuth } from '@/contexts/auth';
+import { driverDisplayName } from '@/utils/driverAuth';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -33,15 +33,13 @@ export default function AccountScreen() {
   const colors = Colors[colorScheme ?? 'light'];
   const isDark = colorScheme === 'dark';
   const router = useRouter();
+  const { user, signOut } = useAuth();
   const [username, setUsername] = useState('Driver');
   const [rating] = useState('5.0');
 
   useEffect(() => {
-    void (async () => {
-      const user = await getStoredUser();
-      setUsername(driverDisplayName(user));
-    })();
-  }, []);
+    setUsername(driverDisplayName(user));
+  }, [user]);
 
   const accountOptions: AccountOption[] = [
     { id: 'history', title: 'Trip History', subtitle: 'Past and active deliveries', icon: 'time-outline' },
@@ -53,7 +51,6 @@ export default function AccountScreen() {
   ];
 
   const handleOptionPress = (option: AccountOption) => {
-    console.log(`${option.title} pressed`);
     if (option.id === 'wallet') {
       router.push('/wallet');
     }
@@ -63,7 +60,6 @@ export default function AccountScreen() {
     if (option.id === 'logout') {
       handleLogout();
     }
-    // Handle navigation to other screens
   };
 
   const handleLogout = () => {
@@ -81,9 +77,8 @@ export default function AccountScreen() {
           onPress: async () => {
             try {
               console.log('[Account] Logging out driver...');
-              await logoutDriver();
+              await signOut();
               console.log('[Account] Driver logged out successfully');
-              // Navigate to login screen
               router.replace('/login');
             } catch (error: any) {
               console.error('[Account] Logout error:', error);

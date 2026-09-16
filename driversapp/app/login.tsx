@@ -16,7 +16,9 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth } from '@/contexts/auth';
 import { loginDriver } from '@/utils/driverAuth';
+import { toUserFriendlyError } from '@/utils/errors';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -31,6 +33,7 @@ const scaleFont = (size: number) => {
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
+  const { signIn } = useAuth();
   const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -46,7 +49,8 @@ export default function LoginScreen() {
     
     try {
       console.log('[Login] Attempting driver login...');
-      await loginDriver(phoneNumber, password);
+      const session = await loginDriver(phoneNumber, password);
+      await signIn(session.token, session.user);
       console.log('[Login] Driver logged in successfully!');
       
       // Navigate to home after successful login
@@ -63,8 +67,8 @@ export default function LoginScreen() {
         errorMessage = 'Incorrect password. Please try again.';
       } else if (error.code === 'auth/invalid-email') {
         errorMessage = 'Invalid phone number format.';
-      } else if (error.message) {
-        errorMessage = error.message;
+      } else {
+        errorMessage = toUserFriendlyError(error, errorMessage);
       }
       
       Alert.alert('Login Failed', errorMessage, [{ text: 'OK' }]);

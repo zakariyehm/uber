@@ -64,18 +64,33 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  const response = await fetch(`${getApiBaseUrl()}${path}`, {
-    ...options,
-    headers,
-  });
+  try {
+    const res = await fetch(`${getApiBaseUrl()}${path}`, {
+      ...options,
+      headers,
+    });
 
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const error = new Error(data.error || 'Request failed') as Error & { code?: string; status?: number };
-    error.code = data.code;
-    error.status = response.status;
-    throw error;
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const error = new Error(data.error || 'Request failed') as Error & {
+        code?: string;
+        status?: number;
+      };
+      error.code = data.code;
+      error.status = res.status;
+      throw error;
+    }
+
+    return data as T;
+  } catch (error: any) {
+    if (error?.status || error?.code === 'network_error') {
+      throw error;
+    }
+    const wrapped = new Error('Network busy. Check your connection and try again.') as Error & {
+      code?: string;
+      status?: number;
+    };
+    wrapped.code = 'network_error';
+    throw wrapped;
   }
-
-  return data as T;
 }

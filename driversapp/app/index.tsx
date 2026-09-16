@@ -1,14 +1,13 @@
-import { getAuthToken, setStoredUser } from '@/lib/api';
-import { fetchCurrentDriver } from '@/utils/driverAuth';
+import { useAuth } from '@/contexts/auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useRouter } from 'expo-router';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Animated, Dimensions, Image, StatusBar, StyleSheet, Text, View } from 'react-native';
 
 const { width, height } = Dimensions.get('window');
 
 const SPLASH_CONFIG = {
-  duration: 1800,
+  duration: 1200,
   backgroundColorLight: '#000000',
   backgroundColorDark: '#000000',
   logoImage: require('@/assets/images/splash-icon.png'),
@@ -28,8 +27,10 @@ export default function SplashScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const router = useRouter();
+  const { isReady, isLoggedIn } = useAuth();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
+  const [minSplashDone, setMinSplashDone] = useState(false);
 
   useEffect(() => {
     Animated.parallel([
@@ -46,33 +47,14 @@ export default function SplashScreen() {
       }),
     ]).start();
 
-    let cancelled = false;
-    const boot = async () => {
-      await new Promise((resolve) => setTimeout(resolve, SPLASH_CONFIG.duration));
-      if (cancelled) return;
+    const timer = setTimeout(() => setMinSplashDone(true), SPLASH_CONFIG.duration);
+    return () => clearTimeout(timer);
+  }, [fadeAnim, scaleAnim]);
 
-      try {
-        const token = await getAuthToken();
-        if (token) {
-          const user = await fetchCurrentDriver();
-          if (user.role === 'DRIVER') {
-            await setStoredUser(user);
-            router.replace('/(tabs)');
-            return;
-          }
-        }
-      } catch {
-        // Fall through to login
-      }
-
-      router.replace('/login');
-    };
-
-    void boot();
-    return () => {
-      cancelled = true;
-    };
-  }, [fadeAnim, router, scaleAnim]);
+  useEffect(() => {
+    if (!isReady || !minSplashDone) return;
+    router.replace(isLoggedIn ? '/(tabs)' : '/login');
+  }, [isReady, isLoggedIn, minSplashDone, router]);
 
   return (
     <View

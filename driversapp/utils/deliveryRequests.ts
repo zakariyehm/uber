@@ -74,7 +74,6 @@ export const getDeliveryRequestByOrderId = async (orderId: string): Promise<Deli
     return await apiRequest<DeliveryRequest>(`/deliveries/order/${encodeURIComponent(orderId)}`);
   } catch (error: any) {
     if (error.status === 404) return null;
-    console.error('Error getting delivery request:', error);
     return null;
   }
 };
@@ -83,8 +82,8 @@ export const getDeliveryRequestById = async (requestId: string): Promise<Deliver
   try {
     return await apiRequest<DeliveryRequest>(`/deliveries/${requestId}`);
   } catch (error: any) {
-    if (error.status === 404) return null;
-    return null;
+    if (error?.status === 404) return null;
+    throw error;
   }
 };
 
@@ -152,6 +151,7 @@ export const confirmDriverArrival = async (requestId: string) => patchDelivery(r
 export const confirmPackagePickup = async (requestId: string) => patchDelivery(requestId, 'confirm_pickup');
 export const confirmDeliveryReceived = async (requestId: string) =>
   patchDelivery(requestId, 'confirm_received');
+export const cancelDeliveryRequest = async (requestId: string) => patchDelivery(requestId, 'cancel');
 
 export const setActiveDelivery = async (requestId: string | null): Promise<void> => {
   await apiRequest('/deliveries/drivers/me/active', {
@@ -183,7 +183,7 @@ export const listenForPendingRequests = (
       }
       callback(requests);
     } catch (error) {
-      console.error('[deliveryRequests] pending poll failed:', error);
+      // Quiet expected offline polls — avoid red LogBox toasts for users.
       callback([]);
     }
   };

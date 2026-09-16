@@ -21,7 +21,7 @@ export async function loginDriver(phone: string, password: string) {
 
   await setAuthToken(result.token);
   await setStoredUser(result.user);
-  return result.user;
+  return { token: result.token, user: result.user };
 }
 
 export async function registerDriver(input: {
@@ -43,7 +43,7 @@ export async function registerDriver(input: {
 
   await setAuthToken(result.token);
   await setStoredUser(result.user);
-  return result.user;
+  return { token: result.token, user: result.user };
 }
 
 export async function fetchCurrentDriver() {

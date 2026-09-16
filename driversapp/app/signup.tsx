@@ -1,4 +1,6 @@
+import { useAuth } from '@/contexts/auth';
 import { registerDriver } from '@/utils/driverAuth';
+import { toUserFriendlyError } from '@/utils/errors';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
@@ -19,6 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function SignupScreen() {
   const insets = useSafeAreaInsets();
+  const { signIn } = useAuth();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -38,15 +41,16 @@ export default function SignupScreen() {
 
     setBusy(true);
     try {
-      await registerDriver({
+      const session = await registerDriver({
         phone: phoneNumber,
         password,
         firstName: firstName.trim() || undefined,
         lastName: lastName.trim() || undefined,
       });
+      await signIn(session.token, session.user);
       router.replace('/(tabs)');
     } catch (error: any) {
-      Alert.alert('Signup failed', error.message || 'Could not create driver account');
+      Alert.alert('Signup failed', toUserFriendlyError(error, 'Could not create driver account'));
       setBusy(false);
     }
   };

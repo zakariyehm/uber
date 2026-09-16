@@ -1,6 +1,7 @@
 import { HoldToConfirmButton } from '@/components/hold-to-confirm-button';
-import { UberInfoCard, UberPill, UberSheet } from '@/components/uber-sheet';
+import { UberSheet } from '@/components/uber-sheet';
 import {
+  cancelDeliveryRequest,
   completeDelivery,
   DeliveryRequest,
   getDeliveryRequestById,
@@ -9,9 +10,9 @@ import {
   setActiveDelivery,
   startTrip,
 } from '@/utils/deliveryRequests';
-import { Ionicons } from '@expo/vector-icons';
+import { toUserFriendlyError } from '@/utils/errors';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -24,7 +25,6 @@ import {
 type StepAction = {
   kind: 'hold' | 'tap' | 'wait';
   label: string;
-  hint?: string;
   color?: string;
   run?: () => Promise<unknown>;
   nextHome?: boolean;
@@ -55,7 +55,7 @@ function sheetCopy(request: DeliveryRequest): { title: string; subtitle: string 
   if (request.status === 'completed') {
     return { title: 'Delivery complete', subtitle: `$${request.deliveryPrice} earned` };
   }
-  return { title: 'Trip details', subtitle: request.orderId };
+  return { title: 'Trip details', subtitle: request.pickupLocation };
 }
 
 export default function DeliveryDetailsScreen() {
@@ -64,18 +64,86 @@ export default function DeliveryDetailsScreen() {
   const [request, setRequest] = useState<DeliveryRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [leavingHome, setLeavingHome] = useState(false);
+  const goneHomeRef = useRef(false);
+  const hasRequestRef = useRef(false);
+
+  const goHome = useCallback(
+    async (title?: string, message?: string) => {
+      if (goneHomeRef.current) return;
+      goneHomeRef.current = true;
+      setLeavingHome(true);
+      try {
+        await setActiveDelivery(null);
+      } catch {
+        // Still leave the sheet even if clearing active fails.
+      }
+      if (title && message) {
+        Alert.alert(title, message, [
+          { text: 'OK', onPress: () => router.replace('/(tabs)') },
+        ]);
+      } else {
+        router.replace('/(tabs)');
+      }
+    },
+    [router]
+  );
+
+  const cancelAndGoHome = useCallback(() => {
+    if (!request || busy || goneHomeRef.current) return;
+    Alert.alert(
+      'Cancel this trip?',
+      'Rider has not confirmed. You will return home and can go online for new offers.',
+      [
+        { text: 'Keep waiting', style: 'cancel' },
+        {
+          text: 'Cancel trip',
+          style: 'destructive',
+          onPress: async () => {
+            setBusy(true);
+            try {
+              await cancelDeliveryRequest(request.id);
+              await goHome();
+            } catch (error: any) {
+              if (error?.status === 404) {
+                await goHome();
+                return;
+              }
+              setBusy(false);
+              Alert.alert('Could not cancel', toUserFriendlyError(error, 'Try again'));
+            }
+          },
+        },
+      ]
+    );
+  }, [busy, goHome, request]);
 
   const load = useCallback(async () => {
-    if (!params.requestId) return;
+    if (!params.requestId || goneHomeRef.current) return;
     try {
       const row = await getDeliveryRequestById(params.requestId);
+      if (!row) {
+        // Trip gone — return home quietly so driver can go online again.
+        await goHome();
+        return;
+      }
+      if (row.status === 'cancelled') {
+        await goHome();
+        return;
+      }
+      hasRequestRef.current = true;
       setRequest(row);
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Could not load trip');
+      if (!hasRequestRef.current && !goneHomeRef.current) {
+        Alert.alert('Could not load trip', toUserFriendlyError(error, 'Try again'), [
+          { text: 'Go home', onPress: () => void goHome() },
+          { text: 'Retry', style: 'cancel' },
+        ]);
+      }
     } finally {
       setLoading(false);
     }
-  }, [params.requestId]);
+  }, [goHome, params.requestId]);
 
   useEffect(() => {
     void load();
@@ -84,18 +152,21 @@ export default function DeliveryDetailsScreen() {
   }, [load]);
 
   const runAction = async (action: () => Promise<unknown>, nextHome = false) => {
-    if (!request || busy) return;
+    if (!request || busy || goneHomeRef.current) return;
     setBusy(true);
     try {
       await action();
       if (nextHome) {
-        await setActiveDelivery(null);
-        router.replace('/(tabs)');
+        await goHome();
         return;
       }
       await load();
     } catch (error: any) {
-      Alert.alert('Action failed', error.message || 'Try again');
+      if (error?.status === 404) {
+        await goHome();
+        return;
+      }
+      Alert.alert('Action failed', toUserFriendlyError(error, 'Try again'));
     } finally {
       setBusy(false);
     }
@@ -117,7 +188,6 @@ export default function DeliveryDetailsScreen() {
       return {
         kind: 'wait',
         label: 'Waiting for rider confirmation',
-        hint: 'Rider confirms arrival in Raac',
       };
     }
 
@@ -134,7 +204,6 @@ export default function DeliveryDetailsScreen() {
       return {
         kind: 'wait',
         label: 'Waiting for pickup confirmation',
-        hint: 'Rider confirms package was taken',
       };
     }
 
@@ -160,7 +229,6 @@ export default function DeliveryDetailsScreen() {
       return {
         kind: 'wait',
         label: 'Waiting for recipient confirmation',
-        hint: 'Rider confirms they received the package',
       };
     }
 
@@ -177,7 +245,7 @@ export default function DeliveryDetailsScreen() {
     return null;
   };
 
-  if (loading) {
+  if (loading || leavingHome) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#000" />
@@ -187,16 +255,20 @@ export default function DeliveryDetailsScreen() {
 
   if (!request) {
     return (
-      <UberSheet title="Trip not found" subtitle="Go back online to keep receiving offers">
-        <TouchableOpacity style={styles.primaryBtn} onPress={() => router.replace('/(tabs)')}>
-          <Text style={styles.primaryText}>Go home</Text>
-        </TouchableOpacity>
-      </UberSheet>
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#000" />
+      </View>
     );
   }
 
   const copy = sheetCopy(request);
   const step = currentStep();
+  const senderLine = [request.senderName, request.senderPhone].filter(Boolean).join(' · ');
+  const recipientLine = [request.recipientName, request.recipientNumber].filter(Boolean).join(' · ');
+  const priceLabel = request.deliveryPrice?.startsWith('$')
+    ? request.deliveryPrice
+    : `$${request.deliveryPrice || '0.00'}`;
+  const isWaitingOnRider = step?.kind === 'wait';
 
   return (
     <UberSheet
@@ -205,7 +277,6 @@ export default function DeliveryDetailsScreen() {
       footer={
         step ? (
           <View style={styles.footerBlock}>
-            {step.hint ? <Text style={styles.hint}>{step.hint}</Text> : null}
             {step.kind === 'wait' ? (
               <View style={styles.waitBox}>
                 <ActivityIndicator color="#000" />
@@ -232,46 +303,65 @@ export default function DeliveryDetailsScreen() {
                 )}
               </TouchableOpacity>
             ) : null}
+            {isWaitingOnRider ? (
+              <TouchableOpacity
+                style={styles.secondaryBtn}
+                disabled={busy}
+                onPress={cancelAndGoHome}>
+                <Text style={styles.secondaryText}>Rider not responding · Cancel trip</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         ) : null
       }>
-      <UberInfoCard
-        selected={request.status === 'accepted' || request.status === 'picked_up'}
-        title={request.pickupLocation}
-        meta="Pickup">
-        <View style={styles.pillRow}>
-          <UberPill
-            icon={<Ionicons name="person-outline" size={12} color="#555" />}
-            label={request.senderName || 'Sender'}
-          />
-          <UberPill label={request.senderPhone || 'No phone'} />
+      <View style={styles.routeCard}>
+        <View style={styles.routeRow}>
+          <View style={styles.timelineCol}>
+            <View style={[styles.timelineDot, styles.dotPickup]} />
+            <View style={styles.timelineLine} />
+          </View>
+          <View style={styles.routeCopy}>
+            <Text style={styles.routeLabel}>Pickup</Text>
+            <Text style={styles.routeTitle} numberOfLines={2}>
+              {request.pickupLocation}
+            </Text>
+            {senderLine ? (
+              <Text style={styles.routeMeta} numberOfLines={1}>
+                {senderLine}
+              </Text>
+            ) : null}
+          </View>
         </View>
-      </UberInfoCard>
 
-      <UberInfoCard
-        selected={request.status === 'in_transit' || request.status === 'completed'}
-        title={request.destinationLocation}
-        meta="Drop-off">
-        <View style={styles.pillRow}>
-          <UberPill
-            icon={<Ionicons name="flag-outline" size={12} color="#555" />}
-            label={request.recipientName || 'Recipient'}
-          />
-          <UberPill label={request.recipientNumber || 'No phone'} />
+        <View style={styles.routeRow}>
+          <View style={styles.timelineCol}>
+            <View style={[styles.timelineDot, styles.dotDrop]} />
+          </View>
+          <View style={styles.routeCopy}>
+            <Text style={styles.routeLabel}>Drop-off</Text>
+            <Text style={styles.routeTitle} numberOfLines={2}>
+              {request.destinationLocation}
+            </Text>
+            {recipientLine ? (
+              <Text style={styles.routeMeta} numberOfLines={1}>
+                {recipientLine}
+              </Text>
+            ) : null}
+          </View>
         </View>
-      </UberInfoCard>
+      </View>
 
-      <UberInfoCard title={request.itemType || 'Item'} meta="Order details">
-        <View style={styles.pillRow}>
-          <UberPill
-            icon={<Ionicons name="flash" size={12} color="#276EF1" />}
-            label={`$${request.deliveryPrice}`}
-            tone="accent"
-          />
-          <UberPill label={request.status.replace('_', ' ')} />
-          <UberPill label={request.orderId} />
+      <View style={styles.fareRow}>
+        <View>
+          <Text style={styles.fareLabel}>Your earnings</Text>
+          {request.itemType ? (
+            <Text style={styles.itemMeta} numberOfLines={1}>
+              {request.itemType}
+            </Text>
+          ) : null}
         </View>
-      </UberInfoCard>
+        <Text style={styles.fareValue}>{priceLabel}</Text>
+      </View>
     </UberSheet>
   );
 }
@@ -284,7 +374,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#E8EEF2',
   },
   footerBlock: { gap: 10 },
-  hint: { textAlign: 'center', color: '#777', fontSize: 13, fontWeight: '500' },
   waitBox: {
     minHeight: 54,
     borderRadius: 12,
@@ -304,5 +393,101 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   primaryText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  secondaryBtn: {
+    minHeight: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  secondaryText: {
+    color: '#666',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  routeCard: {
+    borderWidth: 1.5,
+    borderColor: '#E8E8E8',
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 6,
+    backgroundColor: '#fff',
+    gap: 4,
+  },
+  routeRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    paddingBottom: 12,
+  },
+  timelineCol: {
+    width: 14,
+    alignItems: 'center',
+    paddingTop: 4,
+  },
+  timelineDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  dotPickup: { backgroundColor: '#000' },
+  dotDrop: { backgroundColor: '#000' },
+  timelineLine: {
+    width: 2,
+    flex: 1,
+    minHeight: 28,
+    backgroundColor: '#D8D8D8',
+    marginTop: 4,
+  },
+  routeCopy: { flex: 1, paddingBottom: 2 },
+  routeLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#8A8A8A',
+    marginBottom: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  routeTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#000',
+    lineHeight: 22,
+  },
+  routeMeta: {
+    marginTop: 4,
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  fareRow: {
+    marginTop: 4,
+    borderRadius: 16,
+    backgroundColor: '#F7F7F7',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  fareLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#777',
+  },
+  itemMeta: {
+    marginTop: 2,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#222',
+  },
+  fareValue: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#000',
+    letterSpacing: -0.5,
+  },
 });
