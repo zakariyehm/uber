@@ -110,8 +110,7 @@ export default function CheckoutScreen() {
         senderPhone: senderNumber.trim(),
       });
 
-      console.log('[Checkout] ✅ Order created after Waafi hold');
-      console.log('[Checkout] Request ID:', deliveryRequest.id);
+      console.log('[Checkout] Order created after Waafi hold', deliveryRequest.id);
 
       router.replace({
         pathname: '/order-success',
@@ -127,11 +126,14 @@ export default function CheckoutScreen() {
           estimatedPrice,
         },
       });
-    } catch (error: any) {
-      console.error('[Checkout] ❌ Error creating order:', error);
+    } catch (error: unknown) {
       placingRef.current = false;
       setIsPlacingOrder(false);
-      Alert.alert('Payment not completed', error?.message || 'Payment failed. Please try again.');
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : 'Lacag bixintu ma dhammaan. Isku day mar kale.';
+      Alert.alert('Lacag bixintu ma dhammaan', message);
     }
   };
 

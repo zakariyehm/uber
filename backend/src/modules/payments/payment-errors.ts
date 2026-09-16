@@ -28,80 +28,73 @@ export function toFriendlyPaymentError(
   const code = String(input.responseCode || input.errorCode || '').trim();
   const msgUpper = direct.toUpperCase();
 
+  const GENERIC = 'Lacag bixintu ma dhammaan. Isku day mar kale.';
+
   // --- Phrase-level (most accurate; Waafi often wraps these in Payment Failed (...)) ---
-  if (detail.includes('failed to verify pin') || detail.includes('verify pin')) {
-    return 'PIN was not approved. Check your phone, enter the correct Waafi/EVC PIN, then try again.';
+  if (
+    detail.includes('failed to verify pin') ||
+    detail.includes('verify pin') ||
+    detail.includes('incorrect pin') ||
+    detail.includes('wrong pin') ||
+    detail.includes('invalid pin')
+  ) {
+    return 'PIN-ka sax ma ahayn. Fiiri telefoonkaaga, geli PIN-ka saxda ah, kadib isku day.';
   }
   if (detail.includes('account id') && detail.includes('not owned')) {
-    return 'Invalid wallet number. Use the EVC/Waafi number that owns this account.';
+    return 'Lambarka Waafi/EVC sax ma aha. Hubi nambarka oo isku day mar kale.';
   }
   if (detail.includes('insufficient') || detail.includes('not enough')) {
-    return 'Insufficient account balance';
+    return 'Lacag kugu filan kuma jirto akoonkaaga.';
   }
   if (detail.includes('reject') || detail.includes('declin') || detail.includes('cancel')) {
-    return 'Customer declined the payment';
+    return 'Lacag bixinta waa la diiday. Isku day mar kale.';
   }
   if (detail.includes('timeout') || detail.includes('timed out') || detail.includes('expire')) {
-    return 'Request timed out. Please try again';
+    return 'Waqtigii wuu dhammaaday. Isku day mar kale.';
   }
   if (detail.includes('invalid account') || detail.includes('invalid number')) {
-    return 'Invalid account number';
+    return 'Lambarka Waafi/EVC sax ma aha.';
   }
   if (detail.includes('network') || detail.includes('unavailable') || detail.includes('try again later')) {
-    return 'Network error occurred. Please try again.';
+    return 'Shabakad ayaa mashquul ah. Isku day mar kale.';
   }
 
   // --- RCS_* message codes (payso map) ---
   switch (msgUpper) {
     case 'RCS_SUCCESS':
-      return 'Payment approved';
+      return 'Lacag bixintu waa la aqbalay.';
     case 'RCS_USER_REJECTED':
-      return 'Customer declined the payment';
+      return 'Lacag bixinta waa la diiday. Isku day mar kale.';
     case 'RCS_INSUFFICIENT_FUNDS':
-      return 'Insufficient account balance';
+      return 'Lacag kugu filan kuma jirto akoonkaaga.';
     case 'RCS_INVALID_ACCOUNT':
-      return 'Invalid account number';
+      return 'Lambarka Waafi/EVC sax ma aha.';
     case 'RCS_NETWORK_ERROR':
-      return 'Network error occurred';
+      return 'Shabakad ayaa mashquul ah. Isku day mar kale.';
     case 'RCS_TIMEOUT':
-      return 'Request timed out. Please try again';
+      return 'Waqtigii wuu dhammaaday. Isku day mar kale.';
   }
 
   // --- Numeric / HPP response codes (payso map) ---
   switch (code) {
     case '2001':
-      return 'Payment approved';
+      return 'Lacag bixintu waa la aqbalay.';
     case '5206':
-      // Generic decline bucket from Waafi — prefer phrase mapping above when possible
-      return detail
-        ? `Payment could not be completed. ${unwrapPaymentFailed(direct)}.`
-        : 'Payment was declined. Please try again.';
-    case '5301':
-      return 'Invalid HPP key';
-    case '5302':
-      return 'Invalid HPP token';
-    case '5303':
-      return 'Invalid HPP result token';
-    case '5304':
-      return 'Merchant reference ID mismatch';
-    case '5305':
-      return 'Request ID mismatch';
+      return GENERIC;
     case '5306':
-      return 'Customer cancelled the transaction';
-    case '5307':
-      return 'Token expired';
-    case '5308':
-      return 'Service not allowed for this merchant';
-    case '5309':
-      return 'Customer did not respond within 5 minutes';
     case '5310':
-      return 'Customer declined the payment';
+      return 'Lacag bixinta waa la diiday. Isku day mar kale.';
+    case '5307':
+    case '5309':
+      return 'Waqtigii wuu dhammaaday. Isku day mar kale.';
+    case '5301':
+    case '5302':
+    case '5303':
+    case '5304':
+    case '5305':
+    case '5308':
+      return GENERIC;
   }
 
-  if (direct) {
-    if (direct.length > 160) return 'Payment failed. Please try again.';
-    return unwrapPaymentFailed(direct);
-  }
-
-  return 'Payment failed';
+  return GENERIC;
 }

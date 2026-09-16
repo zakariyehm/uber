@@ -47,7 +47,8 @@ export default function DeliveryOfferScreen() {
             if (
               driver?.vehicleType &&
               byId.vehicleType &&
-              driver.vehicleType !== byId.vehicleType
+              driver.vehicleType !== byId.vehicleType &&
+              !byId.openToAllVehicleTypes
             ) {
               if (!cancelled) setRequest(null);
               return;
@@ -196,8 +197,17 @@ export default function DeliveryOfferScreen() {
   });
 
   const serviceLabel = (request.deliveryMethod || 'Delivery').replace('Delivery ', '');
-  const vehicleLabel = request.vehicleType === 'BICYCLE' ? 'Bicycle' : 'Motorcycle';
-  const vehicleIcon = request.vehicleType === 'BICYCLE' ? 'bicycle' : 'speedometer-outline';
+  const openFleet = Boolean(request.openToAllVehicleTypes);
+  const vehicleLabel = openFleet
+    ? 'Motorcycle · Bicycle'
+    : request.vehicleType === 'BICYCLE'
+      ? 'Bicycle'
+      : 'Motorcycle';
+  const vehicleIcon = openFleet
+    ? 'airplane-outline'
+    : request.vehicleType === 'BICYCLE'
+      ? 'bicycle'
+      : 'speedometer-outline';
 
   return (
     <View style={styles.root}>

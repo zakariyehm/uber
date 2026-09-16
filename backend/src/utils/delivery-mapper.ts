@@ -5,6 +5,7 @@ import {
   canCancelForNoShow,
 } from '../modules/payments/payment.settlement.ts';
 import { toIso } from './dates.ts';
+import { looksLikeOpenFleetMethod } from './vehicle-type.ts';
 
 const statusMap: Record<DeliveryStatus, string> = {
   PENDING: 'pending',
@@ -27,6 +28,7 @@ export type DeliveryDto = {
   itemType: string;
   deliveryMethod: string;
   vehicleType?: string;
+  openToAllVehicleTypes?: boolean;
   deliveryPrice: string;
   status: string;
   createdAt: string;
@@ -84,6 +86,7 @@ export function toDeliveryDto(row: DbDelivery): DeliveryDto {
     itemType: row.itemType,
     deliveryMethod: row.deliveryMethod,
     vehicleType: row.vehicleType,
+    openToAllVehicleTypes: looksLikeOpenFleetMethod(row.deliveryMethod),
     deliveryPrice: row.deliveryPrice.toFixed(2),
     status: statusMap[row.status],
     createdAt: row.createdAt.toISOString(),

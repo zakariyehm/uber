@@ -14,6 +14,7 @@ export interface DeliveryRequest {
   itemType: string;
   deliveryMethod: string;
   vehicleType?: string;
+  openToAllVehicleTypes?: boolean;
   deliveryPrice: string;
   status: DeliveryStatus;
   createdAt: string;

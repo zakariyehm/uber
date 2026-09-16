@@ -2,7 +2,7 @@ import { DeliveryStatus, VehicleType, type DeliveryRequest as DbDelivery } from 
 import { prisma } from '../../lib/prisma.ts';
 import { allocateOrderId } from '../../utils/order-id.ts';
 import { toDeliveryDto } from '../../utils/delivery-mapper.ts';
-import { resolveVehicleTypeForMethod } from '../../utils/vehicle-type.ts';
+import { isOpenFleetMethod, resolveVehicleTypeForMethod } from '../../utils/vehicle-type.ts';
 
 /** Uber-style: each online driver gets 30s to accept/decline, then offer rotates. */
 export const OFFER_TTL_SEC = 30;
@@ -58,9 +58,9 @@ export async function getBusyActiveRequestId(driverUserId: string): Promise<stri
   return delivery.id;
 }
 
-async function listOnlineAvailableDrivers(vehicleType: VehicleType): Promise<string[]> {
+async function listOnlineAvailableDrivers(vehicleType?: VehicleType | null): Promise<string[]> {
   const profiles = await prisma.driverProfile.findMany({
-    where: { isOnline: true, vehicleType },
+    where: vehicleType ? { isOnline: true, vehicleType } : { isOnline: true },
     select: { userId: true },
     orderBy: { updatedAt: 'asc' },
   });
@@ -146,6 +146,9 @@ function isCyclePaused(delivery: DbDelivery, now = Date.now()) {
 /** Expire stale offers and assign/rotate to the next online driver. */
 export async function ensureOfferAssignment(delivery: DbDelivery): Promise<DbDelivery> {
   if (delivery.status !== DeliveryStatus.PENDING) return delivery;
+
+  // Delivery State: every online motorcycle and bicycle driver can see the same offer.
+  if (await isOpenFleetMethod(delivery.deliveryMethod)) return delivery;
 
   const now = Date.now();
   const expiresAt = delivery.offerExpiresAt?.getTime() ?? 0;
@@ -293,12 +296,22 @@ export async function listPendingForDriver(driverUserId: string) {
   if (!profile) return [];
 
   const rows = await prisma.deliveryRequest.findMany({
-    where: { status: DeliveryStatus.PENDING, vehicleType: profile.vehicleType },
+    where: { status: DeliveryStatus.PENDING },
     orderBy: { createdAt: 'asc' },
   });
 
   const mine = [];
   for (const row of rows) {
+    const declinedIds = parseDeclinedIds(row.offerDeclinedIds);
+    if (declinedIds.includes(driverUserId)) continue;
+
+    if (await isOpenFleetMethod(row.deliveryMethod)) {
+      mine.push(toDeliveryDto(row));
+      continue;
+    }
+
+    if (row.vehicleType !== profile.vehicleType) continue;
+
     const assigned = await ensureOfferAssignment(row);
     if (
       assigned.offeredToDriverId === driverUserId &&
@@ -319,7 +332,8 @@ export async function declineDeliveryForDriver(deliveryId: string, driverUserId:
     throw error;
   }
 
-  if (row.offeredToDriverId && row.offeredToDriverId !== driverUserId) {
+  const openFleet = await isOpenFleetMethod(row.deliveryMethod);
+  if (!openFleet && row.offeredToDriverId && row.offeredToDriverId !== driverUserId) {
     const error = new Error('This offer is assigned to another driver') as Error & {
       statusCode?: number;
     };
@@ -329,6 +343,23 @@ export async function declineDeliveryForDriver(deliveryId: string, driverUserId:
 
   const declinedIds = parseDeclinedIds(row.offerDeclinedIds);
   declinedIds.push(driverUserId);
+
+  if (openFleet) {
+    await prisma.deliveryRequest.update({
+      where: { id: deliveryId },
+      data: {
+        offeredToDriverId: null,
+        offerExpiresAt: null,
+        offerDeclinedIds: serializeDeclinedIds(declinedIds),
+      },
+    });
+    return {
+      ok: true,
+      rotatedTo: null,
+      offerSeconds: OFFER_TTL_SEC,
+      cyclePaused: false,
+    };
+  }
 
   const onlineIds = await listOnlineAvailableDrivers(row.vehicleType);
   const nextDeclined = [...new Set(declinedIds)];
@@ -427,14 +458,19 @@ export async function applyDeliveryAction(
       throw error;
     }
 
-    if (current.offeredToDriverId && current.offeredToDriverId !== actor.id) {
+    const openFleet = await isOpenFleetMethod(current.deliveryMethod);
+    if (!openFleet && current.offeredToDriverId && current.offeredToDriverId !== actor.id) {
       const error = new Error('This offer is assigned to another driver') as Error & {
         statusCode?: number;
       };
       error.statusCode = 409;
       throw error;
     }
-    if (current.offerExpiresAt && current.offerExpiresAt.getTime() < Date.now() - 2000) {
+    if (
+      !openFleet &&
+      current.offerExpiresAt &&
+      current.offerExpiresAt.getTime() < Date.now() - 2000
+    ) {
       const error = new Error('Offer timed out') as Error & { statusCode?: number };
       error.statusCode = 409;
       throw error;
@@ -444,7 +480,7 @@ export async function applyDeliveryAction(
       where: { userId: actor.id },
       select: { vehicleType: true },
     });
-    if (!profile || profile.vehicleType !== current.vehicleType) {
+    if (!profile || (!openFleet && profile.vehicleType !== current.vehicleType)) {
       const needed = current.vehicleType === VehicleType.BICYCLE ? 'bicycle' : 'motorcycle';
       const error = new Error(`This trip is for a ${needed} driver`) as Error & { statusCode?: number };
       error.statusCode = 409;
