@@ -25,30 +25,41 @@ import {
 
 const { width } = Dimensions.get('window');
 
-type DriverStatus = 'offline' | 'waiting' | 'active' | 'online' | 'deactivating';
+/** offline ↔ waiting → online ; online/waiting → deactivating → offline */
+type DriverStatus = 'offline' | 'waiting' | 'online' | 'deactivating';
 
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const [driverStatus, setDriverStatus] = useState<DriverStatus>('offline');
   const [isLoading, setIsLoading] = useState(false);
-  const [waitingTimer, setWaitingTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
-  const [activeTimer, setActiveTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
-  const [deactivatingTimer, setDeactivatingTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const [toggling, setToggling] = useState(false);
+
   const requestListenerRef = useRef<(() => void) | null>(null);
-  /** One offer screen at a time — Uber style */
   const offerInFlightRef = useRef(false);
   const screenFocusedRef = useRef(true);
+  const statusRef = useRef<DriverStatus>('offline');
+  const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const statusEpochRef = useRef(0);
+
   const goButtonSize = width * 0.18;
   const goButtonFontSize = width * 0.06;
 
+  const clearTransitionTimer = () => {
+    if (transitionTimerRef.current) {
+      clearTimeout(transitionTimerRef.current);
+      transitionTimerRef.current = null;
+    }
+  };
+
+  const applyStatus = (next: DriverStatus) => {
+    statusRef.current = next;
+    setDriverStatus(next);
+  };
+
   useEffect(() => {
-    return () => {
-      if (waitingTimer) clearTimeout(waitingTimer);
-      if (activeTimer) clearTimeout(activeTimer);
-      if (deactivatingTimer) clearTimeout(deactivatingTimer);
-    };
-  }, [waitingTimer, activeTimer, deactivatingTimer]);
+    return () => clearTransitionTimer();
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -60,15 +71,13 @@ export default function HomeScreen() {
         try {
           const activeId = await getActiveDelivery();
           if (cancelled) return;
+
           if (activeId) {
             try {
               const trip = await getDeliveryRequestById(activeId);
               if (!trip || trip.status === 'cancelled') {
                 await setActiveDelivery(null);
-              } else if (
-                trip.status === 'completed' &&
-                trip.userConfirmedDelivery
-              ) {
+              } else if (trip.status === 'completed' && trip.userConfirmedDelivery) {
                 await setActiveDelivery(null);
               } else {
                 offerInFlightRef.current = true;
@@ -79,7 +88,6 @@ export default function HomeScreen() {
               if (error?.status === 404) {
                 await setActiveDelivery(null);
               } else {
-                // Network busy — still open the trip sheet; it will retry.
                 offerInFlightRef.current = true;
                 router.push({ pathname: '/delivery-details', params: { requestId: activeId } });
                 return;
@@ -87,13 +95,20 @@ export default function HomeScreen() {
             }
           }
 
-          // Decline should keep driver online — restore status from server
+          // Sync UI with server — decline keeps online; OFF must stay offline
           const isOnline = await getDriverOnline();
-          if (!cancelled && isOnline) {
-            setDriverStatus((prev) => (prev === 'online' ? prev : 'online'));
+          if (cancelled) return;
+
+          const current = statusRef.current;
+          if (current === 'waiting' || current === 'deactivating') return;
+
+          if (isOnline) {
+            applyStatus('online');
+          } else {
+            applyStatus('offline');
           }
         } catch {
-          // ignore
+          // ignore resume errors
         }
       };
       void resume();
@@ -105,19 +120,7 @@ export default function HomeScreen() {
     }, [])
   );
 
-  useEffect(() => {
-    if (driverStatus === 'waiting') {
-      const timer = setTimeout(() => setDriverStatus('active'), 1200);
-      setWaitingTimer(timer);
-    } else if (driverStatus === 'active') {
-      const timer = setTimeout(() => setDriverStatus('online'), 800);
-      setActiveTimer(timer);
-    } else if (driverStatus === 'deactivating') {
-      const timer = setTimeout(() => setDriverStatus('offline'), 1000);
-      setDeactivatingTimer(timer);
-    }
-  }, [driverStatus]);
-
+  // Offer listener only while fully online
   useEffect(() => {
     if (driverStatus !== 'online') {
       if (requestListenerRef.current) {
@@ -164,50 +167,84 @@ export default function HomeScreen() {
     router.push('/account');
   };
 
-  const handleGoPress = async () => {
-    if (driverStatus === 'offline') {
-      try {
-        const activeId = await getActiveDelivery();
-        if (activeId) {
-          try {
-            const trip = await getDeliveryRequestById(activeId);
-            if (!trip || trip.status === 'cancelled') {
-              await setActiveDelivery(null);
-            } else {
-              router.push({ pathname: '/delivery-details', params: { requestId: activeId } });
-              return;
-            }
-          } catch (error: any) {
-            if (error?.status === 404) {
-              await setActiveDelivery(null);
-            } else {
-              router.push({ pathname: '/delivery-details', params: { requestId: activeId } });
-              return;
-            }
+  const goOnline = async () => {
+    if (toggling) return;
+    setToggling(true);
+    try {
+      const activeId = await getActiveDelivery();
+      if (activeId) {
+        try {
+          const trip = await getDeliveryRequestById(activeId);
+          if (!trip || trip.status === 'cancelled') {
+            await setActiveDelivery(null);
+          } else {
+            router.push({ pathname: '/delivery-details', params: { requestId: activeId } });
+            return;
+          }
+        } catch (error: any) {
+          if (error?.status === 404) {
+            await setActiveDelivery(null);
+          } else {
+            router.push({ pathname: '/delivery-details', params: { requestId: activeId } });
+            return;
           }
         }
-        await setDriverOnline(true);
-        setDriverStatus('waiting');
-      } catch (error: any) {
-        Alert.alert(
-          'Could not go online',
-          toUserFriendlyError(error, 'Network busy. Check your connection and try again.')
-        );
       }
+
+      await setDriverOnline(true);
+      clearTransitionTimer();
+      const epoch = ++statusEpochRef.current;
+      applyStatus('waiting');
+
+      transitionTimerRef.current = setTimeout(() => {
+        if (statusEpochRef.current !== epoch) return;
+        if (statusRef.current !== 'waiting') return;
+        applyStatus('online');
+      }, 1200);
+    } catch (error: any) {
+      applyStatus('offline');
+      Alert.alert(
+        'Could not go online',
+        toUserFriendlyError(error, 'Network busy. Check your connection and try again.')
+      );
+    } finally {
+      setToggling(false);
+    }
+  };
+
+  const goOffline = async () => {
+    if (toggling) return;
+    setToggling(true);
+    clearTransitionTimer();
+    const epoch = ++statusEpochRef.current;
+
+    try {
+      await setDriverOnline(false);
+      applyStatus('deactivating');
+
+      transitionTimerRef.current = setTimeout(() => {
+        if (statusEpochRef.current !== epoch) return;
+        applyStatus('offline');
+      }, 800);
+    } catch (error: any) {
+      // Stay in previous online/waiting state if server reject
+      const isOnline = await getDriverOnline().catch(() => statusRef.current !== 'offline');
+      applyStatus(isOnline ? 'online' : 'offline');
+      Alert.alert('Could not go offline', toUserFriendlyError(error, 'Try again'));
+    } finally {
+      setToggling(false);
+    }
+  };
+
+  const handleGoPress = () => {
+    if (driverStatus === 'offline') {
+      void goOnline();
       return;
     }
-
-    if (driverStatus === 'online' || driverStatus === 'active' || driverStatus === 'waiting') {
-      if (waitingTimer) clearTimeout(waitingTimer);
-      if (activeTimer) clearTimeout(activeTimer);
-      try {
-        await setDriverOnline(false);
-      } catch (error: any) {
-        Alert.alert('Could not go offline', toUserFriendlyError(error, 'Try again'));
-        return;
-      }
-      setDriverStatus('deactivating');
+    if (driverStatus === 'waiting' || driverStatus === 'online') {
+      void goOffline();
     }
+    // deactivating: ignore taps until transition finishes
   };
 
   const getStatusText = (): string => {
@@ -215,13 +252,11 @@ export default function HomeScreen() {
       case 'offline':
         return "You're offline";
       case 'waiting':
-        return 'Waiting...';
-      case 'active':
-        return 'Active';
+        return 'Going online...';
       case 'online':
         return 'Online';
       case 'deactivating':
-        return 'Deactivating...';
+        return 'Going offline...';
       default:
         return "You're offline";
     }
@@ -233,7 +268,6 @@ export default function HomeScreen() {
         return '#3B89EB';
       case 'waiting':
         return '#FF9500';
-      case 'active':
       case 'online':
         return '#34C759';
       case 'deactivating':
@@ -243,8 +277,8 @@ export default function HomeScreen() {
     }
   };
 
-  const getGoButtonText = (): string => (driverStatus === 'offline' ? 'GO' : 'OFF');
-  const getGoButtonColor = (): string => (driverStatus === 'offline' ? '#007AFF' : '#FF3B30');
+  const isOfflineUi = driverStatus === 'offline';
+  const buttonDisabled = toggling || driverStatus === 'deactivating';
 
   return (
     <View style={styles.container}>
@@ -258,14 +292,20 @@ export default function HomeScreen() {
                 width: goButtonSize,
                 height: goButtonSize,
                 borderRadius: goButtonSize / 2,
-                backgroundColor: getGoButtonColor(),
+                backgroundColor: isOfflineUi ? '#007AFF' : '#FF3B30',
+                opacity: buttonDisabled ? 0.6 : 1,
               },
             ]}
             onPress={handleGoPress}
+            disabled={buttonDisabled}
             activeOpacity={0.8}>
-            <Text style={[styles.goButtonText, { fontSize: goButtonFontSize }]}>
-              {getGoButtonText()}
-            </Text>
+            {toggling ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={[styles.goButtonText, { fontSize: goButtonFontSize }]}>
+                {isOfflineUi ? 'GO' : 'OFF'}
+              </Text>
+            )}
           </TouchableOpacity>
         </View>
       </View>

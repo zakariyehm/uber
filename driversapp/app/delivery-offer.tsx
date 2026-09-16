@@ -141,15 +141,17 @@ export default function DeliveryOfferScreen() {
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#000" />
+      <View style={styles.root}>
+        <View style={styles.backdrop} />
+        <ActivityIndicator size="large" color="#fff" />
       </View>
     );
   }
 
   if (!request) {
     return (
-      <View style={[styles.root, { justifyContent: 'flex-end' }]}>
+      <View style={styles.root}>
+        <View style={styles.backdrop} />
         <View style={[styles.card, { paddingBottom: Math.max(insets.bottom, 18) }]}>
           <Text style={styles.unavailableTitle}>Offer unavailable</Text>
           <Text style={styles.unavailableSub}>This delivery moved to another driver</Text>
@@ -170,7 +172,7 @@ export default function DeliveryOfferScreen() {
 
   return (
     <View style={styles.root}>
-      <View style={styles.mapBackdrop} />
+      <View style={styles.backdrop} />
 
       <View style={[styles.card, { paddingBottom: Math.max(insets.bottom, 18) }]}>
         {/* Timer strip like Uber accept window */}
@@ -239,21 +241,29 @@ export default function DeliveryOfferScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: 'transparent', justifyContent: 'flex-end' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E8EEF2' },
-  mapBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: '#E8EEF2' },
+  root: {
+    flex: 1,
+    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
   card: {
-    marginHorizontal: 12,
-    marginBottom: 10,
+    width: '100%',
+    maxWidth: 420,
     backgroundColor: '#fff',
-    borderRadius: 24,
+    borderRadius: 8,
     paddingHorizontal: 20,
     paddingTop: 8,
     shadowColor: '#000',
-    shadowOpacity: 0.18,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 12,
+    shadowOpacity: 0.22,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 16,
   },
   timerTrack: {
     height: 4,
