@@ -1,12 +1,13 @@
 import { DeliveryStatus, PaymentHoldStatus, Prisma, SettlementType } from '@prisma/client';
 import { prisma } from '../../lib/prisma.ts';
+import { DEFAULT_PLATFORM_FEE_RATE, getDriverFeeRate } from '../admin/settings.service.ts';
 import { waafiCancel, waafiCommit, waafiPreAuthorize } from './waafi.client.ts';
 import { toFriendlyPaymentError } from './payment-errors.ts';
 
 /** Driver no-show fee after waiting 15 minutes for Confirm Arrival. */
 export const NO_SHOW_FEE_USD = 0.5;
-/** Platform service fee on successful completed trips. */
-export const PLATFORM_FEE_RATE = 0.08;
+/** Fallback only. Live rate comes from admin Fees after Save. */
+export const PLATFORM_FEE_RATE = DEFAULT_PLATFORM_FEE_RATE;
 /** Minutes driver must wait at pickup before no-show cancel is allowed. */
 export const ARRIVAL_WAIT_MINUTES = 15;
 export const ARRIVAL_WAIT_MS = ARRIVAL_WAIT_MINUTES * 60 * 1000;
@@ -15,10 +16,14 @@ export function roundMoney(n: number) {
   return Math.round(n * 100) / 100;
 }
 
-export function fullTripDriverEarnings(price: number) {
-  const platformFee = roundMoney(price * PLATFORM_FEE_RATE);
+export function splitTripEarnings(price: number, rate: number) {
+  const platformFee = roundMoney(price * rate);
   const driverEarnings = roundMoney(price - platformFee);
   return { platformFee, driverEarnings };
+}
+
+export async function fullTripDriverEarnings(price: number) {
+  return splitTripEarnings(price, await getDriverFeeRate());
 }
 
 export function arrivalWaitRemainingSec(driverArrivedAt: Date | null | undefined): number {
@@ -85,7 +90,7 @@ async function refreshDriverDailyWallet(driverUserId: string) {
 }
 
 /**
- * Successful trip Done: Commit Waafi hold, keep 8% platform fee, credit driver net.
+ * Successful trip Done: Commit Waafi hold, keep platform fee, credit driver net.
  */
 export async function settleFullTrip(deliveryId: string) {
   const row = await prisma.deliveryRequest.findUnique({ where: { id: deliveryId } });
@@ -94,7 +99,8 @@ export async function settleFullTrip(deliveryId: string) {
   if (row.paymentHoldStatus === PaymentHoldStatus.COMMITTED) return row;
 
   const price = Number(row.deliveryPrice);
-  const { platformFee, driverEarnings } = fullTripDriverEarnings(price);
+  const feeRate = await getDriverFeeRate();
+  const { platformFee, driverEarnings } = splitTripEarnings(price, feeRate);
 
   if (row.paymentHoldStatus === PaymentHoldStatus.HELD && row.waafiTransactionId) {
     const commit = await waafiCommit(row.waafiTransactionId, `Commit order ${row.orderId}`);

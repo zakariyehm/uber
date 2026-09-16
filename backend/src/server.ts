@@ -7,6 +7,12 @@ async function start() {
   const app = await buildApp();
   await prisma.$connect();
   await connectRedis();
+  try {
+    const { getPlatformSettings } = await import('./modules/admin/settings.service.ts');
+    await getPlatformSettings();
+  } catch (error) {
+    console.warn('Could not hydrate live driver fee', error);
+  }
   const { shortenLegacyOrderIds } = await import('./utils/order-id.ts');
   await shortenLegacyOrderIds();
 

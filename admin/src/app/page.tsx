@@ -4,8 +4,9 @@ import { KpiCard } from "@/components/KpiCard";
 import { Shell } from "@/components/Shell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { api, errorMessage } from "@/lib/api";
+import { DRIVER_FEE_EVENT, DRIVER_FEE_STORAGE_KEY } from "@/lib/fee";
 import { OrderCode } from "@/components/OrderCode";
-import { money, when } from "@/lib/format";
+import { money, vehicleLabel, when } from "@/lib/format";
 import type { LiveOps, Overview } from "@/lib/types";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -14,6 +15,13 @@ export default function CommandPage() {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [live, setLive] = useState<LiveOps | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [storedFeePercent, setStoredFeePercent] = useState<number | null>(null);
+
+  useEffect(() => {
+    const raw = localStorage.getItem(DRIVER_FEE_STORAGE_KEY);
+    const n = raw == null ? NaN : Number(raw);
+    if (Number.isFinite(n)) setStoredFeePercent(n);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -27,16 +35,27 @@ export default function CommandPage() {
           setOverview(ov);
           setLive(lv);
           setError(null);
+          if (typeof ov.driverFeePercent === "number") {
+            setStoredFeePercent(ov.driverFeePercent);
+          }
         }
       } catch (err) {
         if (!cancelled) setError(errorMessage(err, "Could not load operations"));
       }
     };
     void load();
-    const id = setInterval(load, 5000);
+    const id = setInterval(load, 20000);
+    const onFee = () => void load();
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === DRIVER_FEE_STORAGE_KEY) void load();
+    };
+    window.addEventListener(DRIVER_FEE_EVENT, onFee);
+    window.addEventListener("storage", onStorage);
     return () => {
       cancelled = true;
       clearInterval(id);
+      window.removeEventListener(DRIVER_FEE_EVENT, onFee);
+      window.removeEventListener("storage", onStorage);
     };
   }, []);
 
@@ -47,7 +66,7 @@ export default function CommandPage() {
           <h2 className="text-2xl font-semibold">Command center</h2>
           <p className="text-sm text-muted">Live snapshot of the Raac network</p>
         </div>
-        <p className="text-xs text-muted">Refreshes every 5s</p>
+        <p className="text-xs text-muted">Refreshes every 20s</p>
       </div>
 
       {error ? <p className="mb-4 text-sm text-danger">{error}</p> : null}
@@ -58,7 +77,11 @@ export default function CommandPage() {
           value={money(overview?.today.gmv)}
           hint={`${overview?.today.settledCount ?? 0} settled trips`}
         />
-        <KpiCard label="Platform fee" value={money(overview?.today.platformFee)} hint="8% on completed trips" />
+        <KpiCard
+          label="Platform fee"
+          value={money(overview?.today.platformFee)}
+          hint={`Live ${overview?.driverFeePercent ?? storedFeePercent ?? 5}% · next completed trip`}
+        />
         <KpiCard
           label="Driver earnings"
           value={money(overview?.today.driverEarnings)}
@@ -103,6 +126,7 @@ export default function CommandPage() {
                 <tr>
                   <th className="px-4 py-2 font-medium">Trip</th>
                   <th className="px-4 py-2 font-medium">Route</th>
+                  <th className="px-4 py-2 font-medium">Method</th>
                   <th className="px-4 py-2 font-medium">Status</th>
                   <th className="px-4 py-2 font-medium">Driver</th>
                 </tr>
@@ -119,6 +143,10 @@ export default function CommandPage() {
                       <p className="max-w-xs truncate text-muted">{trip.destinationLocation}</p>
                     </td>
                     <td className="px-4 py-3">
+                      <p>{trip.deliveryMethod || "—"}</p>
+                      <p className="text-xs text-muted">{vehicleLabel(trip.vehicleType)}</p>
+                    </td>
+                    <td className="px-4 py-3">
                       <StatusBadge value={trip.status} />
                     </td>
                     <td className="px-4 py-3">{trip.driverName || "Unassigned"}</td>
@@ -126,7 +154,7 @@ export default function CommandPage() {
                 ))}
                 {!live?.trips.length ? (
                   <tr>
-                    <td className="px-4 py-8 text-center text-muted" colSpan={4}>
+                    <td className="px-4 py-8 text-center text-muted" colSpan={5}>
                       No live trips
                     </td>
                   </tr>
@@ -148,7 +176,7 @@ export default function CommandPage() {
                   <StatusBadge value="online" />
                 </div>
                 <p className="text-xs text-muted">
-                  {driver.phone} · {driver.rating} ★
+                  {driver.phone} · {vehicleLabel(driver.vehicleType)} · {driver.rating} ★
                 </p>
                 <p className="text-xs text-muted">{driver.activeTripId ? "On a trip" : "Available"}</p>
               </li>

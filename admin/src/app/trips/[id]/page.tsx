@@ -4,7 +4,7 @@ import { Shell } from "@/components/Shell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { api, errorMessage } from "@/lib/api";
 import { OrderCode } from "@/components/OrderCode";
-import { money, when } from "@/lib/format";
+import { money, vehicleLabel, when } from "@/lib/format";
 import type { TripRow } from "@/lib/types";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -30,7 +30,7 @@ type Detail = {
     settlementType?: string;
   };
   rider: { id: string; name: string; phone: string; rating: string | null; pendingBalance: string; isActive: boolean } | null;
-  driver: { id: string; name: string; phone: string; rating: string | null; isOnline: boolean; todayBalance: string; isActive: boolean } | null;
+  driver: { id: string; name: string; phone: string; rating: string | null; isOnline: boolean; todayBalance: string; isActive: boolean; vehicleType?: string | null } | null;
 };
 
 export default function TripDetailPage() {
@@ -125,7 +125,7 @@ export default function TripDetailPage() {
               <p className="mt-3 text-sm">{trip.pickupLocation}</p>
               <p className="mt-1 text-sm text-muted">{trip.destinationLocation}</p>
               <p className="mt-4 text-xs text-muted">
-                {trip.deliveryMethod} · {money(trip.deliveryPrice)}
+                {trip.deliveryMethod} · {vehicleLabel(trip.vehicleType)} · {money(trip.deliveryPrice)}
               </p>
               <div className="mt-6 space-y-3">
                 {steps
@@ -163,7 +163,10 @@ export default function TripDetailPage() {
                 </p>
                 <p className="mt-3 text-sm">
                   Driver · {data?.driver?.name || trip.driverName || "—"}
-                  <span className="block text-xs text-muted">{data?.driver?.phone}</span>
+                  <span className="block text-xs text-muted">
+                    {data?.driver?.phone}
+                    {data?.driver?.vehicleType ? ` · ${vehicleLabel(data.driver.vehicleType)}` : ""}
+                  </span>
                 </p>
                 <Link href="/trips" className="mt-4 inline-block text-xs text-raac">
                   All trips

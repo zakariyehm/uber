@@ -4,7 +4,7 @@ import { Shell } from "@/components/Shell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { api, errorMessage } from "@/lib/api";
 import { OrderCode } from "@/components/OrderCode";
-import { money, when } from "@/lib/format";
+import { money, vehicleLabel, when } from "@/lib/format";
 import type { TripRow } from "@/lib/types";
 import { useEffect, useState } from "react";
 
@@ -13,6 +13,7 @@ const STATUSES = ["", "pending", "accepted", "picked_up", "in_transit", "complet
 export default function TripsPage() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
+  const [vehicleType, setVehicleType] = useState("");
   const [page, setPage] = useState(1);
   const [data, setData] = useState<{ trips: TripRow[]; total: number; page: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -24,6 +25,7 @@ export default function TripsPage() {
         const params = new URLSearchParams({ page: String(page), limit: "20" });
         if (q) params.set("q", q);
         if (status) params.set("status", status);
+        if (vehicleType) params.set("vehicleType", vehicleType);
         const result = await api<{ trips: TripRow[]; total: number; page: number }>(`/admin/trips?${params}`);
         if (!cancelled) {
           setData(result);
@@ -37,7 +39,7 @@ export default function TripsPage() {
     return () => {
       cancelled = true;
     };
-  }, [q, status, page]);
+  }, [q, status, vehicleType, page]);
 
   return (
     <Shell>
@@ -56,6 +58,18 @@ export default function TripsPage() {
               setQ(e.target.value);
             }}
           />
+          <select
+            className="rounded-lg border border-line bg-panel px-3 py-2 text-sm"
+            value={vehicleType}
+            onChange={(e) => {
+              setPage(1);
+              setVehicleType(e.target.value);
+            }}
+          >
+            <option value="">All types</option>
+            <option value="MOTORCYCLE">Motorcycle</option>
+            <option value="BICYCLE">Bicycle</option>
+          </select>
           <select
             className="rounded-lg border border-line bg-panel px-3 py-2 text-sm"
             value={status}
@@ -81,6 +95,7 @@ export default function TripsPage() {
             <tr>
               <th className="px-4 py-3">Trip</th>
               <th className="px-4 py-3">Route</th>
+              <th className="px-4 py-3">Method</th>
               <th className="px-4 py-3">Rider</th>
               <th className="px-4 py-3">Driver</th>
               <th className="px-4 py-3">Fare</th>
@@ -98,6 +113,10 @@ export default function TripsPage() {
                 <td className="px-4 py-3">
                   <p className="max-w-[220px] truncate">{trip.pickupLocation}</p>
                   <p className="max-w-[220px] truncate text-muted">{trip.destinationLocation}</p>
+                </td>
+                <td className="px-4 py-3">
+                  <p>{trip.deliveryMethod || "—"}</p>
+                  <p className="text-xs text-muted">{vehicleLabel(trip.vehicleType)}</p>
                 </td>
                 <td className="px-4 py-3">
                   {trip.riderName}

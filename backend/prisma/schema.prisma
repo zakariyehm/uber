@@ -248,3 +248,9 @@ model ServiceMethod {
 
   @@index([category, isActive, sortOrder])
 }
+
+model PlatformSetting {
+  id            String   @id @default("default")
+  driverFeeRate Decimal  @default(0.05) @db.Decimal(5, 4)
+  updatedAt     DateTime @updatedAt
+}

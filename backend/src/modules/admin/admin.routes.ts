@@ -14,6 +14,7 @@ import {
   listWallets,
   patchUser,
 } from './admin.service.ts';
+import { getPlatformSettings, patchPlatformSettings } from './settings.service.ts';
 import {
   createServiceMethod,
   deleteServiceMethod,
@@ -25,6 +26,7 @@ const listQuery = z.object({
   q: z.string().optional(),
   status: z.string().optional(),
   method: z.string().optional(),
+  vehicleType: z.enum(['MOTORCYCLE', 'BICYCLE']).optional(),
   role: z.enum(['RIDER', 'DRIVER']).optional(),
   page: z.coerce.number().optional(),
   limit: z.coerce.number().optional(),
@@ -170,6 +172,27 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   app.get('/wallets', async () => listWallets());
+
+  app.get('/settings', async () => getPlatformSettings());
+
+  app.patch('/settings', async (request, reply) => {
+    try {
+      const body = z
+        .object({
+          driverFeePercent: z.coerce.number().min(0).max(30),
+        })
+        .parse(request.body ?? {});
+      return await patchPlatformSettings(body);
+    } catch (error: any) {
+      if (error?.name === 'ZodError') {
+        return reply.code(400).send({
+          error: error.issues?.[0]?.message || 'Enter a fee between 0 and 30',
+          details: error.issues,
+        });
+      }
+      return reply.code(error.statusCode || 400).send({ error: error.message || 'Could not save fee' });
+    }
+  });
 
   app.get('/methods', async (request) => {
     const query = methodQuery.parse(request.query);

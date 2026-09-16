@@ -10,6 +10,7 @@ import { toDeliveryDto } from '../../utils/delivery-mapper.ts';
 import { AuthError, registerUser, toPublicUser } from '../auth/auth.service.ts';
 import { applyDeliveryAction } from '../deliveries/deliveries.service.ts';
 import { syncDriverWallet } from '../wallet/wallet.service.ts';
+import { getPlatformSettings } from './settings.service.ts';
 
 const ACTIVE_TRIP_STATUSES: DeliveryStatus[] = [
   DeliveryStatus.PENDING,
@@ -115,6 +116,7 @@ export async function getOverview() {
     newRidersToday,
     riderPendingAgg,
     pendingOffers,
+    feeSettings,
   ] = await Promise.all([
     settledSums(today),
     settledSums(),
@@ -135,6 +137,7 @@ export async function getOverview() {
     prisma.deliveryRequest.count({
       where: { status: DeliveryStatus.PENDING, offeredToDriverId: { not: null } },
     }),
+    getPlatformSettings(),
   ]);
 
   const tripsByStatus = Object.fromEntries(
@@ -170,6 +173,7 @@ export async function getOverview() {
     wallets: {
       riderPendingCredits: moneyStr(riderPendingAgg._sum.pendingBalance),
     },
+    driverFeePercent: feeSettings.driverFeePercent,
   };
 }
 
@@ -213,6 +217,7 @@ export async function getLiveOps() {
       rating: Number(profile.rating).toFixed(2),
       isOnline: profile.isOnline,
       isActive: profile.user.isActive,
+      vehicleType: profile.vehicleType,
       activeTripId: profile.user.activeDelivery?.requestId || null,
       todayBalance: moneyStr(profile.user.wallet?.balance),
     })),
@@ -222,6 +227,7 @@ export async function getLiveOps() {
 export async function listTrips(input: {
   status?: string;
   method?: string;
+  vehicleType?: string;
   q?: string;
   page?: number;
   limit?: number;
@@ -239,6 +245,9 @@ export async function listTrips(input: {
   }
   if (input.method) {
     where.deliveryMethod = { contains: input.method, mode: 'insensitive' };
+  }
+  if (input.vehicleType === 'MOTORCYCLE' || input.vehicleType === 'BICYCLE') {
+    where.vehicleType = input.vehicleType;
   }
   if (input.q) {
     const q = input.q.trim().replace(/^#/, '');
@@ -314,6 +323,7 @@ export async function getTrip(id: string) {
           isOnline: Boolean(row.driver.driverProfile?.isOnline),
           todayBalance: moneyStr(row.driver.wallet?.balance),
           isActive: row.driver.isActive,
+          vehicleType: row.driver.driverProfile?.vehicleType || row.vehicleType,
         }
       : null,
   };

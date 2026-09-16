@@ -30,6 +30,7 @@ export type Overview = {
     pendingOffers: number;
   };
   wallets: { riderPendingCredits: string };
+  driverFeePercent?: number;
 };
 
 export type TripRow = {
@@ -38,6 +39,7 @@ export type TripRow = {
   pickupLocation: string;
   destinationLocation: string;
   deliveryMethod: string;
+  vehicleType?: string | null;
   deliveryPrice: string;
   status: string;
   createdAt: string;
@@ -56,6 +58,7 @@ export type LiveDriver = {
   name: string;
   phone: string;
   rating: string;
+  vehicleType?: string | null;
   activeTripId: string | null;
 };
 
