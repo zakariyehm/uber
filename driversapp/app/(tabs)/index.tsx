@@ -1,4 +1,6 @@
 import { BottomNav } from '@/components/bottom-nav';
+import { DriverHomeHeader } from '@/components/driver-home-header';
+import { apiRequest } from '@/lib/api';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
   DeliveryRequest,
@@ -34,6 +36,7 @@ export default function HomeScreen() {
   const [driverStatus, setDriverStatus] = useState<DriverStatus>('offline');
   const [isLoading, setIsLoading] = useState(false);
   const [toggling, setToggling] = useState(false);
+  const [walletBalance, setWalletBalance] = useState('0.00');
 
   const requestListenerRef = useRef<(() => void) | null>(null);
   const offerInFlightRef = useRef(false);
@@ -69,6 +72,15 @@ export default function HomeScreen() {
       let cancelled = false;
       const resume = async () => {
         try {
+          try {
+            const wallet = await apiRequest<{ balance: string }>('/wallet/me');
+            if (!cancelled && wallet?.balance != null) {
+              setWalletBalance(String(wallet.balance));
+            }
+          } catch {
+            // keep last known balance
+          }
+
           const activeId = await getActiveDelivery();
           if (cancelled) return;
 
@@ -159,11 +171,15 @@ export default function HomeScreen() {
     };
   }, [driverStatus]);
 
-  const handleLeftIconPress = () => {
+  const handleMenuPress = () => {
     router.push('/history');
   };
 
-  const handleRightIconPress = () => {
+  const handleWalletPress = () => {
+    router.push('/wallet');
+  };
+
+  const handleSettingsPress = () => {
     router.push('/account');
   };
 
@@ -284,6 +300,12 @@ export default function HomeScreen() {
     <View style={styles.container}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent />
       <View style={styles.homeContainer}>
+        <DriverHomeHeader
+          balance={walletBalance}
+          onMenuPress={handleMenuPress}
+          onWalletPress={handleWalletPress}
+          onSettingsPress={handleSettingsPress}
+        />
         <View style={styles.goButtonContainer}>
           <TouchableOpacity
             style={[
@@ -311,12 +333,7 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.divider} />
-      <BottomNav
-        statusText={getStatusText()}
-        statusColor={getStatusColor()}
-        onLeftIconPress={handleLeftIconPress}
-        onRightIconPress={handleRightIconPress}
-      />
+      <BottomNav statusText={getStatusText()} statusColor={getStatusColor()} />
 
       {isLoading && driverStatus === 'online' ? (
         <View style={styles.loadingOverlay}>
