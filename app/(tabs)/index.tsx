@@ -92,6 +92,23 @@ export default function HomeScreen() {
     });
   };
 
+  const handleChooseMoto = () => {
+    if (!selectedBajaaj) return;
+    const option = bajaajOptions.find((item) => item.id === selectedBajaaj);
+    if (!option) return;
+
+    setShowBajaajSheet(false);
+    router.push({
+      pathname: '/plan-ride',
+      params: {
+        rideType: option.name,
+        travelTime: option.travelTime,
+        distance: option.distance,
+        price: calculateBajaajPrice(option.distance, false),
+      },
+    });
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" translucent />
@@ -307,7 +324,8 @@ export default function HomeScreen() {
               },
             ]}
             disabled={!selectedBajaaj}
-            activeOpacity={0.8}>
+            activeOpacity={0.8}
+            onPress={handleChooseMoto}>
             <Text style={[styles.chooseButtonText, { color: selectedBajaaj ? '#FFF' : '#999' }]}>
               Choose
             </Text>

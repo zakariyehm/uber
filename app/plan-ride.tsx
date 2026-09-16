@@ -1,15 +1,15 @@
 import { DeliveryBottomSheet } from '@/components/delivery-bottom-sheet';
-import { BANADIR_DISTRICTS, SOMALIA_STATES } from '@/constants/somalia';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { BANADIR_DISTRICTS } from '@/constants/somalia';
+import { AppColors } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
-  Dimensions,
+  FlatList,
   KeyboardAvoidingView,
+  Modal,
   Platform,
-  ScrollView,
+  Pressable,
   StatusBar,
   StyleSheet,
   Text,
@@ -19,502 +19,254 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const DISTRICTS = [...BANADIR_DISTRICTS];
 
-const mogadishuDistricts = [...BANADIR_DISTRICTS];
+type SearchTarget = 'pickup' | 'dropoff' | null;
 
-// Responsive helper functions
-const scaleWidth = (size: number) => (SCREEN_WIDTH / 375) * size;
-const scaleHeight = (size: number) => (SCREEN_HEIGHT / 812) * size;
-const scaleFont = (size: number) => {
-  const scale = SCREEN_WIDTH / 375;
-  const newSize = size * scale;
-  return Platform.OS === 'ios' ? Math.round(newSize) : Math.round(newSize);
-};
+function filterDistricts(query: string) {
+  const q = query.trim().toLowerCase();
+  if (!q) return DISTRICTS;
+  const starts = DISTRICTS.filter((d) => d.toLowerCase().startsWith(q));
+  const rest = DISTRICTS.filter((d) => !d.toLowerCase().startsWith(q) && d.toLowerCase().includes(q));
+  return [...starts, ...rest];
+}
 
 export default function PlanRideScreen() {
   const insets = useSafeAreaInsets();
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
-  const isDark = colorScheme === 'dark';
   const router = useRouter();
-  const params = useLocalSearchParams<{
-    pickupState?: string;
-    pickupDistrict?: string;
-    dropoffState?: string;
-  }>();
+  const params = useLocalSearchParams<{ rideType?: string }>();
 
-  const initialPickup = params.pickupDistrict
-    ? `${params.pickupDistrict}, ${params.pickupState || 'Banadir'}`
-    : '';
-  const initialDestination = params.dropoffState || '';
-
-  const [pickupLocation, setPickupLocation] = useState(initialPickup);
-  const [destinationLocation, setDestinationLocation] = useState(initialDestination);
-  const [activeInput, setActiveInput] = useState<'pickup' | 'destination' | null>(null);
-  const [pickupSuggestions, setPickupSuggestions] = useState<string[]>([]);
-  const [destinationSuggestions, setDestinationSuggestions] = useState<string[]>([]);
+  const [pickupDistrict, setPickupDistrict] = useState('');
+  const [pickupNeighborhood, setPickupNeighborhood] = useState('');
+  const [dropoffDistrict, setDropoffDistrict] = useState('');
+  const [dropoffNeighborhood, setDropoffNeighborhood] = useState('');
+  const [searchTarget, setSearchTarget] = useState<SearchTarget>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [showDeliverySheet, setShowDeliverySheet] = useState(false);
-  const [pickupTextWidth, setPickupTextWidth] = useState(0);
-  const [destinationTextWidth, setDestinationTextWidth] = useState(0);
-  
-  // Refs to track current input values for auto-complete
-  const pickupInputRef = useRef<string>('');
-  const destinationInputRef = useRef<string>('');
-  const autoCompleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (autoCompleteTimeoutRef.current) {
-        clearTimeout(autoCompleteTimeoutRef.current);
-      }
-    };
-  }, []);
+  const filteredDistricts = useMemo(() => filterDistricts(searchQuery), [searchQuery]);
+  const popupVisible = searchTarget !== null;
 
-  const filterDistricts = (query: string): string[] => {
-    if (!query.trim()) return [];
-    const lowerQuery = query.toLowerCase();
-    
-    // Extract district part (before comma or if no comma, use full text)
-    const districtPart = query.split(',')[0].trim().toLowerCase();
-    
-    return mogadishuDistricts.filter(district =>
-      district.toLowerCase().startsWith(districtPart)
-    ).slice(0, 5); // Limit to 5 suggestions
+  const canContinue =
+    Boolean(pickupDistrict && pickupNeighborhood.trim().length >= 2) &&
+    Boolean(dropoffDistrict && dropoffNeighborhood.trim().length >= 2);
+
+  const openDistrictPopup = (target: 'pickup' | 'dropoff') => {
+    setSearchTarget(target);
+    setSearchQuery('');
   };
 
-  // Check if location contains a valid district (at the start, before comma)
-  const isValidDistrict = (location: string): boolean => {
-    if (!location.trim()) return false;
-    
-    // Extract district part (before comma or use full text if no comma)
-    const districtPart = location.split(',')[0].trim();
-    
-    return mogadishuDistricts.some(district => 
-      district.toLowerCase() === districtPart.toLowerCase()
-    );
+  const closeDistrictPopup = () => {
+    setSearchTarget(null);
+    setSearchQuery('');
   };
 
-  const isValidDestination = (location: string): boolean => {
-    if (!location.trim()) return false;
-    const part = location.split(',')[0].trim().toLowerCase();
-    return (
-      SOMALIA_STATES.some((state) => state.toLowerCase() === part) ||
-      mogadishuDistricts.some((district) => district.toLowerCase() === part)
-    );
-  };
-
-  // Extract district from location (e.g., "Hodan, Main Street" -> "Hodan")
-  const extractDistrict = (location: string): string | null => {
-    if (!location.trim()) return null;
-    const districtPart = location.split(',')[0].trim();
-    const matchedDistrict = mogadishuDistricts.find(district => 
-      district.toLowerCase() === districtPart.toLowerCase()
-    );
-    return matchedDistrict || null;
-  };
-
-  const handlePickupChange = (text: string) => {
-    setPickupLocation(text);
-    pickupInputRef.current = text;
-    
-    // If there's a comma and text after it (xafad), don't show suggestions
-    if (text.includes(',') && text.split(',')[1]?.trim()) {
-      setPickupSuggestions([]);
-      setActiveInput('pickup');
-      return;
-    }
-    
-    // Extract district part for suggestions (before comma)
-    const districtPart = text.split(',')[0].trim();
-    const suggestions = filterDistricts(districtPart);
-    setPickupSuggestions(suggestions);
-    setActiveInput('pickup');
-    
-    // Clear any existing timeout
-    if (autoCompleteTimeoutRef.current) {
-      clearTimeout(autoCompleteTimeoutRef.current);
-    }
-    
-    // Auto-complete district: if there's exactly one match and user hasn't typed comma yet
-    if (!text.includes(',') && suggestions.length === 1 && districtPart.length >= 2) {
-      const match = suggestions[0];
-      const lowerText = districtPart.toLowerCase();
-      const lowerMatch = match.toLowerCase();
-      
-      // Only auto-complete if the match is longer than what user typed
-      if (lowerMatch.startsWith(lowerText) && lowerMatch !== lowerText) {
-        autoCompleteTimeoutRef.current = setTimeout(() => {
-          // Only auto-fill if the text hasn't changed and no comma was added
-          if (pickupInputRef.current === text && !pickupInputRef.current.includes(',')) {
-            setPickupLocation(match);
-            setPickupSuggestions([]);
-            setActiveInput(null);
-          }
-        }, 800); // Wait 800ms after user stops typing
-      }
-    }
-  };
-
-  const handleDestinationChange = (text: string) => {
-    setDestinationLocation(text);
-    destinationInputRef.current = text;
-    
-    // If there's a comma and text after it (xafad), don't show suggestions
-    if (text.includes(',') && text.split(',')[1]?.trim()) {
-      setDestinationSuggestions([]);
-      setActiveInput('destination');
-      return;
-    }
-    
-    // Extract district part for suggestions (before comma)
-    const districtPart = text.split(',')[0].trim();
-    const suggestions = filterDistricts(districtPart);
-    setDestinationSuggestions(suggestions);
-    setActiveInput('destination');
-    
-    // Clear any existing timeout
-    if (autoCompleteTimeoutRef.current) {
-      clearTimeout(autoCompleteTimeoutRef.current);
-    }
-    
-    // Auto-complete district: if there's exactly one match and user hasn't typed comma yet
-    if (!text.includes(',') && suggestions.length === 1 && districtPart.length >= 2) {
-      const match = suggestions[0];
-      const lowerText = districtPart.toLowerCase();
-      const lowerMatch = match.toLowerCase();
-      
-      // Only auto-complete if the match is longer than what user typed
-      if (lowerMatch.startsWith(lowerText) && lowerMatch !== lowerText) {
-        autoCompleteTimeoutRef.current = setTimeout(() => {
-          // Only auto-fill if the text hasn't changed and no comma was added
-          if (destinationInputRef.current === text && !destinationInputRef.current.includes(',')) {
-            setDestinationLocation(match);
-            setDestinationSuggestions([]);
-            setActiveInput(null);
-          }
-        }, 800); // Wait 800ms after user stops typing
-      }
-    }
-  };
-
-  const handlePickupBlur = () => {
-    // Clear any pending auto-complete timeout
-    if (autoCompleteTimeoutRef.current) {
-      clearTimeout(autoCompleteTimeoutRef.current);
-    }
-    
-    // Auto-complete district on blur if there's a close match and no comma
-    if (pickupLocation && !pickupLocation.includes(',')) {
-      const districtPart = pickupLocation.split(',')[0].trim();
-      if (!isValidDistrict(pickupLocation)) {
-        const suggestions = filterDistricts(districtPart);
-        if (suggestions.length === 1) {
-          // Auto-fill the single match
-          const match = suggestions[0];
-          setPickupLocation(match);
-          pickupInputRef.current = match;
-          setPickupSuggestions([]);
-        } else if (suggestions.length === 0) {
-          // Clear if no valid match
-          setPickupLocation('');
-          pickupInputRef.current = '';
-        }
-      }
-    }
-    setTimeout(() => setActiveInput(null), 200);
-  };
-
-  const handleDestinationBlur = () => {
-    // Clear any pending auto-complete timeout
-    if (autoCompleteTimeoutRef.current) {
-      clearTimeout(autoCompleteTimeoutRef.current);
-    }
-    
-    // Keep Somalia states; only auto-fix Banadir district typos
-    if (destinationLocation && !destinationLocation.includes(',')) {
-      if (isValidDestination(destinationLocation)) {
-        setTimeout(() => setActiveInput(null), 200);
-        return;
-      }
-      const districtPart = destinationLocation.split(',')[0].trim();
-      const suggestions = filterDistricts(districtPart);
-      if (suggestions.length === 1) {
-        const match = suggestions[0];
-        setDestinationLocation(match);
-        destinationInputRef.current = match;
-        setDestinationSuggestions([]);
-      } else if (suggestions.length === 0) {
-        setDestinationLocation('');
-        destinationInputRef.current = '';
-      }
-    }
-    setTimeout(() => setActiveInput(null), 200);
-  };
-
-  const selectSuggestion = (suggestion: string, type: 'pickup' | 'destination') => {
-    // Clear any pending auto-complete timeout
-    if (autoCompleteTimeoutRef.current) {
-      clearTimeout(autoCompleteTimeoutRef.current);
-    }
-    
-    if (type === 'pickup') {
-      // Set the district name with comma (no space), user can continue typing to add address
-      const locationWithComma = `${suggestion},`;
-      setPickupLocation(locationWithComma);
-      pickupInputRef.current = locationWithComma;
-      setPickupSuggestions([]);
-      // Keep focus so user can add address after district
-      setActiveInput('pickup');
+  const clearDistrict = (target: 'pickup' | 'dropoff') => {
+    if (target === 'pickup') {
+      setPickupDistrict('');
+      setPickupNeighborhood('');
     } else {
-      // Set the district name with comma (no space), user can continue typing to add address
-      const locationWithComma = `${suggestion},`;
-      setDestinationLocation(locationWithComma);
-      destinationInputRef.current = locationWithComma;
-      setDestinationSuggestions([]);
-      // Keep focus so user can add address after district
-      setActiveInput('destination');
+      setDropoffDistrict('');
+      setDropoffNeighborhood('');
     }
+    openDistrictPopup(target);
   };
+
+  const selectDistrict = (district: string) => {
+    if (searchTarget === 'pickup') {
+      setPickupDistrict(district);
+      setPickupNeighborhood('');
+    } else if (searchTarget === 'dropoff') {
+      setDropoffDistrict(district);
+      setDropoffNeighborhood('');
+    }
+    closeDistrictPopup();
+  };
+
+  const formatLocation = (district: string, neighborhood: string) =>
+    `${district}, ${neighborhood.trim()}`;
 
   const handleContinue = () => {
-    // Validate pickup is Banadir district; destination can be a Somalia state or district
-    if (pickupLocation && destinationLocation && 
-        isValidDistrict(pickupLocation) && 
-        isValidDestination(destinationLocation)) {
-      // Open delivery bottom sheet
-      setShowDeliverySheet(true);
-    }
+    if (!canContinue) return;
+    setShowDeliverySheet(true);
   };
 
-  const handleDeliverySelect = (option: { id: string; name: string; icon: keyof typeof Ionicons.glyphMap; time: string; price: string }) => {
-    // Navigate to delivery screen with location and delivery method data
+  const handleDeliverySelect = (option: {
+    id: string;
+    name: string;
+    icon: keyof typeof Ionicons.glyphMap;
+    time: string;
+    price: string;
+  }) => {
     router.push({
       pathname: '/delivery',
       params: {
-        pickup: pickupLocation,
-        destination: destinationLocation,
+        pickup: formatLocation(pickupDistrict, pickupNeighborhood),
+        destination: formatLocation(dropoffDistrict, dropoffNeighborhood),
         deliveryMethod: option.name,
         deliveryTime: option.time,
         deliveryPrice: option.price,
+        rideType: params.rideType || '',
       },
     });
   };
 
+  const renderLocationRow = (
+    target: 'pickup' | 'dropoff',
+    district: string,
+    neighborhood: string,
+    onNeighborhoodChange: (text: string) => void,
+    label: string
+  ) => {
+    const selected = Boolean(district);
+
+    return (
+      <View style={styles.rowBlock}>
+        <View style={styles.rowTop}>
+          <View style={[styles.dot, target === 'dropoff' && styles.dotSquare]} />
+          <Text style={styles.rowLabel}>{label}</Text>
+        </View>
+
+        {!selected ? (
+          <TouchableOpacity
+            style={styles.fieldBtn}
+            activeOpacity={0.8}
+            onPress={() => openDistrictPopup(target)}>
+            <Ionicons name="search" size={18} color="#8A8A8A" />
+            <Text style={styles.fieldBtnText}>Raadi degmo...</Text>
+            <Ionicons name="chevron-down" size={18} color="#8A8A8A" />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.selectedBlock}>
+            <View style={styles.districtChipRow}>
+              <View style={styles.districtChip}>
+                <Ionicons name="location" size={14} color="#000" />
+                <Text style={styles.districtChipText}>{district}</Text>
+              </View>
+              <TouchableOpacity onPress={() => clearDistrict(target)} hitSlop={10}>
+                <Text style={styles.changeLink}>Change</Text>
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              style={styles.neighborhoodInput}
+              placeholder="Geli xaafadda (tusaale Taleex)"
+              placeholderTextColor="#9A9A9A"
+              value={neighborhood}
+              onChangeText={onNeighborhoodChange}
+              autoCapitalize="words"
+              autoCorrect={false}
+              returnKeyType="done"
+            />
+          </View>
+        )}
+      </View>
+    );
+  };
+
   return (
     <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: isDark ? '#000000' : '#FFFFFF' }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <StatusBar barStyle="dark-content" />
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}>
-        
-        {/* Location Input Container */}
-        <View
-          style={[
-            styles.locationContainer,
-            {
-              backgroundColor: isDark ? '#1A1A1A' : '#FFFFFF',
-              borderColor: isDark ? '#333333' : '#E0E0E0',
-            },
-          ]}>
-          {/* Visual Indicator */}
-          <View style={styles.locationIndicator}>
-            <View style={[styles.pinCircle, { backgroundColor: isDark ? '#FFFFFF' : '#000000' }]} />
-            <View style={[styles.pinLine, { backgroundColor: isDark ? '#666666' : '#CCCCCC' }]} />
-            <View style={[styles.pinSquare, { backgroundColor: isDark ? '#FFFFFF' : '#000000' }]} />
-          </View>
+      <View style={[styles.content, { paddingBottom: insets.bottom + 12 }]}>
+        <Text style={styles.title}>{params.rideType ? `Plan your ${params.rideType}` : 'Plan your ride'}</Text>
+        <Text style={styles.subtitle}>Dooro degmo popup-ka, kadib geli xaafadda.</Text>
 
-          {/* Input Fields */}
-          <View style={styles.inputContainer}>
-            <View style={styles.inputWrapper}>
-              <View style={[
-                styles.inputRow,
-                {
-                  borderBottomWidth: 1,
-                  borderBottomColor: isDark ? '#333333' : '#E0E0E0',
-                }
-              ]}>
-                <View style={styles.inputOverlayWrapper}>
-                  <TextInput
-                    style={[
-                      styles.locationInput,
-                      styles.locationInputInline,
-                      {
-                        color: isDark ? '#FFFFFF' : '#000000',
-                        zIndex: 10,
-                      },
-                    ]}
-                    placeholder="Enter district (e.g. Hodan, Main Street)"
-                    placeholderTextColor={isDark ? '#666666' : '#999999'}
-                    value={pickupLocation}
-                    onChangeText={handlePickupChange}
-                    onFocus={() => {
-                      setActiveInput('pickup');
-                      if (pickupLocation) {
-                        setPickupSuggestions(filterDistricts(pickupLocation));
-                      }
-                    }}
-                    onBlur={handlePickupBlur}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                  {/* Xafada hint - Overlay when district ends with comma or comma + space */}
-                  {(pickupLocation.endsWith(',') || pickupLocation.endsWith(', ')) && !pickupLocation.split(',')[1]?.trim() && (
-                    <View style={styles.overlayHintContainer}>
-                      <Text 
-                        style={[
-                          styles.overlayTextMeasure,
-                          { color: 'transparent' },
-                        ]}
-                        onLayout={(e) => setPickupTextWidth(e.nativeEvent.layout.width)}
-                      >
-                        {pickupLocation}
-                      </Text>
-                      <Text 
-                        style={[
-                          styles.overlayHint, 
-                          { 
-                            color: isDark ? '#999999' : '#666666',
-                            left: pickupTextWidth,
-                          }
-                        ]}
-                      >
-                        xafada
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-              
-              {/* Pickup Suggestions - Appears below pickup field */}
-              {activeInput === 'pickup' && pickupSuggestions.length > 0 && (
-                <View style={[
-                  styles.suggestionsList,
-                  {
-                    backgroundColor: isDark ? '#1A1A1A' : '#FFFFFF',
-                  }
-                ]}>
-                  {pickupSuggestions.map((suggestion, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      style={styles.suggestionItem}
-                      onPress={() => selectSuggestion(suggestion, 'pickup')}
-                      activeOpacity={0.7}>
-                      <Ionicons name="location" size={scaleFont(18)} color={isDark ? '#FFFFFF' : '#000000'} />
-                      <Text style={[styles.suggestionText, { color: isDark ? '#FFFFFF' : '#000000' }]}>
-                        {suggestion}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-            </View>
-            
-            <View style={styles.inputWrapper}>
-              <View style={styles.inputRow}>
-                <View style={styles.inputOverlayWrapper}>
-                  <TextInput
-                    style={[
-                      styles.locationInput,
-                      styles.locationInputLast,
-                      styles.locationInputInline,
-                      {
-                        color: isDark ? '#FFFFFF' : '#000000',
-                        zIndex: 10,
-                      },
-                    ]}
-                    placeholder="Enter district (e.g. Hodan, Main Street)"
-                    placeholderTextColor={isDark ? '#666666' : '#999999'}
-                    value={destinationLocation}
-                    onChangeText={handleDestinationChange}
-                    onFocus={() => {
-                      setActiveInput('destination');
-                      if (destinationLocation) {
-                        setDestinationSuggestions(filterDistricts(destinationLocation));
-                      }
-                    }}
-                    onBlur={handleDestinationBlur}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                  {/* Xafada hint - Overlay when district ends with comma or comma + space */}
-                  {(destinationLocation.endsWith(',') || destinationLocation.endsWith(', ')) && !destinationLocation.split(',')[1]?.trim() && (
-                    <View style={styles.overlayHintContainer}>
-                      <Text 
-                        style={[
-                          styles.overlayTextMeasure,
-                          { color: 'transparent' },
-                        ]}
-                        onLayout={(e) => setDestinationTextWidth(e.nativeEvent.layout.width)}
-                      >
-                        {destinationLocation}
-                      </Text>
-                      <Text 
-                        style={[
-                          styles.overlayHint, 
-                          { 
-                            color: isDark ? '#999999' : '#666666',
-                            left: destinationTextWidth,
-                          }
-                        ]}
-                      >
-                        xafada
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-              
-              {/* Destination Suggestions - Appears below destination field */}
-              {activeInput === 'destination' && destinationSuggestions.length > 0 && (
-                <View style={[
-                  styles.suggestionsList,
-                  {
-                    backgroundColor: isDark ? '#1A1A1A' : '#FFFFFF',
-                  }
-                ]}>
-                  {destinationSuggestions.map((suggestion, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      style={styles.suggestionItem}
-                      onPress={() => selectSuggestion(suggestion, 'destination')}
-                      activeOpacity={0.7}>
-                      <Ionicons name="location" size={scaleFont(18)} color={isDark ? '#FFFFFF' : '#000000'} />
-                      <Text style={[styles.suggestionText, { color: isDark ? '#FFFFFF' : '#000000' }]}>
-                        {suggestion}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-            </View>
-          </View>
+        <View style={styles.card}>
+          {renderLocationRow(
+            'pickup',
+            pickupDistrict,
+            pickupNeighborhood,
+            setPickupNeighborhood,
+            'Pickup'
+          )}
+          <View style={styles.divider} />
+          {renderLocationRow(
+            'dropoff',
+            dropoffDistrict,
+            dropoffNeighborhood,
+            setDropoffNeighborhood,
+            'Drop-off'
+          )}
         </View>
-      </ScrollView>
 
-      {/* Continue Button */}
-      {(pickupLocation && destinationLocation && 
-        isValidDistrict(pickupLocation) && 
-        isValidDestination(destinationLocation)) && (
-        <View style={[styles.footer, { paddingBottom: insets.bottom + scaleHeight(16) }]}>
-          <TouchableOpacity
-            style={[styles.continueButton, { backgroundColor: isDark ? '#FFFFFF' : '#000000' }]}
-            onPress={handleContinue}
-            activeOpacity={0.8}>
-            <Text style={[styles.continueButtonText, { color: isDark ? '#000000' : '#FFFFFF' }]}>
-              Continue
-            </Text>
+        <View style={styles.spacer} />
+
+        {canContinue ? (
+          <TouchableOpacity style={styles.continueBtn} activeOpacity={0.85} onPress={handleContinue}>
+            <Text style={styles.continueText}>Continue</Text>
           </TouchableOpacity>
-        </View>
-      )}
+        ) : null}
+      </View>
 
-      {/* Delivery Bottom Sheet */}
+      <Modal
+        visible={popupVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeDistrictPopup}>
+        <View style={styles.modalRoot}>
+          <Pressable style={styles.modalBackdrop} onPress={closeDistrictPopup} />
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={[styles.modalCardWrap, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalHandle} />
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>
+                  {searchTarget === 'pickup' ? 'Dooro pickup degmo' : 'Dooro drop-off degmo'}
+                </Text>
+                <TouchableOpacity onPress={closeDistrictPopup} hitSlop={10} style={styles.closeBtn}>
+                  <Ionicons name="close" size={20} color="#111" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.searchBox}>
+                <Ionicons name="search" size={18} color="#8A8A8A" />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Qor magaca degmada..."
+                  placeholderTextColor="#9A9A9A"
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  autoFocus
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  clearButtonMode="while-editing"
+                />
+              </View>
+
+              <FlatList
+                data={filteredDistricts}
+                keyExtractor={(item) => item}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                style={styles.list}
+                contentContainerStyle={styles.listContent}
+                ListEmptyComponent={
+                  <Text style={styles.emptyText}>Degmo lama helin. Isku day magac kale.</Text>
+                }
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.listItem}
+                    activeOpacity={0.7}
+                    onPress={() => selectDistrict(item)}>
+                    <View style={styles.listIcon}>
+                      <Ionicons name="location-outline" size={18} color="#111" />
+                    </View>
+                    <View style={styles.listCopy}>
+                      <Text style={styles.listTitle}>{item}</Text>
+                      <Text style={styles.listMeta}>Banadir · Mogadishu</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color="#C0C0C0" />
+                  </TouchableOpacity>
+                )}
+              />
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+
       <DeliveryBottomSheet
         visible={showDeliverySheet}
         onClose={() => setShowDeliverySheet(false)}
@@ -527,165 +279,241 @@ export default function PlanRideScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    width: '100%',
+    backgroundColor: '#FFFFFF',
   },
-  header: {
+  content: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#000',
+    letterSpacing: -0.4,
+  },
+  subtitle: {
+    marginTop: 6,
+    marginBottom: 18,
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#6B6B6B',
+    fontWeight: '500',
+  },
+  card: {
+    borderWidth: 1,
+    borderColor: '#E8E8E8',
+    borderRadius: 16,
+    backgroundColor: '#FFF',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  rowBlock: {
+    paddingVertical: 12,
+  },
+  rowTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  dot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#000',
+  },
+  dotSquare: {
+    borderRadius: 2,
+  },
+  rowLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#8A8A8A',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  fieldBtn: {
+    minHeight: 48,
+    borderRadius: 12,
+    backgroundColor: '#F4F4F4',
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  fieldBtnText: {
+    flex: 1,
+    fontSize: 15,
+    color: '#6B6B6B',
+    fontWeight: '500',
+  },
+  selectedBlock: {
+    gap: 10,
+  },
+  districtChipRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: scaleWidth(16),
-    paddingBottom: scaleHeight(16),
   },
-  backButton: {
-    width: scaleWidth(40),
-    height: scaleWidth(40),
-    justifyContent: 'center',
-    alignItems: 'flex-start',
+  districtChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#F1F1F1',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
-  headerTitle: {
-    fontSize: scaleFont(18),
+  districtChipText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#000',
+  },
+  changeLink: {
+    fontSize: 14,
     fontWeight: '600',
+    color: AppColors.header,
   },
-  headerSpacer: {
-    width: scaleWidth(40),
+  neighborhoodInput: {
+    minHeight: 48,
+    borderRadius: 12,
+    backgroundColor: '#F4F4F4',
+    paddingHorizontal: 14,
+    fontSize: 16,
+    color: '#000',
+    fontWeight: '500',
   },
-  scrollView: {
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#E6E6E6',
+    marginLeft: 18,
+  },
+  spacer: {
     flex: 1,
   },
-  scrollContent: {
-    paddingHorizontal: scaleWidth(16),
-    paddingTop: scaleHeight(8),
-  },
-  locationContainer: {
-    flexDirection: 'row',
-    borderRadius: scaleWidth(12),
-    borderWidth: 1,
-    padding: scaleWidth(16),
-    marginBottom: scaleHeight(24),
-    minHeight: scaleHeight(120),
-  },
-  locationIndicator: {
-    width: scaleWidth(24),
-    alignItems: 'center',
-    marginRight: scaleWidth(12),
-  },
-  pinCircle: {
-    width: scaleWidth(12),
-    height: scaleWidth(12),
-    borderRadius: scaleWidth(6),
-  },
-  pinLine: {
-    width: 2,
-    height: scaleHeight(20),
-    marginVertical: scaleHeight(4),
-  },
-  pinSquare: {
-    width: scaleWidth(12),
-    height: scaleWidth(12),
-    borderRadius: scaleWidth(2),
-  },
-  inputContainer: {
-    flex: 1,
-  },
-  inputWrapper: {
-    position: 'relative',
-  },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    paddingVertical: scaleHeight(12),
-  },
-  locationInput: {
-    fontSize: scaleFont(16),
-    paddingVertical: scaleHeight(12),
-    borderBottomWidth: 1,
-  },
-  locationInputInline: {
-    flex: 1,
-    borderBottomWidth: 0,
-    paddingVertical: 0,
-  },
-  inputOverlayWrapper: {
-    position: 'relative',
-    flex: 1,
-  },
-  overlayHintContainer: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    pointerEvents: 'none',
-    zIndex: 1,
-  },
-  overlayTextMeasure: {
-    fontSize: scaleFont(16),
-    paddingVertical: 0,
-    includeFontPadding: false,
-    opacity: 0,
-  },
-  overlayHint: {
-    fontSize: scaleFont(16),
-    fontStyle: 'italic',
-    marginLeft: scaleWidth(2),
-    paddingLeft: 5,
-    position: 'absolute',
-    includeFontPadding: false,
-    zIndex: 2,
-  },
-  locationInputLast: {
-    borderBottomWidth: 0,
-    marginTop: scaleHeight(8),
-  },
-  suggestionsList: {
-    width: '100%',
-    marginTop: scaleHeight(4),
-    maxHeight: scaleHeight(200),
-  },
-  suggestionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: scaleHeight(12),
-    paddingHorizontal: scaleWidth(12),
-    gap: scaleWidth(12),
-  },
-  suggestionText: {
-    fontSize: scaleFont(15),
-    fontWeight: '400',
-  },
-  hintContainer: {
-    marginTop: scaleHeight(4),
-    paddingHorizontal: scaleWidth(4),
-  },
-  hintText: {
-    fontSize: scaleFont(13),
-    fontStyle: 'italic',
-  },
-  hintTextInline: {
-    fontSize: scaleFont(16),
-    fontStyle: 'italic',
-    marginLeft: scaleWidth(-2),
-  },
-  footer: {
-    width: '100%',
-    paddingHorizontal: scaleWidth(16),
-    paddingTop: scaleHeight(16),
-    borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
-    backgroundColor: 'transparent',
-  },
-  continueButton: {
-    width: '100%',
-    paddingVertical: scaleHeight(16),
-    borderRadius: scaleWidth(8),
+  continueBtn: {
+    minHeight: 54,
+    borderRadius: 12,
+    backgroundColor: '#000',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  continueButtonText: {
-    fontSize: scaleFont(16),
-    fontWeight: '600',
+  continueText: {
+    color: '#FFF',
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  modalRoot: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  modalCardWrap: {
+    width: '100%',
+  },
+  modalCard: {
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '78%',
+    minHeight: '55%',
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 8,
+  },
+  modalHandle: {
+    alignSelf: 'center',
+    width: 42,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#D8D8D8',
+    marginBottom: 12,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111',
+  },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F2F2F2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchBox: {
+    minHeight: 48,
+    borderRadius: 12,
+    backgroundColor: '#F4F4F4',
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#000',
+    fontWeight: '500',
+    paddingVertical: 10,
+  },
+  list: {
+    flexGrow: 0,
+  },
+  listContent: {
+    paddingBottom: 20,
+  },
+  listItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#ECECEC',
+  },
+  listIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F2F2F2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  listCopy: {
+    flex: 1,
+  },
+  listTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111',
+  },
+  listMeta: {
+    marginTop: 2,
+    fontSize: 13,
+    color: '#8A8A8A',
+    fontWeight: '500',
+  },
+  emptyText: {
+    marginTop: 24,
+    textAlign: 'center',
+    color: '#8A8A8A',
+    fontSize: 14,
   },
 });
-
