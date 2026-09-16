@@ -16,16 +16,22 @@ import { createDeliverySchema, deliveryActionSchema } from './deliveries.schemas
 
 export async function deliveryRoutes(app: FastifyInstance) {
   app.post('/', async (request, reply) => {
-    const body = createDeliverySchema.parse(request.body);
-    let riderUserId: string | undefined;
     try {
-      await request.jwtVerify();
-      riderUserId = request.user.sub;
-    } catch {
-      riderUserId = undefined;
+      const body = createDeliverySchema.parse(request.body);
+      let riderUserId: string | undefined;
+      try {
+        await request.jwtVerify();
+        riderUserId = request.user.sub;
+      } catch {
+        riderUserId = undefined;
+      }
+      const created = await createDelivery(body, riderUserId);
+      return reply.code(201).send(created);
+    } catch (error: any) {
+      return reply
+        .code(error.statusCode || 400)
+        .send({ error: error.message || 'Could not create delivery', code: 'delivery/create_failed' });
     }
-    const created = await createDelivery(body, riderUserId);
-    return reply.code(201).send(created);
   });
 
   /** Authenticated drivers get Uber-filtered offers; others get raw pending list. */

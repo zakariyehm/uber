@@ -32,6 +32,19 @@ enum DeliveryStatus {
   CANCELLED
 }
 
+enum PaymentHoldStatus {
+  NONE
+  HELD
+  COMMITTED
+  RELEASED
+}
+
+enum SettlementType {
+  NONE
+  FULL
+  NO_SHOW
+}
+
 model User {
   id           String   @id @default(uuid())
   role         UserRole
@@ -54,6 +67,7 @@ model User {
   files            UserFile[]
   activeDelivery   DriverActiveDelivery?
   wallet           DriverWallet?
+  riderWallet      RiderWallet?
 }
 
 model RiderProfile {
@@ -132,7 +146,19 @@ model DeliveryRequest {
   cancelledAt            DateTime?
   cancelledBy            String?
   cancelReason           String?
-  updatedAt              DateTime       @updatedAt
+  /** Waafi PreAuthorization lifecycle */
+  paymentHoldStatus      PaymentHoldStatus @default(NONE)
+  waafiTransactionId     String?
+  waafiReferenceId       String?
+  paymentHeldAt          DateTime?
+  paymentCommittedAt     DateTime?
+  paymentReleasedAt      DateTime?
+  settlementType         SettlementType    @default(NONE)
+  driverEarnings         Decimal?          @db.Decimal(10, 2)
+  platformFee            Decimal?          @db.Decimal(10, 2)
+  riderRefundPending     Decimal?          @db.Decimal(10, 2)
+  settledAt              DateTime?
+  updatedAt              DateTime          @updatedAt
 
   activeForDrivers DriverActiveDelivery[]
 
@@ -155,6 +181,14 @@ model DriverWallet {
   balance        Decimal  @default(0) @db.Decimal(12, 2)
   tripsCompleted Int      @default(0)
   tripsCancelled Int      @default(0)
+  updatedAt      DateTime @updatedAt
+}
+
+/** Rider credits from no-show refunds (pending until payouts). */
+model RiderWallet {
+  riderUserId    String   @id
+  rider          User     @relation(fields: [riderUserId], references: [id], onDelete: Cascade)
+  pendingBalance Decimal  @default(0) @db.Decimal(12, 2)
   updatedAt      DateTime @updatedAt
 }
 

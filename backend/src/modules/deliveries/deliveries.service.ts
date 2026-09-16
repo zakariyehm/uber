@@ -196,6 +196,46 @@ export async function createDelivery(
   riderUserId?: string
 ) {
   const price = Number.parseFloat(input.deliveryPrice.replace('$', ''));
+  const amount = Number.isFinite(price) ? price : 0;
+  if (amount <= 0) {
+    const error = new Error('Invalid delivery price') as Error & { statusCode?: number };
+    error.statusCode = 400;
+    throw error;
+  }
+
+  let payerPhone = input.senderPhone?.trim() || '';
+  // Prefer checkout sender number for Waafi charge; fall back to logged-in rider phone only if missing
+  if (!payerPhone && riderUserId) {
+    const rider = await prisma.user.findUnique({ where: { id: riderUserId }, select: { phone: true } });
+    if (rider?.phone) payerPhone = rider.phone;
+  }
+  if (!payerPhone) {
+    const error = new Error('Sender phone is required for Waafi payment hold') as Error & {
+      statusCode?: number;
+    };
+    error.statusCode = 400;
+    throw error;
+  }
+
+  console.log('[Waafi] PreAuth hold starting', {
+    orderId: input.orderId,
+    senderPhone: payerPhone,
+    amount,
+  });
+
+  const { holdPaymentForOrder } = await import('../payments/payment.settlement.ts');
+  const { PaymentHoldStatus } = await import('@prisma/client');
+  const hold = await holdPaymentForOrder({
+    orderId: input.orderId,
+    amount,
+    payerPhone,
+  });
+
+  console.log('[Waafi] PreAuth hold result', {
+    orderId: input.orderId,
+    transactionId: hold.waafiTransactionId,
+    mock: hold.mock,
+  });
   const row = await prisma.deliveryRequest.create({
     data: {
       orderId: input.orderId,
@@ -204,13 +244,17 @@ export async function createDelivery(
       recipientName: input.recipientName,
       recipientNumber: input.recipientNumber,
       senderName: input.senderName,
-      senderPhone: input.senderPhone,
+      senderPhone: input.senderPhone || payerPhone,
       itemType: input.itemType,
       deliveryMethod: input.deliveryMethod,
-      deliveryPrice: Number.isFinite(price) ? price : 0,
+      deliveryPrice: amount,
       referenceId: input.referenceId,
       deliveryTimeLabel: input.deliveryTimeLabel,
       riderUserId,
+      paymentHoldStatus: PaymentHoldStatus.HELD,
+      waafiTransactionId: hold.waafiTransactionId,
+      waafiReferenceId: hold.waafiReferenceId,
+      paymentHeldAt: new Date(),
     },
   });
 
@@ -476,6 +520,37 @@ export async function applyDeliveryAction(
     case 'cancel': {
       if (current.status === DeliveryStatus.CANCELLED) fail('Delivery already cancelled');
       if (current.status === DeliveryStatus.COMPLETED) fail('Cannot cancel a completed delivery');
+
+      const {
+        canCancelForNoShow,
+        arrivalWaitRemainingSec,
+        ARRIVAL_WAIT_MINUTES,
+      } = await import('../payments/payment.settlement.ts');
+
+      const isNoShowPath =
+        current.status === DeliveryStatus.ACCEPTED &&
+        current.driverArrived &&
+        !current.userConfirmedArrival &&
+        (meta?.cancelReason === 'no_show' ||
+          meta?.cancelReason === 'rider_not_responding' ||
+          meta?.cancelledBy === 'driver');
+
+      if (isNoShowPath) {
+        if (!canCancelForNoShow(current)) {
+          const left = arrivalWaitRemainingSec(current.driverArrivedAt);
+          fail(
+            `Wait ${ARRIVAL_WAIT_MINUTES} minutes at pickup before cancelling for no-show (${left}s left)`
+          );
+        }
+        data.status = DeliveryStatus.CANCELLED;
+        data.cancelledAt = now;
+        data.offeredToDriverId = null;
+        data.offerExpiresAt = null;
+        data.cancelledBy = meta?.cancelledBy || 'driver';
+        data.cancelReason = 'no_show';
+        break;
+      }
+
       data.status = DeliveryStatus.CANCELLED;
       data.cancelledAt = now;
       data.offeredToDriverId = null;
@@ -502,16 +577,27 @@ export async function applyDeliveryAction(
   }
 
   if (action === 'confirm_received' && row.driverUserId) {
-    const { creditDriverForDelivery } = await import('../wallet/wallet.service.ts');
-    await creditDriverForDelivery(row.driverUserId, row.deliveryPrice);
+    const { settleFullTrip } = await import('../payments/payment.settlement.ts');
+    await settleFullTrip(id);
+    return getById(id);
   }
 
-  if (action === 'cancel' && row.driverUserId) {
-    await prisma.driverWallet.upsert({
-      where: { driverUserId: row.driverUserId },
-      update: { tripsCancelled: { increment: 1 } },
-      create: { driverUserId: row.driverUserId, tripsCancelled: 1 },
-    });
+  if (action === 'cancel') {
+    const { settleNoShow, releasePaymentHold } = await import('../payments/payment.settlement.ts');
+    if (row.cancelReason === 'no_show') {
+      await settleNoShow(id);
+    } else {
+      await releasePaymentHold(id);
+    }
+
+    if (row.driverUserId) {
+      await prisma.driverWallet.upsert({
+        where: { driverUserId: row.driverUserId },
+        update: { tripsCancelled: { increment: 1 } },
+        create: { driverUserId: row.driverUserId, tripsCancelled: 1 },
+      });
+    }
+    return getById(id);
   }
 
   return toDeliveryDto(row);

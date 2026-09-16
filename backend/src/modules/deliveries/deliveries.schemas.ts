@@ -10,7 +10,7 @@ export const createDeliverySchema = z.object({
   deliveryMethod: z.string().min(1),
   deliveryPrice: z.string().min(1),
   senderName: z.string().optional(),
-  senderPhone: z.string().optional(),
+  senderPhone: z.string().min(7, 'Sender phone required for Waafi'),
   referenceId: z.string().optional(),
   deliveryTimeLabel: z.string().optional(),
 });

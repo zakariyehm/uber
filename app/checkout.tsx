@@ -84,13 +84,26 @@ export default function CheckoutScreen() {
 
   const handleConfirmOrder = async () => {
     if (placingRef.current || isPlacingOrder) return;
+
+    if (!senderNumber.trim()) {
+      Alert.alert('Sender number required', 'Enter the sender Waafi phone number before confirming.');
+      return;
+    }
+    if (!estimatedPrice || Number.parseFloat(estimatedPrice) <= 0) {
+      Alert.alert('Invalid amount', 'Delivery price is missing.');
+      return;
+    }
+
     placingRef.current = true;
     setIsPlacingOrder(true);
 
     try {
       const orderId = `ORD_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-      console.log('[Checkout] Creating delivery request...');
+      console.log('[Checkout] Holding payment via Waafi...', {
+        senderPhone: senderNumber.trim(),
+        amount: estimatedPrice,
+      });
       const deliveryRequest = await createDeliveryRequest({
         orderId,
         pickupLocation,
@@ -101,10 +114,10 @@ export default function CheckoutScreen() {
         deliveryMethod: deliveryMethod || 'Standard',
         deliveryPrice: estimatedPrice,
         senderName: senderName || 'Sender',
-        senderPhone: senderNumber,
+        senderPhone: senderNumber.trim(),
       });
 
-      console.log('[Checkout] ✅ Delivery request created successfully!');
+      console.log('[Checkout] ✅ Order created after Waafi hold');
       console.log('[Checkout] Request ID:', deliveryRequest.id);
 
       router.replace({
@@ -125,7 +138,7 @@ export default function CheckoutScreen() {
       console.error('[Checkout] ❌ Error creating order:', error);
       placingRef.current = false;
       setIsPlacingOrder(false);
-      Alert.alert('Order failed', error?.message || 'Could not place order. Please try again.');
+      Alert.alert('Payment not completed', error?.message || 'Payment failed. Please try again.');
     }
   };
 
@@ -257,6 +270,11 @@ export default function CheckoutScreen() {
           </View>
         </View>
 
+        <Text style={[styles.holdHint, { color: colors.icon }]}>
+          When you confirm, Waafi sends a prompt to {senderNumber || 'this number'}. Approve it and enter
+          your PIN to hold ${estimatedPrice}. Funds are captured only after the trip is completed.
+        </Text>
+
         {/* Confirm Order Button */}
         <TouchableOpacity 
           style={[
@@ -270,9 +288,12 @@ export default function CheckoutScreen() {
           disabled={isPlacingOrder}
           onPress={handleConfirmOrder}>
           {isPlacingOrder ? (
-            <ActivityIndicator size="small" color="#FFF" />
+            <View style={styles.confirmBusy}>
+              <ActivityIndicator size="small" color="#FFF" />
+              <Text style={styles.confirmBusyText}>Waiting for PIN approval…</Text>
+            </View>
           ) : (
-            <Text style={styles.confirmButtonText}>Confirm Order</Text>
+            <Text style={styles.confirmButtonText}>Confirm Order · Hold payment</Text>
           )}
         </TouchableOpacity>
       </ScrollView>
@@ -401,6 +422,22 @@ const styles = StyleSheet.create({
   totalValue: {
     fontSize: scaleFont(20),
     fontWeight: '700',
+  },
+  holdHint: {
+    fontSize: scaleFont(13),
+    lineHeight: scaleFont(18),
+    marginTop: scaleHeight(12),
+    textAlign: 'center',
+  },
+  confirmBusy: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: scaleWidth(10),
+  },
+  confirmBusyText: {
+    color: '#FFF',
+    fontSize: scaleFont(15),
+    fontWeight: '600',
   },
   confirmButton: {
     paddingVertical: scaleHeight(16),

@@ -1,4 +1,9 @@
 import type { DeliveryRequest as DbDelivery, DeliveryStatus } from '@prisma/client';
+import {
+  ARRIVAL_WAIT_MS,
+  arrivalWaitRemainingSec,
+  canCancelForNoShow,
+} from '../modules/payments/payment.settlement.ts';
 import { toIso } from './dates.ts';
 
 const statusMap: Record<DeliveryStatus, string> = {
@@ -46,6 +51,14 @@ export type DeliveryDto = {
   cancelledAt?: string;
   cancelledBy?: string;
   cancelReason?: string;
+  paymentHoldStatus?: string;
+  settlementType?: string;
+  driverEarnings?: string;
+  platformFee?: string;
+  riderRefundPending?: string;
+  arrivalWaitSecondsRemaining?: number;
+  canCancelForNoShow?: boolean;
+  arrivalWaitMinutes?: number;
 };
 
 export function toDeliveryDto(row: DbDelivery): DeliveryDto {
@@ -53,6 +66,10 @@ export function toDeliveryDto(row: DbDelivery): DeliveryDto {
   const remaining = row.offerExpiresAt
     ? Math.max(0, Math.ceil((row.offerExpiresAt.getTime() - Date.now()) / 1000))
     : undefined;
+
+  const waitingArrivalConfirm =
+    row.status === 'ACCEPTED' && row.driverArrived && !row.userConfirmedArrival;
+  const waitSec = waitingArrivalConfirm ? arrivalWaitRemainingSec(row.driverArrivedAt) : undefined;
 
   return {
     id: row.id,
@@ -90,5 +107,14 @@ export function toDeliveryDto(row: DbDelivery): DeliveryDto {
     cancelledAt: toIso(row.cancelledAt),
     cancelledBy: row.cancelledBy ?? undefined,
     cancelReason: row.cancelReason ?? undefined,
+    paymentHoldStatus: row.paymentHoldStatus,
+    settlementType: row.settlementType,
+    driverEarnings: row.driverEarnings != null ? Number(row.driverEarnings).toFixed(2) : undefined,
+    platformFee: row.platformFee != null ? Number(row.platformFee).toFixed(2) : undefined,
+    riderRefundPending:
+      row.riderRefundPending != null ? Number(row.riderRefundPending).toFixed(2) : undefined,
+    arrivalWaitSecondsRemaining: waitSec,
+    canCancelForNoShow: canCancelForNoShow(row),
+    arrivalWaitMinutes: Math.round(ARRIVAL_WAIT_MS / 60000),
   };
 }

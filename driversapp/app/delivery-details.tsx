@@ -65,6 +65,7 @@ export default function DeliveryDetailsScreen() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [leavingHome, setLeavingHome] = useState(false);
+  const [nowTick, setNowTick] = useState(Date.now());
   const goneHomeRef = useRef(false);
   const hasRequestRef = useRef(false);
 
@@ -91,36 +92,62 @@ export default function DeliveryDetailsScreen() {
 
   const cancelAndGoHome = useCallback(() => {
     if (!request || busy || goneHomeRef.current) return;
-    Alert.alert(
-      'Cancel this trip?',
-      'Rider has not confirmed. You will return home and can go online for new offers.',
-      [
-        { text: 'Keep waiting', style: 'cancel' },
-        {
-          text: 'Cancel trip',
-          style: 'destructive',
-          onPress: async () => {
-            setBusy(true);
-            try {
-              await cancelDeliveryRequest(request.id, {
-                cancelledBy: 'driver',
-                cancelReason: 'rider_not_responding',
-              });
+
+    const waitingArrival =
+      request.status === 'accepted' && request.driverArrived && !request.userConfirmedArrival;
+    const canNoShow = Boolean(request.canCancelForNoShow);
+    const waitLeft = request.arrivalWaitSecondsRemaining ?? 0;
+    const waitMin = request.arrivalWaitMinutes ?? 15;
+
+    if (waitingArrival && !canNoShow) {
+      const mins = Math.ceil(waitLeft / 60);
+      Alert.alert(
+        'Wait at pickup',
+        `You must wait ${waitMin} minutes after Arrived before cancelling for no-show. About ${mins} min left. If the rider never confirms, you earn $0.50.`
+      );
+      return;
+    }
+
+    const message = waitingArrival
+      ? 'Rider did not Confirm Arrival after 15 minutes. Waafi will commit the hold: you get $0.50, rider gets the rest as pending wallet credit.'
+      : 'Rider has not confirmed. The payment hold will be released (no earnings).';
+
+    Alert.alert('Cancel this trip?', message, [
+      { text: 'Keep waiting', style: 'cancel' },
+      {
+        text: waitingArrival ? 'Cancel · earn $0.50' : 'Cancel trip',
+        style: 'destructive',
+        onPress: async () => {
+          setBusy(true);
+          try {
+            await cancelDeliveryRequest(request.id, {
+              cancelledBy: 'driver',
+              cancelReason: waitingArrival ? 'no_show' : 'rider_not_responding',
+            });
+            await goHome(
+              waitingArrival ? 'No-show settled' : undefined,
+              waitingArrival ? '$0.50 credited to today’s wallet after Waafi commit.' : undefined
+            );
+          } catch (error: any) {
+            if (error?.status === 404) {
               await goHome();
-            } catch (error: any) {
-              if (error?.status === 404) {
-                await goHome();
-                return;
-              }
-              setBusy(false);
-              Alert.alert('Could not cancel', toUserFriendlyError(error, 'Try again'));
+              return;
             }
-          },
+            setBusy(false);
+            Alert.alert('Could not cancel', toUserFriendlyError(error, 'Try again'));
+          }
         },
-      ]
-    );
+      },
+    ]);
   }, [busy, goHome, request]);
 
+  useEffect(() => {
+    if (!request?.driverArrived || request.userConfirmedArrival || request.status !== 'accepted') {
+      return;
+    }
+    const timer = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [request?.driverArrived, request?.userConfirmedArrival, request?.status]);
   const load = useCallback(async () => {
     if (!params.requestId || goneHomeRef.current) return;
     try {
@@ -272,6 +299,23 @@ export default function DeliveryDetailsScreen() {
     ? request.deliveryPrice
     : `$${request.deliveryPrice || '0.00'}`;
   const isWaitingOnRider = step?.kind === 'wait';
+  const waitingArrivalConfirm =
+    request.status === 'accepted' && request.driverArrived && !request.userConfirmedArrival;
+
+  let arrivalWaitLeft = request.arrivalWaitSecondsRemaining ?? 0;
+  if (waitingArrivalConfirm && request.driverArrivedAt) {
+    const elapsed = Math.floor((nowTick - new Date(request.driverArrivedAt).getTime()) / 1000);
+    arrivalWaitLeft = Math.max(0, (request.arrivalWaitMinutes ?? 15) * 60 - elapsed);
+  }
+  const canNoShowCancel = waitingArrivalConfirm && arrivalWaitLeft <= 0;
+
+  const waitLabel = waitingArrivalConfirm
+    ? canNoShowCancel
+      ? 'Rider still not confirming · you can cancel for $0.50'
+      : `Waiting for Confirm Arrival · ${Math.floor(arrivalWaitLeft / 60)}:${String(
+          arrivalWaitLeft % 60
+        ).padStart(2, '0')} left`
+    : step?.label || 'Waiting';
 
   return (
     <UberSheet
@@ -283,7 +327,7 @@ export default function DeliveryDetailsScreen() {
             {step.kind === 'wait' ? (
               <View style={styles.waitBox}>
                 <ActivityIndicator color="#000" />
-                <Text style={styles.waitText}>{step.label}</Text>
+                <Text style={styles.waitText}>{waitLabel}</Text>
               </View>
             ) : null}
             {step.kind === 'hold' && step.run ? (
@@ -308,10 +352,19 @@ export default function DeliveryDetailsScreen() {
             ) : null}
             {isWaitingOnRider ? (
               <TouchableOpacity
-                style={styles.secondaryBtn}
-                disabled={busy}
+                style={[
+                  styles.secondaryBtn,
+                  waitingArrivalConfirm && !canNoShowCancel && styles.secondaryBtnDisabled,
+                ]}
+                disabled={busy || (waitingArrivalConfirm && !canNoShowCancel)}
                 onPress={cancelAndGoHome}>
-                <Text style={styles.secondaryText}>Rider not responding · Cancel trip</Text>
+                <Text style={styles.secondaryText}>
+                  {waitingArrivalConfirm
+                    ? canNoShowCancel
+                      ? 'No-show cancel · earn $0.50'
+                      : `Wait ${Math.ceil(arrivalWaitLeft / 60)} min before no-show cancel`
+                    : 'Rider not responding · Cancel trip'}
+                </Text>
               </TouchableOpacity>
             ) : null}
           </View>
@@ -402,6 +455,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 8,
+  },
+  secondaryBtnDisabled: {
+    opacity: 0.45,
   },
   secondaryText: {
     color: '#666',

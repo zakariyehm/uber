@@ -1,4 +1,4 @@
-import { DeliveryStatus, Prisma } from '@prisma/client';
+import { PaymentHoldStatus, Prisma, SettlementType } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../../lib/prisma.ts';
 import { requireDriver } from '../../middleware/authenticate.ts';
@@ -17,47 +17,57 @@ export async function getOrCreateWallet(driverUserId: string) {
   });
 }
 
-/** Daily wallet: balance is only what the driver earned today (resets at midnight). */
+/** Daily wallet: sum of today's settled driverEarnings (full trips + no-show fees). */
 export async function syncDriverWallet(driverUserId: string) {
-  const [completed, cancelledCount] = await Promise.all([
+  const [settled, cancelledCount] = await Promise.all([
     prisma.deliveryRequest.findMany({
       where: {
         driverUserId,
-        status: DeliveryStatus.COMPLETED,
-        userConfirmedDelivery: true,
+        settlementType: { in: [SettlementType.FULL, SettlementType.NO_SHOW] },
+        paymentHoldStatus: PaymentHoldStatus.COMMITTED,
+        driverEarnings: { not: null },
       },
-      select: { deliveryPrice: true, completedAt: true, userConfirmedDeliveryAt: true },
+      select: {
+        driverEarnings: true,
+        settledAt: true,
+        completedAt: true,
+        cancelledAt: true,
+        userConfirmedDeliveryAt: true,
+      },
     }),
     prisma.deliveryRequest.count({
       where: {
         driverUserId,
-        status: DeliveryStatus.CANCELLED,
+        status: 'CANCELLED',
+        NOT: { cancelReason: 'no_show' },
       },
     }),
   ]);
 
   const todayStart = startOfToday();
-  const todayRows = completed.filter((row) => {
-    const at = row.userConfirmedDeliveryAt || row.completedAt;
+  const todayRows = settled.filter((row) => {
+    const at = row.settledAt || row.userConfirmedDeliveryAt || row.completedAt || row.cancelledAt;
     return at && at >= todayStart;
   });
+
   const todayEarnings = todayRows.reduce(
-    (sum, row) => sum.add(row.deliveryPrice),
+    (sum, row) => sum.add(row.driverEarnings || new Prisma.Decimal(0)),
     new Prisma.Decimal(0)
   );
+
+  const tripsCompleted = settled.filter((r) => r.completedAt || r.userConfirmedDeliveryAt).length;
 
   const wallet = await prisma.driverWallet.upsert({
     where: { driverUserId },
     update: {
-      // Stored balance mirrors today's earnings so a new day starts at 0.00
       balance: todayEarnings,
-      tripsCompleted: completed.length,
+      tripsCompleted,
       tripsCancelled: cancelledCount,
     },
     create: {
       driverUserId,
       balance: todayEarnings,
-      tripsCompleted: completed.length,
+      tripsCompleted,
       tripsCancelled: cancelledCount,
     },
   });
@@ -72,8 +82,7 @@ export async function syncDriverWallet(driverUserId: string) {
   };
 }
 
-export async function creditDriverForDelivery(driverUserId: string, _amount: Prisma.Decimal | number) {
-  // Recompute from today's confirmed completions so each new day starts at 0.00
+export async function creditDriverForDelivery(driverUserId: string, _amount?: Prisma.Decimal | number) {
   await syncDriverWallet(driverUserId);
 }
 

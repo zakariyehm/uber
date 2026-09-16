@@ -38,6 +38,14 @@ export interface DeliveryRequest {
   cancelledAt?: string;
   cancelledBy?: string;
   cancelReason?: string;
+  paymentHoldStatus?: string;
+  settlementType?: string;
+  driverEarnings?: string;
+  platformFee?: string;
+  riderRefundPending?: string;
+  arrivalWaitSecondsRemaining?: number;
+  canCancelForNoShow?: boolean;
+  arrivalWaitMinutes?: number;
 }
 
 export const createDeliveryRequest = async (orderData: {
