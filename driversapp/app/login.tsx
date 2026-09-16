@@ -62,7 +62,7 @@ export default function LoginScreen() {
       // Show error alert
       let errorMessage = 'An error occurred during login. Please try again.';
       if (error.code === 'auth/user-not-found') {
-        errorMessage = 'No account found with this phone number. Please sign up first.';
+        errorMessage = 'No driver account for this number. Ask Raac operations to issue a login.';
       } else if (error.code === 'auth/wrong-password') {
         errorMessage = 'Incorrect password. Please try again.';
       } else if (error.code === 'auth/invalid-email') {
@@ -73,10 +73,6 @@ export default function LoginScreen() {
       
       Alert.alert('Login Failed', errorMessage, [{ text: 'OK' }]);
     }
-  };
-
-  const handleSignUpPress = () => {
-    router.push('/signup');
   };
 
   return (
@@ -177,7 +173,6 @@ export default function LoginScreen() {
           </ScrollView>
         </KeyboardAvoidingView>
 
-        {/* Footer - Fixed at bottom, stays in place when keyboard opens */}
         <View style={[
           styles.footer, 
           { 
@@ -185,10 +180,7 @@ export default function LoginScreen() {
             paddingTop: scaleHeight(16),
           }
         ]}>
-          <Text style={styles.footerText}>Don't have an account? </Text>
-          <TouchableOpacity onPress={handleSignUpPress} activeOpacity={0.7}>
-            <Text style={styles.footerLink}>Sign up</Text>
-          </TouchableOpacity>
+          <Text style={styles.footerText}>Driver logins are issued by Raac operations</Text>
         </View>
       </View>
     </View>
@@ -308,11 +300,7 @@ const styles = StyleSheet.create({
     fontSize: scaleFont(14),
     fontWeight: '400',
     color: '#666666',
-  },
-  footerLink: {
-    fontSize: scaleFont(14),
-    fontWeight: '600',
-    color: '#000000',
+    textAlign: 'center',
   },
 });
 

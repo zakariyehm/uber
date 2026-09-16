@@ -1,5 +1,6 @@
 import { DeliveryStatus, type DeliveryRequest as DbDelivery } from '@prisma/client';
 import { prisma } from '../../lib/prisma.ts';
+import { allocateOrderId } from '../../utils/order-id.ts';
 import { toDeliveryDto } from '../../utils/delivery-mapper.ts';
 
 /** Uber-style: each online driver gets 30s to accept/decline, then offer rotates. */
@@ -180,7 +181,7 @@ export async function ensureOfferAssignment(delivery: DbDelivery): Promise<DbDel
 
 export async function createDelivery(
   input: {
-    orderId: string;
+    orderId?: string;
     pickupLocation: string;
     destinationLocation: string;
     recipientName: string;
@@ -203,6 +204,8 @@ export async function createDelivery(
     throw error;
   }
 
+  const orderId = await allocateOrderId(input.orderId);
+
   let payerPhone = input.senderPhone?.trim() || '';
   // Prefer checkout sender number for Waafi charge; fall back to logged-in rider phone only if missing
   if (!payerPhone && riderUserId) {
@@ -218,7 +221,7 @@ export async function createDelivery(
   }
 
   console.log('[Waafi] PreAuth hold starting', {
-    orderId: input.orderId,
+    orderId,
     senderPhone: payerPhone,
     amount,
   });
@@ -226,19 +229,19 @@ export async function createDelivery(
   const { holdPaymentForOrder } = await import('../payments/payment.settlement.ts');
   const { PaymentHoldStatus } = await import('@prisma/client');
   const hold = await holdPaymentForOrder({
-    orderId: input.orderId,
+    orderId,
     amount,
     payerPhone,
   });
 
   console.log('[Waafi] PreAuth hold result', {
-    orderId: input.orderId,
+    orderId,
     transactionId: hold.waafiTransactionId,
     mock: hold.mock,
   });
   const row = await prisma.deliveryRequest.create({
     data: {
-      orderId: input.orderId,
+      orderId,
       pickupLocation: input.pickupLocation,
       destinationLocation: input.destinationLocation,
       recipientName: input.recipientName,
@@ -365,7 +368,12 @@ export async function listForDriver(driverUserId: string) {
 }
 
 export async function getByOrderId(orderId: string) {
-  const row = await prisma.deliveryRequest.findUnique({ where: { orderId } });
+  const code = orderId.replace(/^#/, '').trim();
+  const row = await prisma.deliveryRequest.findFirst({
+    where: {
+      OR: [{ orderId: code }, { orderId: code.toUpperCase() }, { orderId }],
+    },
+  });
   return row ? toDeliveryDto(row) : null;
 }
 

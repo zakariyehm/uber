@@ -1,0 +1,578 @@
+import {
+  DeliveryStatus,
+  PaymentHoldStatus,
+  Prisma,
+  SettlementType,
+  UserRole,
+} from '@prisma/client';
+import { prisma } from '../../lib/prisma.ts';
+import { toDeliveryDto } from '../../utils/delivery-mapper.ts';
+import { AuthError, registerUser, toPublicUser } from '../auth/auth.service.ts';
+import { applyDeliveryAction } from '../deliveries/deliveries.service.ts';
+import { syncDriverWallet } from '../wallet/wallet.service.ts';
+
+const ACTIVE_TRIP_STATUSES: DeliveryStatus[] = [
+  DeliveryStatus.PENDING,
+  DeliveryStatus.ACCEPTED,
+  DeliveryStatus.PICKED_UP,
+  DeliveryStatus.IN_TRANSIT,
+];
+
+function startOfToday() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function money(value: Prisma.Decimal | number | null | undefined) {
+  return Number(value ?? 0);
+}
+
+function moneyStr(value: Prisma.Decimal | number | null | undefined) {
+  return money(value).toFixed(2);
+}
+
+function displayName(user: {
+  firstName: string | null;
+  lastName: string | null;
+  driverProfile?: { displayName: string | null } | null;
+  riderProfile?: { displayName: string | null } | null;
+}) {
+  return (
+    [user.firstName, user.lastName].filter(Boolean).join(' ') ||
+    user.driverProfile?.displayName ||
+    user.riderProfile?.displayName ||
+    '—'
+  );
+}
+
+function somaliaPhone(phone: string) {
+  let digits = phone.replace(/\D/g, '');
+  if (digits.startsWith('252')) digits = digits.slice(3);
+  if (digits.startsWith('0')) digits = digits.slice(1);
+  return `+252${digits}`;
+}
+
+function adminError(message: string, statusCode: number, code = 'admin/invalid') {
+  return new AuthError(message, code, statusCode);
+}
+
+async function settledSums(from?: Date) {
+  const where: Prisma.DeliveryRequestWhereInput = {
+    paymentHoldStatus: PaymentHoldStatus.COMMITTED,
+    settlementType: { in: [SettlementType.FULL, SettlementType.NO_SHOW] },
+    ...(from ? { settledAt: { gte: from } } : {}),
+  };
+
+  const grouped = await prisma.deliveryRequest.groupBy({
+    by: ['settlementType'],
+    where,
+    _sum: {
+      deliveryPrice: true,
+      platformFee: true,
+      driverEarnings: true,
+      riderRefundPending: true,
+    },
+    _count: { _all: true },
+  });
+
+  const totals = grouped.reduce(
+    (acc, row) => {
+      acc.gmv += money(row._sum.deliveryPrice);
+      acc.platformFee += money(row._sum.platformFee);
+      acc.driverEarnings += money(row._sum.driverEarnings);
+      acc.riderRefundPending += money(row._sum.riderRefundPending);
+      acc.count += row._count._all;
+      if (row.settlementType === SettlementType.FULL) acc.fullTrips += row._count._all;
+      if (row.settlementType === SettlementType.NO_SHOW) acc.noShows += row._count._all;
+      return acc;
+    },
+    { gmv: 0, platformFee: 0, driverEarnings: 0, riderRefundPending: 0, count: 0, fullTrips: 0, noShows: 0 }
+  );
+
+  return {
+    gmv: moneyStr(totals.gmv),
+    platformFee: moneyStr(totals.platformFee),
+    driverEarnings: moneyStr(totals.driverEarnings),
+    riderRefundPending: moneyStr(totals.riderRefundPending),
+    settledCount: totals.count,
+    fullTrips: totals.fullTrips,
+    noShows: totals.noShows,
+  };
+}
+
+export async function getOverview() {
+  const today = startOfToday();
+
+  const [
+    todaySettled,
+    allSettled,
+    statusGroups,
+    todayStatusGroups,
+    onlineDrivers,
+    totalDrivers,
+    totalRiders,
+    newRidersToday,
+    riderPendingAgg,
+    pendingOffers,
+  ] = await Promise.all([
+    settledSums(today),
+    settledSums(),
+    prisma.deliveryRequest.groupBy({
+      by: ['status'],
+      _count: { _all: true },
+    }),
+    prisma.deliveryRequest.groupBy({
+      by: ['status'],
+      where: { createdAt: { gte: today } },
+      _count: { _all: true },
+    }),
+    prisma.driverProfile.count({ where: { isOnline: true } }),
+    prisma.user.count({ where: { role: UserRole.DRIVER } }),
+    prisma.user.count({ where: { role: UserRole.RIDER } }),
+    prisma.user.count({ where: { role: UserRole.RIDER, createdAt: { gte: today } } }),
+    prisma.riderWallet.aggregate({ _sum: { pendingBalance: true } }),
+    prisma.deliveryRequest.count({
+      where: { status: DeliveryStatus.PENDING, offeredToDriverId: { not: null } },
+    }),
+  ]);
+
+  const tripsByStatus = Object.fromEntries(
+    statusGroups.map((row) => [row.status, row._count._all])
+  ) as Record<string, number>;
+  const todayTripsByStatus = Object.fromEntries(
+    todayStatusGroups.map((row) => [row.status, row._count._all])
+  ) as Record<string, number>;
+
+  const liveTrips = ACTIVE_TRIP_STATUSES.reduce((sum, status) => sum + (tripsByStatus[status] || 0), 0);
+
+  return {
+    generatedAt: new Date().toISOString(),
+    today: {
+      ...todaySettled,
+      tripsCreated: todayStatusGroups.reduce((sum, row) => sum + row._count._all, 0),
+      tripsByStatus: todayTripsByStatus,
+      newRiders: newRidersToday,
+    },
+    allTime: {
+      ...allSettled,
+      tripsByStatus,
+      riders: totalRiders,
+      drivers: totalDrivers,
+    },
+    fleet: {
+      onlineDrivers,
+      offlineDrivers: Math.max(0, totalDrivers - onlineDrivers),
+      totalDrivers,
+      liveTrips,
+      pendingOffers,
+    },
+    wallets: {
+      riderPendingCredits: moneyStr(riderPendingAgg._sum.pendingBalance),
+    },
+  };
+}
+
+export async function getLiveOps() {
+  const [trips, drivers] = await Promise.all([
+    prisma.deliveryRequest.findMany({
+      where: { status: { in: ACTIVE_TRIP_STATUSES } },
+      include: {
+        rider: { include: { riderProfile: true } },
+        driver: { include: { driverProfile: true } },
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 80,
+    }),
+    prisma.driverProfile.findMany({
+      where: { isOnline: true },
+      include: {
+        user: {
+          include: {
+            wallet: true,
+            activeDelivery: true,
+          },
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+    }),
+  ]);
+
+  return {
+    generatedAt: new Date().toISOString(),
+    trips: trips.map((row) => ({
+      ...toDeliveryDto(row),
+      riderName: row.rider ? displayName(row.rider) : row.senderName || '—',
+      riderPhone: row.rider?.phone || row.senderPhone || null,
+      driverPhone: row.driver?.phone || null,
+    })),
+    onlineDrivers: drivers.map((profile) => ({
+      id: profile.userId,
+      name: profile.displayName || displayName(profile.user),
+      phone: profile.user.phone,
+      rating: Number(profile.rating).toFixed(2),
+      isOnline: profile.isOnline,
+      isActive: profile.user.isActive,
+      activeTripId: profile.user.activeDelivery?.requestId || null,
+      todayBalance: moneyStr(profile.user.wallet?.balance),
+    })),
+  };
+}
+
+export async function listTrips(input: {
+  status?: string;
+  method?: string;
+  q?: string;
+  page?: number;
+  limit?: number;
+}) {
+  const page = Math.max(1, input.page || 1);
+  const limit = Math.min(50, Math.max(1, input.limit || 20));
+  const skip = (page - 1) * limit;
+
+  const where: Prisma.DeliveryRequestWhereInput = {};
+  if (input.status) {
+    const status = input.status.toUpperCase().replace('-', '_') as DeliveryStatus;
+    if ((Object.values(DeliveryStatus) as string[]).includes(status)) {
+      where.status = status;
+    }
+  }
+  if (input.method) {
+    where.deliveryMethod = { contains: input.method, mode: 'insensitive' };
+  }
+  if (input.q) {
+    const q = input.q.trim().replace(/^#/, '');
+    where.OR = [
+      { orderId: { contains: q, mode: 'insensitive' } },
+      { pickupLocation: { contains: q, mode: 'insensitive' } },
+      { destinationLocation: { contains: q, mode: 'insensitive' } },
+      { senderName: { contains: q, mode: 'insensitive' } },
+      { senderPhone: { contains: q, mode: 'insensitive' } },
+      { recipientName: { contains: q, mode: 'insensitive' } },
+      { recipientNumber: { contains: q, mode: 'insensitive' } },
+      { driverName: { contains: q, mode: 'insensitive' } },
+      { rider: { phone: { contains: q, mode: 'insensitive' } } },
+      { driver: { phone: { contains: q, mode: 'insensitive' } } },
+    ];
+  }
+
+  const [rows, total] = await Promise.all([
+    prisma.deliveryRequest.findMany({
+      where,
+      include: {
+        rider: { include: { riderProfile: true } },
+        driver: { include: { driverProfile: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
+    }),
+    prisma.deliveryRequest.count({ where }),
+  ]);
+
+  return {
+    page,
+    limit,
+    total,
+    trips: rows.map((row) => ({
+      ...toDeliveryDto(row),
+      riderName: row.rider ? displayName(row.rider) : row.senderName || '—',
+      riderPhone: row.rider?.phone || row.senderPhone || null,
+      driverPhone: row.driver?.phone || null,
+    })),
+  };
+}
+
+export async function getTrip(id: string) {
+  const row = await prisma.deliveryRequest.findUnique({
+    where: { id },
+    include: {
+      rider: { include: { riderProfile: true, riderWallet: true } },
+      driver: { include: { driverProfile: true, wallet: true } },
+    },
+  });
+  if (!row) return null;
+
+  return {
+    trip: toDeliveryDto(row),
+    rider: row.rider
+      ? {
+          id: row.rider.id,
+          name: displayName(row.rider),
+          phone: row.rider.phone,
+          rating: row.rider.riderProfile ? Number(row.rider.riderProfile.rating).toFixed(2) : null,
+          pendingBalance: moneyStr(row.rider.riderWallet?.pendingBalance),
+          isActive: row.rider.isActive,
+        }
+      : null,
+    driver: row.driver
+      ? {
+          id: row.driver.id,
+          name: displayName(row.driver),
+          phone: row.driver.phone,
+          rating: row.driver.driverProfile ? Number(row.driver.driverProfile.rating).toFixed(2) : null,
+          isOnline: Boolean(row.driver.driverProfile?.isOnline),
+          todayBalance: moneyStr(row.driver.wallet?.balance),
+          isActive: row.driver.isActive,
+        }
+      : null,
+  };
+}
+
+export async function cancelTrip(id: string, reason?: string) {
+  return applyDeliveryAction(id, 'cancel', undefined, {
+    cancelledBy: 'system',
+    cancelReason: reason || 'admin_cancel',
+  });
+}
+
+export async function createDriver(input: {
+  phone: string;
+  password: string;
+  firstName?: string;
+  lastName?: string;
+}) {
+  const phone = somaliaPhone(input.phone);
+  if (!/^\+252\d{8,10}$/.test(phone)) {
+    throw adminError('Enter a valid Somalia phone number', 400);
+  }
+  if (!input.password || input.password.length < 6) {
+    throw adminError('Password must be at least 6 characters', 400);
+  }
+
+  const user = await registerUser({
+    phone,
+    password: input.password,
+    firstName: input.firstName?.trim() || undefined,
+    lastName: input.lastName?.trim() || undefined,
+    role: 'DRIVER',
+  });
+
+  return {
+    ...toPublicUser(user),
+    name: displayName(user),
+    isActive: user.isActive,
+  };
+}
+
+export async function listUsers(input: {
+  role?: 'RIDER' | 'DRIVER';
+  q?: string;
+  page?: number;
+  limit?: number;
+}) {
+  const page = Math.max(1, input.page || 1);
+  const limit = Math.min(50, Math.max(1, input.limit || 20));
+  const skip = (page - 1) * limit;
+
+  const where: Prisma.UserWhereInput = {
+    role: input.role === 'DRIVER' ? UserRole.DRIVER : input.role === 'RIDER' ? UserRole.RIDER : undefined,
+  };
+  if (!input.role) {
+    where.role = { in: [UserRole.RIDER, UserRole.DRIVER] };
+  }
+  if (input.q) {
+    const q = input.q.trim();
+    where.OR = [
+      { phone: { contains: q, mode: 'insensitive' } },
+      { email: { contains: q, mode: 'insensitive' } },
+      { firstName: { contains: q, mode: 'insensitive' } },
+      { lastName: { contains: q, mode: 'insensitive' } },
+    ];
+  }
+
+  const [rows, total] = await Promise.all([
+    prisma.user.findMany({
+      where,
+      include: {
+        riderProfile: true,
+        driverProfile: true,
+        wallet: true,
+        riderWallet: true,
+        _count: {
+          select: {
+            riderDeliveries: true,
+            driverDeliveries: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
+    }),
+    prisma.user.count({ where }),
+  ]);
+
+  return {
+    page,
+    limit,
+    total,
+    users: rows.map((user) => ({
+      id: user.id,
+      role: user.role,
+      name: displayName(user),
+      phone: user.phone,
+      email: user.email,
+      isActive: user.isActive,
+      createdAt: user.createdAt.toISOString(),
+      rating:
+        user.role === UserRole.DRIVER
+          ? Number(user.driverProfile?.rating ?? 0).toFixed(2)
+          : Number(user.riderProfile?.rating ?? 0).toFixed(2),
+      isOnline: Boolean(user.driverProfile?.isOnline),
+      tripCount:
+        user.role === UserRole.DRIVER ? user._count.driverDeliveries : user._count.riderDeliveries,
+      todayBalance: user.wallet ? moneyStr(user.wallet.balance) : null,
+      pendingBalance: user.riderWallet ? moneyStr(user.riderWallet.pendingBalance) : null,
+    })),
+  };
+}
+
+export async function patchUser(
+  id: string,
+  input: { isActive?: boolean; forceOffline?: boolean }
+) {
+  const user = await prisma.user.findUnique({
+    where: { id },
+    include: { driverProfile: true },
+  });
+  if (!user) {
+    const error = new Error('User not found') as Error & { statusCode?: number };
+    error.statusCode = 404;
+    throw error;
+  }
+  if (user.role === UserRole.ADMIN) {
+    const error = new Error('Cannot modify the owner account') as Error & { statusCode?: number };
+    error.statusCode = 403;
+    throw error;
+  }
+
+  const nextActive = input.isActive ?? user.isActive;
+  const shouldOffline = input.forceOffline || nextActive === false;
+
+  const updated = await prisma.user.update({
+    where: { id },
+    data: { isActive: nextActive },
+    include: { driverProfile: true, riderProfile: true, wallet: true, riderWallet: true },
+  });
+
+  if (updated.role === UserRole.DRIVER && updated.driverProfile && shouldOffline) {
+    await prisma.driverProfile.update({
+      where: { userId: id },
+      data: { isOnline: false },
+    });
+  }
+
+  return {
+    id: updated.id,
+    role: updated.role,
+    name: displayName(updated),
+    phone: updated.phone,
+    isActive: updated.isActive,
+    isOnline: shouldOffline ? false : Boolean(updated.driverProfile?.isOnline),
+  };
+}
+
+export async function listPayments(input: {
+  status?: string;
+  page?: number;
+  limit?: number;
+}) {
+  const page = Math.max(1, input.page || 1);
+  const limit = Math.min(50, Math.max(1, input.limit || 20));
+  const skip = (page - 1) * limit;
+
+  const where: Prisma.DeliveryRequestWhereInput = {
+    NOT: { paymentHoldStatus: PaymentHoldStatus.NONE },
+  };
+  if (input.status) {
+    const status = input.status.toUpperCase() as PaymentHoldStatus;
+    if ((Object.values(PaymentHoldStatus) as string[]).includes(status)) {
+      where.paymentHoldStatus = status;
+    }
+  }
+
+  const [rows, total] = await Promise.all([
+    prisma.deliveryRequest.findMany({
+      where,
+      include: {
+        rider: true,
+        driver: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+      skip,
+      take: limit,
+    }),
+    prisma.deliveryRequest.count({ where }),
+  ]);
+
+  return {
+    page,
+    limit,
+    total,
+    payments: rows.map((row) => ({
+      id: row.id,
+      orderId: row.orderId,
+      amount: moneyStr(row.deliveryPrice),
+      status: row.paymentHoldStatus,
+      settlementType: row.settlementType,
+      driverEarnings: row.driverEarnings != null ? moneyStr(row.driverEarnings) : null,
+      platformFee: row.platformFee != null ? moneyStr(row.platformFee) : null,
+      riderRefundPending: row.riderRefundPending != null ? moneyStr(row.riderRefundPending) : null,
+      waafiTransactionId: row.waafiTransactionId,
+      heldAt: row.paymentHeldAt?.toISOString() || null,
+      committedAt: row.paymentCommittedAt?.toISOString() || null,
+      releasedAt: row.paymentReleasedAt?.toISOString() || null,
+      settledAt: row.settledAt?.toISOString() || null,
+      riderPhone: row.rider?.phone || row.senderPhone || null,
+      driverName: row.driverName,
+      tripStatus: row.status,
+    })),
+  };
+}
+
+export async function listWallets() {
+  const [drivers, riders] = await Promise.all([
+    prisma.driverWallet.findMany({
+      include: {
+        driver: { include: { driverProfile: true } },
+      },
+      orderBy: { balance: 'desc' },
+    }),
+    prisma.riderWallet.findMany({
+      include: {
+        rider: { include: { riderProfile: true } },
+      },
+      orderBy: { pendingBalance: 'desc' },
+    }),
+  ]);
+
+  const driverRows = await Promise.all(
+    drivers.map(async (wallet) => {
+      const synced = await syncDriverWallet(wallet.driverUserId);
+      return {
+        userId: wallet.driverUserId,
+        name: displayName(wallet.driver),
+        phone: wallet.driver.phone,
+        isActive: wallet.driver.isActive,
+        isOnline: Boolean(wallet.driver.driverProfile?.isOnline),
+        todayBalance: synced.todayEarnings,
+        tripsCompletedToday: synced.todayCompleted,
+        tripsCancelled: synced.tripsCancelled,
+        updatedAt: synced.updatedAt,
+      };
+    })
+  );
+
+  return {
+    drivers: driverRows,
+    riders: riders.map((wallet) => ({
+      userId: wallet.riderUserId,
+      name: displayName(wallet.rider),
+      phone: wallet.rider.phone,
+      isActive: wallet.rider.isActive,
+      pendingBalance: moneyStr(wallet.pendingBalance),
+      updatedAt: wallet.updatedAt.toISOString(),
+    })),
+  };
+}

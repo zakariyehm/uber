@@ -24,28 +24,6 @@ export async function loginDriver(phone: string, password: string) {
   return { token: result.token, user: result.user };
 }
 
-export async function registerDriver(input: {
-  phone: string;
-  password: string;
-  firstName?: string;
-  lastName?: string;
-}) {
-  const result = await apiRequest<{ token: string; user: StoredDriverUser }>('/auth/register', {
-    method: 'POST',
-    body: JSON.stringify({
-      phone: normalizePhone(input.phone),
-      password: input.password,
-      firstName: input.firstName,
-      lastName: input.lastName,
-      role: 'DRIVER',
-    }),
-  });
-
-  await setAuthToken(result.token);
-  await setStoredUser(result.user);
-  return { token: result.token, user: result.user };
-}
-
 export async function fetchCurrentDriver() {
   const result = await apiRequest<{ user: StoredDriverUser }>('/auth/me');
   return result.user;

@@ -4,7 +4,9 @@ import jwt from '@fastify/jwt';
 import { ZodError } from 'zod';
 import { Prisma } from '@prisma/client';
 import { env } from './config/env.ts';
+import { adminRoutes } from './modules/admin/admin.routes.ts';
 import { authRoutes } from './modules/auth/auth.routes.ts';
+import { catalogRoutes } from './modules/catalog/catalog.routes.ts';
 import { deliveryRoutes } from './modules/deliveries/deliveries.routes.ts';
 import { walletRoutes } from './modules/wallet/wallet.service.ts';
 
@@ -18,18 +20,29 @@ declare module '@fastify/jwt' {
 export async function buildApp() {
   const app = Fastify({ logger: true });
 
-  await app.register(cors, { origin: true });
+  await app.register(cors, {
+    origin: true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  });
   await app.register(jwt, { secret: env.JWT_SECRET });
 
   app.get('/health', async () => ({ ok: true }));
 
   await app.register(authRoutes, { prefix: '/auth' });
+  await app.register(catalogRoutes, { prefix: '/catalog' });
   await app.register(deliveryRoutes, { prefix: '/deliveries' });
   await app.register(walletRoutes, { prefix: '/wallet' });
+  await app.register(adminRoutes, { prefix: '/admin' });
 
   app.setErrorHandler((error, _request, reply) => {
-    if (error instanceof ZodError) {
-      return reply.code(400).send({ error: 'Invalid request', details: error.issues });
+    const zodError =
+      error instanceof ZodError ||
+      (error as { name?: string }).name === 'ZodError';
+    if (zodError) {
+      const issues = (error as ZodError).issues || [];
+      const first = issues[0]?.message || 'Invalid request';
+      return reply.code(400).send({ error: first, details: issues });
     }
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
       return reply.code(404).send({ error: 'Not found' });

@@ -13,11 +13,19 @@ import { authenticate } from '../../middleware/authenticate.ts';
 
 export async function authRoutes(app: FastifyInstance) {
   app.post('/register', async (request, reply) => {
+    const raw = request.body as { role?: string };
+    if (raw?.role === 'DRIVER') {
+      return reply.code(403).send({
+        error: 'Driver accounts are created by Raac operations',
+        code: 'auth/driver-invite-only',
+      });
+    }
     const body = registerSchema.parse(request.body);
     try {
       const user = await registerUser({
         ...body,
         password: body.password ?? `otp-${Date.now()}`,
+        role: 'RIDER',
       });
       const token = await reply.jwtSign({ sub: user.id, role: user.role, phone: user.phone });
       return reply.code(201).send({ token, user: toPublicUser(user) });
@@ -32,7 +40,11 @@ export async function authRoutes(app: FastifyInstance) {
   app.post('/login', async (request, reply) => {
     const body = loginSchema.parse(request.body);
     try {
-      const user = await loginUser(body.phone, body.password);
+      const user = await loginUser({
+        phone: body.phone,
+        email: body.email,
+        password: body.password,
+      });
       const token = await reply.jwtSign({ sub: user.id, role: user.role, phone: user.phone });
       return { token, user: toPublicUser(user) };
     } catch (error) {
@@ -106,7 +118,7 @@ export async function authRoutes(app: FastifyInstance) {
         lastName: body.lastName,
         state: body.state,
         gender: body.gender,
-        role: body.role,
+        role: 'RIDER',
       });
       const token = await reply.jwtSign({
         sub: user.id,

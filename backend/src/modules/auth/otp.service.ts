@@ -92,6 +92,13 @@ export async function completeOtpProfile(input: {
   const phone = normalizePhone(input.phone);
   const existing = await prisma.user.findUnique({ where: { phone } });
   if (existing) {
+    if (existing.role === UserRole.DRIVER) {
+      throw new AuthError(
+        'Driver accounts are created by Raac operations',
+        'auth/driver-invite-only',
+        403
+      );
+    }
     const user = await prisma.user.update({
       where: { id: existing.id },
       data: {
@@ -104,20 +111,17 @@ export async function completeOtpProfile(input: {
     return toPublicUser(user);
   }
 
-  const role = input.role === 'DRIVER' ? UserRole.DRIVER : UserRole.RIDER;
   const displayName = `${input.firstName} ${input.lastName}`.trim();
   const user = await prisma.user.create({
     data: {
       phone,
-      role,
+      role: UserRole.RIDER,
       firstName: input.firstName,
       lastName: input.lastName,
       state: input.state,
       gender: input.gender === 'FEMALE' ? Gender.FEMALE : Gender.MALE,
-      riderProfile: role === UserRole.RIDER ? { create: { displayName } } : undefined,
-      driverProfile: role === UserRole.DRIVER ? { create: { displayName } } : undefined,
-      wallet: role === UserRole.DRIVER ? { create: {} } : undefined,
-      riderWallet: role === UserRole.RIDER ? { create: {} } : undefined,
+      riderProfile: { create: { displayName } },
+      riderWallet: { create: {} },
     },
   });
   return toPublicUser(user);

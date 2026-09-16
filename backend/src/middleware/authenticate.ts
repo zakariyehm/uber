@@ -23,3 +23,11 @@ export async function requireRider(request: FastifyRequest, reply: FastifyReply)
     return reply.code(403).send({ error: 'Rider account required' });
   }
 }
+
+export async function requireAdmin(request: FastifyRequest, reply: FastifyReply) {
+  await authenticate(request, reply);
+  if (reply.sent) return;
+  if (request.user.role !== 'ADMIN') {
+    return reply.code(403).send({ error: 'Admin account required' });
+  }
+}

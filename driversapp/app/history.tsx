@@ -115,7 +115,7 @@ export default function HistoryScreen() {
             <Text style={styles.dateText}>
               {when.date} · {when.time}
             </Text>
-            <Text style={styles.orderId}>{item.orderId}</Text>
+            <Text style={styles.orderId}>#{item.orderId.replace(/^#/, '')}</Text>
           </View>
           <View style={[styles.badge, { backgroundColor: color }]}>
             <Text style={styles.badgeText}>{item.status.replace('_', ' ')}</Text>
@@ -310,7 +310,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   dateText: { fontSize: 15, fontWeight: '700', color: TEXT },
-  orderId: { fontSize: 12, color: '#888', marginTop: 2 },
+  orderId: { fontSize: 13, fontWeight: '700', color: '#111', marginTop: 3, letterSpacing: 1.4 },
   badge: {
     paddingHorizontal: 8,
     paddingVertical: 4,

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const createDeliverySchema = z.object({
-  orderId: z.string().min(3),
+  orderId: z.string().min(3).optional(),
   pickupLocation: z.string().min(1),
   destinationLocation: z.string().min(1),
   recipientName: z.string().min(1),

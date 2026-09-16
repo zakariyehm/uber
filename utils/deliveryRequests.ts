@@ -43,7 +43,7 @@ export interface DeliveryRequest {
 }
 
 export const createDeliveryRequest = async (orderData: {
-  orderId: string;
+  orderId?: string;
   pickupLocation: string;
   destinationLocation: string;
   recipientName: string;

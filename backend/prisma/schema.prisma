@@ -216,3 +216,24 @@ model OtpChallenge {
 
   @@index([phone, purpose])
 }
+
+enum ServiceCategory {
+  MOTO
+  DELIVERY_STATE
+}
+
+model ServiceMethod {
+  id        String          @id @default(uuid())
+  category  ServiceCategory
+  slug      String          @unique
+  name      String
+  icon      String          @default("motorbike")
+  timeLabel String
+  price     Decimal         @db.Decimal(10, 2)
+  isActive  Boolean         @default(true)
+  sortOrder Int             @default(0)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([category, isActive, sortOrder])
+}

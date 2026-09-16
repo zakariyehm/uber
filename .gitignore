@@ -47,5 +47,6 @@ app-example
 # generated native folders
 /ios
 /android
-/admin
-admin/
+admin/.next
+admin/node_modules
+admin/.env.local

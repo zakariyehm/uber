@@ -7,6 +7,8 @@ async function start() {
   const app = await buildApp();
   await prisma.$connect();
   await connectRedis();
+  const { shortenLegacyOrderIds } = await import('./utils/order-id.ts');
+  await shortenLegacyOrderIds();
 
   try {
     await app.listen({ port: env.PORT, host: env.HOST });

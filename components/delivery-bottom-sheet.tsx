@@ -1,5 +1,6 @@
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { fetchMotoMethods, type CatalogMethod } from '@/utils/catalog';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -27,22 +28,15 @@ interface DeliveryOption {
   price: string;
 }
 
-const deliveryOptions: DeliveryOption[] = [
-  {
-    id: '1',
-    name: 'Moto Fekon',
+function toOption(method: CatalogMethod): DeliveryOption {
+  return {
+    id: method.id,
+    name: method.name,
     icon: 'motorbike',
-    time: '10-15 minutes',
-    price: '$1.00',
-  },
-  {
-    id: '2',
-    name: 'Moto Bajaj',
-    icon: 'motorbike',
-    time: '15-20 minutes',
-    price: '$2.50',
-  },
-];
+    time: method.time,
+    price: method.displayPrice || `$${method.price}`,
+  };
+}
 
 interface DeliveryBottomSheetProps {
   visible: boolean;
@@ -58,6 +52,24 @@ export function DeliveryBottomSheet({ visible, onClose, onSelect }: DeliveryBott
   const translateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
   const pan = useRef(new Animated.ValueXY()).current;
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [deliveryOptions, setDeliveryOptions] = useState<DeliveryOption[]>([]);
+  const [loadingMethods, setLoadingMethods] = useState(false);
+
+  useEffect(() => {
+    if (!visible) return;
+    let cancelled = false;
+    setLoadingMethods(true);
+    void fetchMotoMethods()
+      .then((methods) => {
+        if (!cancelled) setDeliveryOptions(methods.map(toOption));
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingMethods(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [visible]);
 
   useEffect(() => {
     if (visible) {
@@ -146,10 +158,15 @@ export function DeliveryBottomSheet({ visible, onClose, onSelect }: DeliveryBott
               ]}>
               {/* Title */}
               <Text style={[styles.title, { color: colors.text }]}>
-                Select Delivery Method
+                Choose Moto
               </Text>
 
               {/* Options List */}
+              {loadingMethods ? (
+                <Text style={[styles.optionTime, { color: colors.icon, marginBottom: 16 }]}>
+                  Loading Moto prices…
+                </Text>
+              ) : null}
               <ScrollView 
                 style={styles.optionsList}
                 showsVerticalScrollIndicator={false}

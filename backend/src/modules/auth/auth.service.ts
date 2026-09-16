@@ -47,18 +47,27 @@ export async function registerUser(input: {
   return user;
 }
 
-export async function loginUser(phoneRaw: string, password: string) {
-  const phone = normalizePhone(phoneRaw);
-  const user = await prisma.user.findUnique({
-    where: { phone },
-    include: { driverProfile: true, riderProfile: true },
-  });
+export async function loginUser(input: { phone?: string; email?: string; password: string }) {
+  const phone = input.phone ? normalizePhone(input.phone) : null;
+  const email = input.email?.trim().toLowerCase() || null;
+
+  const user = phone
+    ? await prisma.user.findUnique({
+        where: { phone },
+        include: { driverProfile: true, riderProfile: true },
+      })
+    : email
+      ? await prisma.user.findUnique({
+          where: { email },
+          include: { driverProfile: true, riderProfile: true },
+        })
+      : null;
 
   if (!user) {
-    throw new AuthError('No account found with this phone number. Please sign up first.', 'auth/user-not-found');
+    throw new AuthError('No account found with this phone or email.', 'auth/user-not-found');
   }
 
-  const ok = user.passwordHash ? await bcrypt.compare(password, user.passwordHash) : false;
+  const ok = user.passwordHash ? await bcrypt.compare(input.password, user.passwordHash) : false;
   if (!ok) {
     throw new AuthError('Incorrect password. Please try again.', 'auth/wrong-password');
   }
@@ -74,6 +83,7 @@ export function toPublicUser(user: {
   id: string;
   role: UserRole;
   phone: string;
+  email?: string | null;
   firstName: string | null;
   lastName: string | null;
   gender?: string | null;
@@ -83,6 +93,7 @@ export function toPublicUser(user: {
     id: user.id,
     role: user.role,
     phone: user.phone,
+    email: user.email ?? null,
     firstName: user.firstName,
     lastName: user.lastName,
     gender: user.gender ?? null,

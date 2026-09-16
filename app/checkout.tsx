@@ -98,14 +98,7 @@ export default function CheckoutScreen() {
     setIsPlacingOrder(true);
 
     try {
-      const orderId = `ORD_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-      console.log('[Checkout] Holding payment via Waafi...', {
-        senderPhone: senderNumber.trim(),
-        amount: estimatedPrice,
-      });
       const deliveryRequest = await createDeliveryRequest({
-        orderId,
         pickupLocation,
         destinationLocation,
         recipientName,
@@ -123,7 +116,7 @@ export default function CheckoutScreen() {
       router.replace({
         pathname: '/order-success',
         params: {
-          orderId,
+          orderId: deliveryRequest.orderId,
           requestId: deliveryRequest.id,
           pickupLocation,
           destinationLocation,

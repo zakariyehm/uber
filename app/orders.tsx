@@ -141,7 +141,7 @@ export default function OrdersScreen() {
                       {order.pickupLocation} → {order.destinationLocation}
                     </Text>
                     <Text style={[styles.meta, { color: colors.icon }]}>
-                      {order.orderId} · ${order.deliveryPrice}
+                      #{order.orderId.replace(/^#/, '')} · ${order.deliveryPrice}
                     </Text>
                   </View>
                 </View>
