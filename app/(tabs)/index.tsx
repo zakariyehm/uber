@@ -21,7 +21,7 @@ const { height } = Dimensions.get('window');
 interface BajaajOption {
   id: string;
   name: string;
-  icon: 'motorbike' | 'basket';
+  icon: 'motorbike';
   travelTime: string;
   distance: string;
 }
@@ -36,14 +36,7 @@ const bajaajOptions: BajaajOption[] = [
   },
   {
     id: '2',
-    name: 'Basket',
-    icon: 'basket',
-    travelTime: '5 mins',
-    distance: '1 km',
-  },
-  {
-    id: '3',
-    name: 'Moto Premium',
+    name: 'Moto Bajaj',
     icon: 'motorbike',
     travelTime: '5 mins',
     distance: '1 km',
@@ -263,57 +256,63 @@ export default function HomeScreen() {
       </BottomSheet>
 
       <BottomSheet visible={showBajaajSheet} onClose={() => setShowBajaajSheet(false)}>
-        <ScrollView showsVerticalScrollIndicator={false}>
+        <View style={styles.motoSheet}>
           <Text style={[styles.sheetTitle, { color: colors.text }]}>Select a moto</Text>
 
-          {bajaajOptions.map((option) => (
-            <TouchableOpacity
-              key={option.id}
-              style={[
-                styles.rideOption,
-                {
-                  backgroundColor: isDark ? '#2A2A2A' : '#F8F8F8',
-                  borderColor: selectedBajaaj === option.id ? colors.tint : 'transparent',
-                  borderWidth: selectedBajaaj === option.id ? 2 : 0,
-                },
-              ]}
-              onPress={() => setSelectedBajaaj(option.id)}
-              activeOpacity={0.7}>
-              <View style={styles.rideOptionContent}>
-                <View style={[styles.iconContainer, { backgroundColor: isDark ? '#3A3A3A' : '#E0E0E0' }]}>
-                  {option.icon === 'basket' ? (
-                    <Ionicons name="basket" size={32} color={colors.text} />
-                  ) : (
+          <ScrollView
+            style={styles.motoList}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.motoListContent}>
+            {bajaajOptions.map((option) => (
+              <TouchableOpacity
+                key={option.id}
+                style={[
+                  styles.rideOption,
+                  {
+                    backgroundColor: isDark ? '#2A2A2A' : '#F8F8F8',
+                    borderColor: selectedBajaaj === option.id ? colors.tint : 'transparent',
+                    borderWidth: selectedBajaaj === option.id ? 2 : 0,
+                  },
+                ]}
+                onPress={() => setSelectedBajaaj(option.id)}
+                activeOpacity={0.7}>
+                <View style={styles.rideOptionContent}>
+                  <View style={[styles.iconContainer, { backgroundColor: isDark ? '#3A3A3A' : '#E0E0E0' }]}>
                     <MaterialCommunityIcons name="motorbike" size={32} color={colors.text} />
-                  )}
+                  </View>
+                  <View style={styles.rideInfo}>
+                    <Text style={[styles.rideName, { color: colors.text }]}>{option.name}</Text>
+                    <Text style={[styles.travelTime, { color: colors.icon }]}>
+                      {option.travelTime} Travel Time
+                    </Text>
+                  </View>
+                  <View style={styles.priceContainer}>
+                    <Text style={[styles.distance, { color: colors.text }]}>{option.distance}</Text>
+                    <Text style={[styles.price, { color: colors.text }]}>
+                      {calculateBajaajPrice(option.distance, option.name.includes('Premium'))}
+                    </Text>
+                  </View>
                 </View>
-                <View style={styles.rideInfo}>
-                  <Text style={[styles.rideName, { color: colors.text }]}>{option.name}</Text>
-                  <Text style={[styles.travelTime, { color: colors.icon }]}>{option.travelTime} Travel Time</Text>
-                </View>
-                <View style={styles.priceContainer}>
-                  <Text style={[styles.distance, { color: colors.text }]}>{option.distance}</Text>
-                  <Text style={[styles.price, { color: colors.text }]}>
-                    {calculateBajaajPrice(option.distance, option.name.includes('Premium'))}
-                  </Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-          ))}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
 
           <TouchableOpacity
             style={[
               styles.chooseButton,
               {
                 backgroundColor: selectedBajaaj ? '#000' : '#E0E0E0',
-                marginTop: 20,
+                marginTop: 12,
+                marginBottom: 0,
               },
             ]}
             disabled={!selectedBajaaj}
             activeOpacity={0.8}>
-            <Text style={[styles.chooseButtonText, { color: selectedBajaaj ? '#FFF' : '#999' }]}>Choose</Text>
+            <Text style={[styles.chooseButtonText, { color: selectedBajaaj ? '#FFF' : '#999' }]}>
+              Choose
+            </Text>
           </TouchableOpacity>
-        </ScrollView>
+        </View>
       </BottomSheet>
     </View>
   );
@@ -405,6 +404,15 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     marginBottom: 8,
+  },
+  motoSheet: {
+    flex: 1,
+  },
+  motoList: {
+    flex: 1,
+  },
+  motoListContent: {
+    paddingBottom: 8,
   },
   sheetSubtitle: {
     fontSize: 14,
