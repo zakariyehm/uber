@@ -33,7 +33,7 @@ const deliveryOptions: DeliveryOption[] = [
     name: 'Moto Fekon',
     icon: 'motorbike',
     time: '10-15 minutes',
-    price: '$3.00',
+    price: '$1.00',
   },
   {
     id: '2',
