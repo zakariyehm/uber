@@ -18,38 +18,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { height } = Dimensions.get('window');
 
-interface BajaajOption {
-  id: string;
-  name: string;
-  icon: 'motorbike';
-  travelTime: string;
-  distance: string;
-}
-
-const bajaajOptions: BajaajOption[] = [
-  {
-    id: '1',
-    name: 'Moto',
-    icon: 'motorbike',
-    travelTime: '5 mins',
-    distance: '1 km',
-  },
-  {
-    id: '2',
-    name: 'Moto Bajaj',
-    icon: 'motorbike',
-    travelTime: '5 mins',
-    distance: '1 km',
-  },
-];
-
-function calculateBajaajPrice(distance: string, isPremium: boolean): string {
-  const km = parseFloat(distance.replace(' km', ''));
-  const pricePerKm = isPremium ? 0.3 : 0.25;
-  const price = km * pricePerKm;
-  return `$${price.toFixed(2)}`;
-}
-
 type PickerKind = 'district' | 'state' | null;
 
 export default function HomeScreen() {
@@ -60,8 +28,6 @@ export default function HomeScreen() {
   const router = useRouter();
   const cardHeight = height * 0.3;
   const [showDeliverySheet, setShowDeliverySheet] = useState(false);
-  const [showBajaajSheet, setShowBajaajSheet] = useState(false);
-  const [selectedBajaaj, setSelectedBajaaj] = useState<string | null>(null);
   const [pickupDistrict, setPickupDistrict] = useState('');
   const [dropoffState, setDropoffState] = useState('');
   const [picker, setPicker] = useState<PickerKind>(null);
@@ -92,20 +58,10 @@ export default function HomeScreen() {
     });
   };
 
-  const handleChooseMoto = () => {
-    if (!selectedBajaaj) return;
-    const option = bajaajOptions.find((item) => item.id === selectedBajaaj);
-    if (!option) return;
-
-    setShowBajaajSheet(false);
+  const openPlanRide = () => {
     router.push({
       pathname: '/plan-ride',
-      params: {
-        rideType: option.name,
-        travelTime: option.travelTime,
-        distance: option.distance,
-        price: calculateBajaajPrice(option.distance, false),
-      },
+      params: { rideType: 'Moto' },
     });
   };
 
@@ -155,7 +111,7 @@ export default function HomeScreen() {
               },
             ]}
             activeOpacity={0.8}
-            onPress={() => setShowBajaajSheet(true)}>
+            onPress={openPlanRide}>
             <MaterialCommunityIcons
               name="motorbike"
               size={50}
@@ -164,10 +120,7 @@ export default function HomeScreen() {
             />
             <Text style={[styles.cardText, { color: colors.text }]}>Moto</Text>
             <View style={styles.buttonContainer}>
-              <TouchableOpacity
-                style={styles.cardButton}
-                activeOpacity={0.7}
-                onPress={() => setShowBajaajSheet(true)}>
+              <TouchableOpacity style={styles.cardButton} activeOpacity={0.7} onPress={openPlanRide}>
                 <Ionicons name="arrow-forward" size={16} color="#FFF" />
               </TouchableOpacity>
             </View>
@@ -271,67 +224,6 @@ export default function HomeScreen() {
           </ScrollView>
         )}
       </BottomSheet>
-
-      <BottomSheet visible={showBajaajSheet} onClose={() => setShowBajaajSheet(false)}>
-        <View style={styles.motoSheet}>
-          <Text style={[styles.sheetTitle, { color: colors.text }]}>Select a moto</Text>
-
-          <ScrollView
-            style={styles.motoList}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.motoListContent}>
-            {bajaajOptions.map((option) => (
-              <TouchableOpacity
-                key={option.id}
-                style={[
-                  styles.rideOption,
-                  {
-                    backgroundColor: isDark ? '#2A2A2A' : '#F8F8F8',
-                    borderColor: selectedBajaaj === option.id ? colors.tint : 'transparent',
-                    borderWidth: selectedBajaaj === option.id ? 2 : 0,
-                  },
-                ]}
-                onPress={() => setSelectedBajaaj(option.id)}
-                activeOpacity={0.7}>
-                <View style={styles.rideOptionContent}>
-                  <View style={[styles.iconContainer, { backgroundColor: isDark ? '#3A3A3A' : '#E0E0E0' }]}>
-                    <MaterialCommunityIcons name="motorbike" size={32} color={colors.text} />
-                  </View>
-                  <View style={styles.rideInfo}>
-                    <Text style={[styles.rideName, { color: colors.text }]}>{option.name}</Text>
-                    <Text style={[styles.travelTime, { color: colors.icon }]}>
-                      {option.travelTime} Travel Time
-                    </Text>
-                  </View>
-                  <View style={styles.priceContainer}>
-                    <Text style={[styles.distance, { color: colors.text }]}>{option.distance}</Text>
-                    <Text style={[styles.price, { color: colors.text }]}>
-                      {calculateBajaajPrice(option.distance, option.name.includes('Premium'))}
-                    </Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          <TouchableOpacity
-            style={[
-              styles.chooseButton,
-              {
-                backgroundColor: selectedBajaaj ? '#000' : '#E0E0E0',
-                marginTop: 12,
-                marginBottom: 0,
-              },
-            ]}
-            disabled={!selectedBajaaj}
-            activeOpacity={0.8}
-            onPress={handleChooseMoto}>
-            <Text style={[styles.chooseButtonText, { color: selectedBajaaj ? '#FFF' : '#999' }]}>
-              Choose
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </BottomSheet>
     </View>
   );
 }
@@ -423,15 +315,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 8,
   },
-  motoSheet: {
-    flex: 1,
-  },
-  motoList: {
-    flex: 1,
-  },
-  motoListContent: {
-    paddingBottom: 8,
-  },
   sheetSubtitle: {
     fontSize: 14,
     lineHeight: 20,
@@ -514,47 +397,6 @@ const styles = StyleSheet.create({
   },
   pickerItemText: {
     fontSize: 16,
-  },
-  rideOption: {
-    borderRadius: 12,
-    marginBottom: 12,
-    padding: 16,
-  },
-  rideOptionContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  iconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  rideInfo: {
-    flex: 1,
-  },
-  rideName: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  travelTime: {
-    fontSize: 14,
-    fontWeight: '400',
-  },
-  priceContainer: {
-    alignItems: 'flex-end',
-  },
-  distance: {
-    fontSize: 14,
-    fontWeight: '400',
-    marginBottom: 2,
-  },
-  price: {
-    fontSize: 18,
-    fontWeight: '700',
   },
   chooseButton: {
     borderRadius: 12,
