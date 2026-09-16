@@ -1,7 +1,6 @@
 import { BottomNav } from '@/components/bottom-nav';
 import { DriverHomeHeader } from '@/components/driver-home-header';
 import { apiRequest } from '@/lib/api';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
   DeliveryRequest,
   getActiveDelivery,
@@ -18,6 +17,7 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
+  ImageBackground,
   StatusBar,
   StyleSheet,
   Text,
@@ -31,8 +31,6 @@ const { width } = Dimensions.get('window');
 type DriverStatus = 'offline' | 'waiting' | 'online' | 'deactivating';
 
 export default function HomeScreen() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
   const [driverStatus, setDriverStatus] = useState<DriverStatus>('offline');
   const [isLoading, setIsLoading] = useState(false);
   const [toggling, setToggling] = useState(false);
@@ -298,46 +296,51 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent />
-      <View style={styles.homeContainer}>
-        <DriverHomeHeader
-          balance={walletBalance}
-          onMenuPress={handleMenuPress}
-          onWalletPress={handleWalletPress}
-          onSettingsPress={handleSettingsPress}
-        />
-        <View style={styles.goButtonContainer}>
-          <TouchableOpacity
-            style={[
-              styles.goButton,
-              {
-                width: goButtonSize,
-                height: goButtonSize,
-                borderRadius: goButtonSize / 2,
-                backgroundColor: isOfflineUi ? '#007AFF' : '#FF3B30',
-                opacity: buttonDisabled ? 0.6 : 1,
-              },
-            ]}
-            onPress={handleGoPress}
-            disabled={buttonDisabled}
-            activeOpacity={0.8}>
-            {toggling ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={[styles.goButtonText, { fontSize: goButtonFontSize }]}>
-                {isOfflineUi ? 'GO' : 'OFF'}
-              </Text>
-            )}
-          </TouchableOpacity>
+      <StatusBar barStyle="light-content" translucent />
+      <ImageBackground
+        source={require('../../assets/images/raacmap.png')}
+        style={styles.mapBackground}
+        resizeMode="cover">
+        <View style={styles.homeContainer}>
+          <DriverHomeHeader
+            balance={walletBalance}
+            onMenuPress={handleMenuPress}
+            onWalletPress={handleWalletPress}
+            onSettingsPress={handleSettingsPress}
+          />
+          <View style={styles.goButtonContainer}>
+            <TouchableOpacity
+              style={[
+                styles.goButton,
+                {
+                  width: goButtonSize,
+                  height: goButtonSize,
+                  borderRadius: goButtonSize / 2,
+                  backgroundColor: isOfflineUi ? '#007AFF' : '#FF3B30',
+                  opacity: buttonDisabled ? 0.6 : 1,
+                },
+              ]}
+              onPress={handleGoPress}
+              disabled={buttonDisabled}
+              activeOpacity={0.8}>
+              {toggling ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={[styles.goButtonText, { fontSize: goButtonFontSize }]}>
+                  {isOfflineUi ? 'GO' : 'OFF'}
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
+      </ImageBackground>
 
       <View style={styles.divider} />
       <BottomNav statusText={getStatusText()} statusColor={getStatusColor()} />
 
       {isLoading && driverStatus === 'online' ? (
         <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#000000" />
+          <ActivityIndicator size="large" color="#FFFFFF" />
           <Text style={styles.loadingText}>Loading request...</Text>
         </View>
       ) : null}
@@ -348,7 +351,11 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFDF7',
+    backgroundColor: '#0B1220',
+  },
+  mapBackground: {
+    flex: 1,
+    width: '100%',
   },
   homeContainer: {
     flex: 1,
@@ -386,6 +393,7 @@ const styles = StyleSheet.create({
     right: 0,
     height: 1,
     backgroundColor: '#E0E0E0',
+    opacity: 0.35,
   },
   loadingOverlay: {
     position: 'absolute',
@@ -393,7 +401,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    backgroundColor: 'rgba(11, 18, 32, 0.88)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 1000,
@@ -402,6 +410,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     fontWeight: '600',
-    color: '#000000',
+    color: '#FFFFFF',
   },
 });

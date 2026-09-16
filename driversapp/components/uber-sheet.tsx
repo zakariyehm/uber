@@ -109,11 +109,11 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   mapBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: '#E8EEF2',
   },
   mapGrid: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     opacity: 0.35,
     backgroundColor: 'transparent',
     borderWidth: 0,

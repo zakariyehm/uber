@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 4,
     borderWidth: 2,
-    borderColor: '#FFFDF7',
+    borderColor: '#0B1220',
   },
   badgeText: {
     color: '#FFFFFF',

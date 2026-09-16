@@ -8,6 +8,7 @@ import {
 } from '@/utils/deliveryRequests';
 import { driverDisplayName } from '@/utils/driverAuth';
 import { toUserFriendlyError } from '@/utils/errors';
+import { startOfferAlert, stopOfferAlert } from '@/utils/offerAlert';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
@@ -63,7 +64,19 @@ export default function DeliveryOfferScreen() {
     };
   }, [params.requestId]);
 
-  const leaveHome = () => router.replace('/(tabs)');
+  // Ring + vibrate until offer is accepted, declined, or times out
+  useEffect(() => {
+    if (!request) return;
+    void startOfferAlert();
+    return () => {
+      void stopOfferAlert();
+    };
+  }, [request?.id]);
+
+  const leaveHome = () => {
+    void stopOfferAlert();
+    router.replace('/(tabs)');
+  };
 
   const handleTimeout = async () => {
     if (!request || busy) {
@@ -129,6 +142,7 @@ export default function DeliveryOfferScreen() {
         driverDisplayName(user)
       );
       if (!accepted) throw new Error('Accept failed');
+      await stopOfferAlert();
       router.replace({
         pathname: '/delivery-details',
         params: { requestId: accepted.id },
@@ -249,7 +263,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.45)',
   },
   card: {
