@@ -1,6 +1,6 @@
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
@@ -19,11 +19,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SHEET_HEIGHT = SCREEN_HEIGHT * 0.5;
 
-
 interface DeliveryOption {
   id: string;
   name: string;
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: 'motorbike';
   time: string;
   price: string;
 }
@@ -31,17 +30,17 @@ interface DeliveryOption {
 const deliveryOptions: DeliveryOption[] = [
   {
     id: '1',
-    name: 'Bicycle',
-    icon: 'bicycle',
-    time: '30-45 minutes',
-    price: '$5.00',
+    name: 'Moto Fekon',
+    icon: 'motorbike',
+    time: '10-15 minutes',
+    price: '$3.00',
   },
   {
     id: '2',
-    name: 'Motorbike',
-    icon: 'bicycle-outline',
+    name: 'Moto Bajaj',
+    icon: 'motorbike',
     time: '15-20 minutes',
-    price: '$10.00',
+    price: '$2.50',
   },
 ];
 
@@ -171,10 +170,10 @@ export function DeliveryBottomSheet({ visible, onClose, onSelect }: DeliveryBott
                     onPress={() => handleSelect(option)}
                     activeOpacity={0.7}>
                     <View style={[styles.iconContainer, { backgroundColor: isDark ? '#3A3A3A' : '#E0E0E0' }]}>
-                      <Ionicons 
-                        name={option.icon} 
-                        size={32} 
-                        color={colors.text} 
+                      <MaterialCommunityIcons
+                        name={option.icon}
+                        size={32}
+                        color={colors.text}
                       />
                     </View>
                     <View style={styles.optionInfo}>

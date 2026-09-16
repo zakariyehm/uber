@@ -90,7 +90,7 @@ export default function PlanRideScreen() {
   const handleDeliverySelect = (option: {
     id: string;
     name: string;
-    icon: keyof typeof Ionicons.glyphMap;
+    icon: string;
     time: string;
     price: string;
   }) => {
