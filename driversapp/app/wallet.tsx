@@ -113,10 +113,6 @@ export default function WalletScreen() {
           <Text style={styles.infoText}>{tripsCancelled} trips cancelled</Text>
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-          <TouchableOpacity style={styles.summaryButton} activeOpacity={0.8}>
-            <Text style={styles.summaryButtonText}>Withdrawal Balance</Text>
-          </TouchableOpacity>
         </View>
       </ScrollView>
 
@@ -190,23 +186,6 @@ const styles = StyleSheet.create({
     color: '#FF6B6B',
     marginTop: 12,
     fontSize: 13,
-  },
-  summaryButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    paddingVertical: width * 0.03,
-    paddingHorizontal: width * 0.04,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: width * 0.06,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  summaryButtonText: {
-    fontSize: width * 0.038,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    letterSpacing: 1,
   },
   loadingOverlay: {
     position: 'absolute',
