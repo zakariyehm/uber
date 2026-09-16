@@ -121,6 +121,9 @@ model DeliveryRequest {
   userConfirmedPickupAt  DateTime?
   userConfirmedDelivery  Boolean        @default(false)
   userConfirmedDeliveryAt DateTime?
+  offeredToDriverId      String?
+  offerExpiresAt         DateTime?
+  offerDeclinedIds       String         @default("[]")
   createdAt              DateTime       @default(now())
   acceptedAt             DateTime?
   pickedUpAt             DateTime?
@@ -133,6 +136,7 @@ model DeliveryRequest {
 
   @@index([status])
   @@index([driverUserId])
+  @@index([offeredToDriverId, status])
 }
 
 model DriverActiveDelivery {

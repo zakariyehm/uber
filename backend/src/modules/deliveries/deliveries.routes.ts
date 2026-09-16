@@ -116,6 +116,13 @@ export async function deliveryRoutes(app: FastifyInstance) {
     return { isOnline: profile.isOnline };
   });
 
+  app.get('/drivers/me/online', { preHandler: requireDriver }, async (request) => {
+    const profile = await prisma.driverProfile.findUnique({
+      where: { userId: request.user.sub },
+    });
+    return { isOnline: Boolean(profile?.isOnline) };
+  });
+
   app.put('/drivers/me/active', { preHandler: authenticate }, async (request) => {
     const body = (request.body as { requestId?: string | null }) ?? {};
     const row = await prisma.driverActiveDelivery.upsert({

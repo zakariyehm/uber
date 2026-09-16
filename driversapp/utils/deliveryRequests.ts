@@ -32,6 +32,9 @@ export interface DeliveryRequest {
   userConfirmedPickupAt?: string;
   userConfirmedDelivery?: boolean;
   userConfirmedDeliveryAt?: string;
+  offeredToDriverId?: string;
+  offerExpiresAt?: string;
+  offerSecondsRemaining?: number;
 }
 
 export const createDeliveryRequest = async (orderData: {
@@ -118,6 +121,11 @@ export const setDriverOnline = async (isOnline: boolean): Promise<boolean> => {
     body: JSON.stringify({ isOnline }),
   });
   return result.isOnline;
+};
+
+export const getDriverOnline = async (): Promise<boolean> => {
+  const result = await apiRequest<{ isOnline: boolean }>('/deliveries/drivers/me/online');
+  return Boolean(result.isOnline);
 };
 
 export const getMyDriverDeliveries = async (): Promise<DeliveryRequest[]> => {

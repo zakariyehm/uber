@@ -3,6 +3,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
   DeliveryRequest,
   getActiveDelivery,
+  getDriverOnline,
   listenForPendingRequests,
   setDriverOnline,
 } from '@/utils/deliveryRequests';
@@ -52,18 +53,26 @@ export default function HomeScreen() {
       offerInFlightRef.current = false;
 
       let cancelled = false;
-      const resumeActive = async () => {
+      const resume = async () => {
         try {
           const activeId = await getActiveDelivery();
-          if (!cancelled && activeId) {
+          if (cancelled) return;
+          if (activeId) {
             offerInFlightRef.current = true;
             router.push({ pathname: '/delivery-details', params: { requestId: activeId } });
+            return;
+          }
+
+          // Decline should keep driver online — restore status from server
+          const isOnline = await getDriverOnline();
+          if (!cancelled && isOnline) {
+            setDriverStatus((prev) => (prev === 'online' ? prev : 'online'));
           }
         } catch {
           // ignore
         }
       };
-      void resumeActive();
+      void resume();
 
       return () => {
         cancelled = true;

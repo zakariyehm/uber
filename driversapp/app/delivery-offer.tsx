@@ -1,3 +1,4 @@
+import { getStoredUser } from '@/lib/api';
 import {
   acceptDeliveryRequest,
   declineDeliveryRequest,
@@ -6,21 +7,21 @@ import {
   getPendingRequests,
 } from '@/utils/deliveryRequests';
 import { driverDisplayName } from '@/utils/driverAuth';
-import { getStoredUser } from '@/lib/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  ScrollView,
-  StatusBar,
+  Animated,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+const OFFER_FALLBACK_SEC = 30;
 
 export default function DeliveryOfferScreen() {
   const insets = useSafeAreaInsets();
@@ -29,6 +30,9 @@ export default function DeliveryOfferScreen() {
   const [request, setRequest] = useState<DeliveryRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(OFFER_FALLBACK_SEC);
+  const progress = useRef(new Animated.Value(1)).current;
+  const timedOutRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -58,13 +62,55 @@ export default function DeliveryOfferScreen() {
     };
   }, [params.requestId]);
 
+  const leaveHome = () => router.replace('/(tabs)');
+
+  const handleTimeout = async () => {
+    if (!request || busy) {
+      leaveHome();
+      return;
+    }
+    setBusy(true);
+    try {
+      await declineDeliveryRequest(request.id);
+    } catch {
+      // server rotates on next poll
+    }
+    leaveHome();
+  };
+
+  useEffect(() => {
+    if (!request) return;
+
+    const expiresAt = request.offerExpiresAt
+      ? new Date(request.offerExpiresAt).getTime()
+      : Date.now() + OFFER_FALLBACK_SEC * 1000;
+    const totalMs = Math.max(
+      1000,
+      (request.offerSecondsRemaining ?? OFFER_FALLBACK_SEC) * 1000
+    );
+
+    const tick = () => {
+      const leftMs = Math.max(0, expiresAt - Date.now());
+      const leftSec = Math.ceil(leftMs / 1000);
+      setSecondsLeft(leftSec);
+      progress.setValue(leftMs / totalMs);
+      if (leftMs <= 0 && !timedOutRef.current) {
+        timedOutRef.current = true;
+        void handleTimeout();
+      }
+    };
+
+    tick();
+    const interval = setInterval(tick, 200);
+    return () => clearInterval(interval);
+  }, [request?.id, request?.offerExpiresAt]);
+
   const handleDecline = async () => {
     if (!request || busy) return;
     setBusy(true);
     try {
       await declineDeliveryRequest(request.id);
-      // Order stays pending for other drivers and returns after cooldown
-      router.replace('/(tabs)');
+      leaveHome();
     } catch (error: any) {
       Alert.alert('Decline failed', error.message || 'Try again');
       setBusy(false);
@@ -82,20 +128,19 @@ export default function DeliveryOfferScreen() {
         driverDisplayName(user)
       );
       if (!accepted) throw new Error('Accept failed');
-      // Active trip is set on the server — no other offers until complete
       router.replace({
         pathname: '/delivery-details',
         params: { requestId: accepted.id },
       });
     } catch (error: any) {
-      Alert.alert('Could not accept', error.message || 'This offer may already be taken');
-      router.replace('/(tabs)');
+      Alert.alert('Could not accept', error.message || 'Offer timed out or was taken');
+      leaveHome();
     }
   };
 
   if (loading) {
     return (
-      <View style={[styles.center, { paddingTop: insets.top }]}>
+      <View style={styles.center}>
         <ActivityIndicator size="large" color="#000" />
       </View>
     );
@@ -103,126 +148,257 @@ export default function DeliveryOfferScreen() {
 
   if (!request) {
     return (
-      <View style={[styles.center, { paddingTop: insets.top }]}>
-        <Text style={styles.emptyTitle}>Offer no longer available</Text>
-        <TouchableOpacity style={styles.secondaryBtn} onPress={() => router.replace('/(tabs)')}>
-          <Text style={styles.secondaryText}>Back online</Text>
-        </TouchableOpacity>
+      <View style={[styles.root, { justifyContent: 'flex-end' }]}>
+        <View style={[styles.card, { paddingBottom: Math.max(insets.bottom, 18) }]}>
+          <Text style={styles.unavailableTitle}>Offer unavailable</Text>
+          <Text style={styles.unavailableSub}>This delivery moved to another driver</Text>
+          <TouchableOpacity style={styles.acceptBtn} onPress={leaveHome}>
+            <Text style={styles.acceptText}>Back online</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
 
+  const widthInterp = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0%', '100%'],
+  });
+
+  const serviceLabel = (request.deliveryMethod || 'Delivery').replace('Delivery ', '');
+
   return (
-    <View style={[styles.root, { paddingTop: insets.top + 12 }]}>
-      <StatusBar barStyle="dark-content" />
-      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 120, paddingHorizontal: 20 }}>
-        <Text style={styles.eyebrow}>New delivery offer</Text>
-        <Text style={styles.price}>${request.deliveryPrice}</Text>
-        <Text style={styles.method}>{request.deliveryMethod || 'Delivery'}</Text>
+    <View style={styles.root}>
+      <View style={styles.mapBackdrop} />
 
-        <View style={styles.card}>
-          <View style={styles.row}>
-            <Ionicons name="locate" size={20} color="#03C167" />
-            <View style={styles.rowText}>
-              <Text style={styles.label}>Pickup</Text>
-              <Text style={styles.value}>{request.pickupLocation}</Text>
+      <View style={[styles.card, { paddingBottom: Math.max(insets.bottom, 18) }]}>
+        {/* Timer strip like Uber accept window */}
+        <View style={styles.timerTrack}>
+          <Animated.View style={[styles.timerFill, { width: widthInterp }]} />
+        </View>
+
+        <View style={styles.topBlock}>
+          <View style={styles.serviceBadge}>
+            <Ionicons name="cube" size={12} color="#fff" />
+            <Text style={styles.serviceBadgeText}>{serviceLabel}</Text>
+          </View>
+
+          <Text style={styles.price}>${request.deliveryPrice}</Text>
+          <Text style={styles.priceHint}>{secondsLeft}s to accept · {request.itemType}</Text>
+        </View>
+
+        <View style={styles.divider} />
+
+        <View style={styles.routeBlock}>
+          <View style={styles.routeRow}>
+            <View style={styles.timelineCol}>
+              <View style={styles.pickupDot}>
+                <View style={styles.pickupDotInner} />
+              </View>
+              <View style={styles.timelineLine} />
+            </View>
+            <View style={styles.routeTextCol}>
+              <Text style={styles.routePrimary} numberOfLines={1}>
+                Pickup · {request.pickupLocation}
+              </Text>
+              <Text style={styles.routeSecondary} numberOfLines={1}>
+                {request.senderName || 'Sender'} · {request.senderPhone || 'No phone'}
+              </Text>
             </View>
           </View>
-          <View style={styles.divider} />
-          <View style={styles.row}>
-            <Ionicons name="flag" size={20} color="#000" />
-            <View style={styles.rowText}>
-              <Text style={styles.label}>Drop-off</Text>
-              <Text style={styles.value}>{request.destinationLocation}</Text>
+
+          <View style={styles.routeRow}>
+            <View style={styles.timelineCol}>
+              <View style={styles.dropDot}>
+                <View style={styles.dropDotInner} />
+              </View>
+            </View>
+            <View style={styles.routeTextCol}>
+              <Text style={styles.routePrimary} numberOfLines={1}>
+                Drop-off · {request.destinationLocation}
+              </Text>
+              <Text style={styles.routeSecondary} numberOfLines={1}>
+                {request.recipientName || 'Recipient'} · {request.recipientNumber || 'No phone'}
+              </Text>
             </View>
           </View>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.label}>Sender</Text>
-          <Text style={styles.value}>{request.senderName || '—'}</Text>
-          <Text style={styles.meta}>{request.senderPhone || 'No phone'}</Text>
-
-          <Text style={[styles.label, { marginTop: 14 }]}>Recipient</Text>
-          <Text style={styles.value}>{request.recipientName || '—'}</Text>
-          <Text style={styles.meta}>{request.recipientNumber || 'No phone'}</Text>
-
-          <Text style={[styles.label, { marginTop: 14 }]}>Item type</Text>
-          <Text style={styles.value}>{request.itemType || '—'}</Text>
+        <View style={styles.actions}>
+          <TouchableOpacity style={styles.declineBtn} onPress={handleDecline} disabled={busy}>
+            {busy ? <ActivityIndicator color="#000" /> : <Text style={styles.declineText}>Decline</Text>}
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.acceptBtn} onPress={handleAccept} disabled={busy}>
+            {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.acceptText}>Accept</Text>}
+          </TouchableOpacity>
         </View>
-      </ScrollView>
-
-      <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
-        <TouchableOpacity style={styles.declineBtn} onPress={handleDecline} disabled={busy}>
-          {busy ? (
-            <ActivityIndicator color="#000" />
-          ) : (
-            <Text style={styles.declineText}>Decline</Text>
-          )}
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.acceptBtn} onPress={handleAccept} disabled={busy}>
-          {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.acceptText}>Accept</Text>}
-        </TouchableOpacity>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#FFFDF7' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFDF7', gap: 16 },
-  emptyTitle: { fontSize: 18, fontWeight: '700' },
-  eyebrow: { fontSize: 14, color: '#666', marginBottom: 8 },
-  price: { fontSize: 40, fontWeight: '800', color: '#000' },
-  method: { fontSize: 16, color: '#666', marginBottom: 24 },
+  root: { flex: 1, backgroundColor: 'transparent', justifyContent: 'flex-end' },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E8EEF2' },
+  mapBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: '#E8EEF2' },
   card: {
+    marginHorizontal: 12,
+    marginBottom: 10,
     backgroundColor: '#fff',
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#E6E6E6',
-  },
-  row: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
-  rowText: { flex: 1 },
-  label: { fontSize: 12, color: '#888', marginBottom: 4, fontWeight: '600' },
-  value: { fontSize: 16, color: '#000', fontWeight: '600' },
-  meta: { fontSize: 14, color: '#666', marginTop: 2 },
-  divider: { height: StyleSheet.hairlineWidth, backgroundColor: '#E6E6E6', marginVertical: 14 },
-  footer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    flexDirection: 'row',
-    gap: 12,
+    borderRadius: 24,
     paddingHorizontal: 20,
-    paddingTop: 12,
-    backgroundColor: '#FFFDF7',
+    paddingTop: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 12,
+  },
+  timerTrack: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#EFEFEF',
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  timerFill: {
+    height: '100%',
+    backgroundColor: '#000',
+    borderRadius: 2,
+  },
+  topBlock: {
+    alignItems: 'center',
+    paddingBottom: 16,
+  },
+  serviceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#000',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    marginBottom: 12,
+  },
+  serviceBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  price: {
+    fontSize: 40,
+    fontWeight: '800',
+    color: '#000',
+    letterSpacing: -0.5,
+  },
+  priceHint: {
+    marginTop: 6,
+    fontSize: 14,
+    color: '#8E8E93',
+    fontWeight: '500',
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#E5E5EA',
+    marginBottom: 16,
+  },
+  routeBlock: {
+    gap: 0,
+    marginBottom: 18,
+  },
+  routeRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 14,
+  },
+  timelineCol: {
+    width: 18,
+    alignItems: 'center',
+  },
+  pickupDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#000',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pickupDotInner: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#fff',
+  },
+  dropDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#000',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dropDotInner: {
+    width: 6,
+    height: 6,
+    borderRadius: 1,
+    backgroundColor: '#fff',
+  },
+  timelineLine: {
+    width: 2,
+    flexGrow: 1,
+    minHeight: 28,
+    backgroundColor: '#D1D1D6',
+    marginVertical: 4,
+  },
+  routeTextCol: {
+    flex: 1,
+    paddingBottom: 14,
+  },
+  routePrimary: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#000',
+    letterSpacing: -0.2,
+  },
+  routeSecondary: {
+    marginTop: 3,
+    fontSize: 14,
+    color: '#8E8E93',
+    fontWeight: '400',
+  },
+  actions: {
+    flexDirection: 'row',
+    gap: 10,
   },
   declineBtn: {
     flex: 1,
     minHeight: 52,
-    borderRadius: 12,
-    backgroundColor: '#F1F1F1',
+    borderRadius: 14,
+    backgroundColor: '#F2F2F7',
     alignItems: 'center',
     justifyContent: 'center',
   },
   declineText: { fontSize: 16, fontWeight: '700', color: '#000' },
   acceptBtn: {
-    flex: 1.2,
+    flex: 1.35,
     minHeight: 52,
-    borderRadius: 12,
+    borderRadius: 14,
     backgroundColor: '#000',
     alignItems: 'center',
     justifyContent: 'center',
   },
   acceptText: { fontSize: 16, fontWeight: '700', color: '#fff' },
-  secondaryBtn: {
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: 10,
-    backgroundColor: '#000',
+  unavailableTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginTop: 12,
   },
-  secondaryText: { color: '#fff', fontWeight: '700' },
+  unavailableSub: {
+    fontSize: 14,
+    color: '#8E8E93',
+    textAlign: 'center',
+    marginVertical: 12,
+  },
 });

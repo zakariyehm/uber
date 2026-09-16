@@ -40,9 +40,17 @@ export type DeliveryDto = {
   userConfirmedPickupAt?: string;
   userConfirmedDelivery: boolean;
   userConfirmedDeliveryAt?: string;
+  offeredToDriverId?: string;
+  offerExpiresAt?: string;
+  offerSecondsRemaining?: number;
 };
 
 export function toDeliveryDto(row: DbDelivery): DeliveryDto {
+  const offerExpiresAt = toIso(row.offerExpiresAt);
+  const remaining = row.offerExpiresAt
+    ? Math.max(0, Math.ceil((row.offerExpiresAt.getTime() - Date.now()) / 1000))
+    : undefined;
+
   return {
     id: row.id,
     orderId: row.orderId,
@@ -73,5 +81,8 @@ export function toDeliveryDto(row: DbDelivery): DeliveryDto {
     userConfirmedPickupAt: toIso(row.userConfirmedPickupAt),
     userConfirmedDelivery: row.userConfirmedDelivery,
     userConfirmedDeliveryAt: toIso(row.userConfirmedDeliveryAt),
+    offeredToDriverId: row.offeredToDriverId ?? undefined,
+    offerExpiresAt,
+    offerSecondsRemaining: remaining,
   };
 }

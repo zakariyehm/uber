@@ -1,35 +1,23 @@
-import { DeliveryStatus } from '@prisma/client';
+import { DeliveryStatus, type DeliveryRequest as DbDelivery } from '@prisma/client';
 import { prisma } from '../../lib/prisma.ts';
-import { redis } from '../../lib/redis.ts';
 import { toDeliveryDto } from '../../utils/delivery-mapper.ts';
 
-const DECLINE_COOLDOWN_SEC = 60;
-const memoryDeclines = new Map<string, number>();
+/** Uber-style: each online driver gets 30s to accept/decline, then offer rotates. */
+export const OFFER_TTL_SEC = 30;
+/** After every online driver declines/times out, wait this long before looping back to driver 1. */
+export const OFFER_CYCLE_PAUSE_SEC = 60;
 
-function declineKey(driverUserId: string, deliveryId: string) {
-  return `driver:decline:${driverUserId}:${deliveryId}`;
-}
-
-async function setDecline(driverUserId: string, deliveryId: string) {
-  const key = declineKey(driverUserId, deliveryId);
-  memoryDeclines.set(key, Date.now() + DECLINE_COOLDOWN_SEC * 1000);
+function parseDeclinedIds(raw: string | null | undefined): string[] {
   try {
-    await redis.set(key, '1', 'EX', DECLINE_COOLDOWN_SEC);
+    const parsed = JSON.parse(raw || '[]');
+    return Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : [];
   } catch {
-    // Redis optional — memory fallback keeps Uber-style skip working
+    return [];
   }
 }
 
-async function wasDeclined(driverUserId: string, deliveryId: string) {
-  const key = declineKey(driverUserId, deliveryId);
-  const until = memoryDeclines.get(key);
-  if (until && until > Date.now()) return true;
-  if (until) memoryDeclines.delete(key);
-  try {
-    return Boolean(await redis.exists(key));
-  } catch {
-    return false;
-  }
+function serializeDeclinedIds(ids: string[]) {
+  return JSON.stringify([...new Set(ids)]);
 }
 
 export async function getBusyActiveRequestId(driverUserId: string): Promise<string | null> {
@@ -57,7 +45,6 @@ export async function getBusyActiveRequestId(driverUserId: string): Promise<stri
     return null;
   }
 
-  // Stay busy until rider confirms receipt after complete
   if (delivery.status === DeliveryStatus.COMPLETED && delivery.userConfirmedDelivery) {
     await prisma.driverActiveDelivery.update({
       where: { driverUserId },
@@ -67,6 +54,128 @@ export async function getBusyActiveRequestId(driverUserId: string): Promise<stri
   }
 
   return delivery.id;
+}
+
+async function listOnlineAvailableDrivers(): Promise<string[]> {
+  const profiles = await prisma.driverProfile.findMany({
+    where: { isOnline: true },
+    select: { userId: true },
+    orderBy: { updatedAt: 'asc' },
+  });
+
+  const available: string[] = [];
+  for (const profile of profiles) {
+    const busy = await getBusyActiveRequestId(profile.userId);
+    if (!busy) available.push(profile.userId);
+  }
+  return available;
+}
+
+function pickNextDriver(
+  onlineIds: string[],
+  declinedIds: string[],
+  currentDriverId: string | null
+): string | null {
+  if (onlineIds.length === 0) return null;
+
+  let pool = onlineIds.filter((id) => !declinedIds.includes(id));
+  let resetCycle = false;
+  if (pool.length === 0) {
+    pool = [...onlineIds];
+    resetCycle = true;
+  }
+
+  if (!currentDriverId || resetCycle) {
+    return pool[0] || null;
+  }
+
+  const currentIndex = onlineIds.indexOf(currentDriverId);
+  for (let i = 1; i <= onlineIds.length; i++) {
+    const candidate = onlineIds[(Math.max(currentIndex, 0) + i) % onlineIds.length];
+    if (pool.includes(candidate)) return candidate;
+  }
+  return pool[0] || null;
+}
+
+async function assignOfferToDriver(deliveryId: string, driverUserId: string, declinedIds: string[]) {
+  const expiresAt = new Date(Date.now() + OFFER_TTL_SEC * 1000);
+  return prisma.deliveryRequest.update({
+    where: { id: deliveryId },
+    data: {
+      offeredToDriverId: driverUserId,
+      offerExpiresAt: expiresAt,
+      offerDeclinedIds: serializeDeclinedIds(declinedIds),
+    },
+  });
+}
+
+async function clearOffer(deliveryId: string, declinedIds: string[]) {
+  return prisma.deliveryRequest.update({
+    where: { id: deliveryId },
+    data: {
+      offeredToDriverId: null,
+      offerExpiresAt: null,
+      offerDeclinedIds: serializeDeclinedIds(declinedIds),
+    },
+  });
+}
+
+/** Pause after a full decline cycle; resume from driver 1 when offerExpiresAt passes. */
+async function pauseOfferCycle(deliveryId: string) {
+  const resumeAt = new Date(Date.now() + OFFER_CYCLE_PAUSE_SEC * 1000);
+  return prisma.deliveryRequest.update({
+    where: { id: deliveryId },
+    data: {
+      offeredToDriverId: null,
+      offerExpiresAt: resumeAt,
+      offerDeclinedIds: '[]',
+    },
+  });
+}
+
+function isCyclePaused(delivery: DbDelivery, now = Date.now()) {
+  return (
+    !delivery.offeredToDriverId &&
+    Boolean(delivery.offerExpiresAt) &&
+    (delivery.offerExpiresAt?.getTime() ?? 0) > now + 250
+  );
+}
+
+/** Expire stale offers and assign/rotate to the next online driver. */
+export async function ensureOfferAssignment(delivery: DbDelivery): Promise<DbDelivery> {
+  if (delivery.status !== DeliveryStatus.PENDING) return delivery;
+
+  const now = Date.now();
+  const expiresAt = delivery.offerExpiresAt?.getTime() ?? 0;
+
+  // Active offer still within its 30s window.
+  if (delivery.offeredToDriverId && expiresAt > now + 250) return delivery;
+
+  // Full cycle declined — wait 60s before looping back to driver 1.
+  if (isCyclePaused(delivery, now)) return delivery;
+
+  const onlineIds = await listOnlineAvailableDrivers();
+  const declinedIds = parseDeclinedIds(delivery.offerDeclinedIds);
+  const resumingAfterPause = !delivery.offeredToDriverId && expiresAt > 0 && expiresAt <= now;
+
+  let nextDeclined = resumingAfterPause ? [] : [...declinedIds];
+  if (delivery.offeredToDriverId && expiresAt > 0 && expiresAt <= now) {
+    nextDeclined.push(delivery.offeredToDriverId);
+  }
+
+  const allDeclined =
+    onlineIds.length > 0 && onlineIds.every((id) => nextDeclined.includes(id));
+  if (allDeclined) {
+    return pauseOfferCycle(delivery.id);
+  }
+
+  const currentDriverId = resumingAfterPause ? null : delivery.offeredToDriverId;
+  const nextDriver = pickNextDriver(onlineIds, nextDeclined, currentDriverId);
+  if (!nextDriver) {
+    return clearOffer(delivery.id, nextDeclined);
+  }
+
+  return assignOfferToDriver(delivery.id, nextDriver, nextDeclined);
 }
 
 export async function createDelivery(
@@ -104,7 +213,9 @@ export async function createDelivery(
       riderUserId,
     },
   });
-  return toDeliveryDto(row);
+
+  const offered = await ensureOfferAssignment(row);
+  return toDeliveryDto(offered);
 }
 
 export async function listPending() {
@@ -115,7 +226,7 @@ export async function listPending() {
   return rows.map(toDeliveryDto);
 }
 
-/** Uber-style: no offers while on an active trip; declined offers return after cooldown. */
+/** Only returns the offer currently assigned to this driver (30s window). */
 export async function listPendingForDriver(driverUserId: string) {
   const busyId = await getBusyActiveRequestId(driverUserId);
   if (busyId) return [];
@@ -125,12 +236,18 @@ export async function listPendingForDriver(driverUserId: string) {
     orderBy: { createdAt: 'asc' },
   });
 
-  const available = [];
+  const mine = [];
   for (const row of rows) {
-    if (await wasDeclined(driverUserId, row.id)) continue;
-    available.push(toDeliveryDto(row));
+    const assigned = await ensureOfferAssignment(row);
+    if (
+      assigned.offeredToDriverId === driverUserId &&
+      assigned.offerExpiresAt &&
+      assigned.offerExpiresAt.getTime() > Date.now()
+    ) {
+      mine.push(toDeliveryDto(assigned));
+    }
   }
-  return available;
+  return mine;
 }
 
 export async function declineDeliveryForDriver(deliveryId: string, driverUserId: string) {
@@ -141,8 +258,50 @@ export async function declineDeliveryForDriver(deliveryId: string, driverUserId:
     throw error;
   }
 
-  await setDecline(driverUserId, deliveryId);
-  return { ok: true, cooldownSeconds: DECLINE_COOLDOWN_SEC };
+  if (row.offeredToDriverId && row.offeredToDriverId !== driverUserId) {
+    const error = new Error('This offer is assigned to another driver') as Error & {
+      statusCode?: number;
+    };
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const declinedIds = parseDeclinedIds(row.offerDeclinedIds);
+  declinedIds.push(driverUserId);
+
+  const onlineIds = await listOnlineAvailableDrivers();
+  const nextDeclined = [...new Set(declinedIds)];
+  const allDeclined =
+    onlineIds.length > 0 && onlineIds.every((id) => nextDeclined.includes(id));
+
+  if (allDeclined || onlineIds.length === 0) {
+    await pauseOfferCycle(deliveryId);
+    return {
+      ok: true,
+      rotatedTo: null,
+      offerSeconds: OFFER_CYCLE_PAUSE_SEC,
+      cyclePaused: true,
+    };
+  }
+
+  const nextDriver = pickNextDriver(onlineIds, nextDeclined, driverUserId);
+  if (!nextDriver) {
+    await pauseOfferCycle(deliveryId);
+    return {
+      ok: true,
+      rotatedTo: null,
+      offerSeconds: OFFER_CYCLE_PAUSE_SEC,
+      cyclePaused: true,
+    };
+  }
+
+  const assigned = await assignOfferToDriver(deliveryId, nextDriver, nextDeclined);
+  return {
+    ok: true,
+    rotatedTo: assigned.offeredToDriverId,
+    offerSeconds: OFFER_TTL_SEC,
+    cyclePaused: false,
+  };
 }
 
 export async function listForRider(riderUserId: string) {
@@ -194,6 +353,26 @@ export async function applyDeliveryAction(
       throw error;
     }
 
+    const current = await prisma.deliveryRequest.findUnique({ where: { id } });
+    if (!current || current.status !== DeliveryStatus.PENDING) {
+      const error = new Error('This offer was already taken') as Error & { statusCode?: number };
+      error.statusCode = 409;
+      throw error;
+    }
+
+    if (current.offeredToDriverId && current.offeredToDriverId !== actor.id) {
+      const error = new Error('This offer is assigned to another driver') as Error & {
+        statusCode?: number;
+      };
+      error.statusCode = 409;
+      throw error;
+    }
+    if (current.offerExpiresAt && current.offerExpiresAt.getTime() < Date.now() - 2000) {
+      const error = new Error('Offer timed out') as Error & { statusCode?: number };
+      error.statusCode = 409;
+      throw error;
+    }
+
     const claimed = await prisma.deliveryRequest.updateMany({
       where: { id, status: DeliveryStatus.PENDING },
       data: {
@@ -201,6 +380,9 @@ export async function applyDeliveryAction(
         acceptedAt: now,
         driverUserId: actor.id,
         driverName: actor.name || 'Driver',
+        offeredToDriverId: null,
+        offerExpiresAt: null,
+        offerDeclinedIds: '[]',
       },
     });
 
@@ -255,7 +437,9 @@ export async function applyDeliveryAction(
       break;
     }
     case 'confirm_pickup': {
-      if (current.status !== DeliveryStatus.PICKED_UP) fail('Confirm pickup only after driver collects the item');
+      if (current.status !== DeliveryStatus.PICKED_UP) {
+        fail('Confirm pickup only after driver collects the item');
+      }
       data.userConfirmedPickup = true;
       data.userConfirmedPickupAt = now;
       break;
@@ -280,7 +464,9 @@ export async function applyDeliveryAction(
       break;
     }
     case 'confirm_received': {
-      if (current.status !== DeliveryStatus.COMPLETED) fail('Confirm received only after driver completes delivery');
+      if (current.status !== DeliveryStatus.COMPLETED) {
+        fail('Confirm received only after driver completes delivery');
+      }
       if (current.userConfirmedDelivery) fail('Delivery already confirmed');
       data.userConfirmedDelivery = true;
       data.userConfirmedDeliveryAt = now;
@@ -289,6 +475,8 @@ export async function applyDeliveryAction(
     case 'cancel': {
       data.status = DeliveryStatus.CANCELLED;
       data.cancelledAt = now;
+      data.offeredToDriverId = null;
+      data.offerExpiresAt = null;
       break;
     }
     default: {
@@ -301,7 +489,6 @@ export async function applyDeliveryAction(
     data,
   });
 
-  // Clear active trip after rider confirms receipt, or on cancel
   if (action === 'confirm_received' || action === 'cancel') {
     await prisma.driverActiveDelivery.updateMany({
       where: { requestId: id },
@@ -309,7 +496,6 @@ export async function applyDeliveryAction(
     });
   }
 
-  // Credit wallet once the rider confirms they received the package
   if (action === 'confirm_received' && row.driverUserId) {
     const { creditDriverForDelivery } = await import('../wallet/wallet.service.ts');
     await creditDriverForDelivery(row.driverUserId, row.deliveryPrice);

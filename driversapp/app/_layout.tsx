@@ -21,8 +21,24 @@ export default function RootLayout() {
         <Stack.Screen name="forgot-password" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="forgot-password-verify" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="forgot-password-reset" options={{ headerShown: false, animation: 'none' }} />
-        <Stack.Screen name="delivery-offer" options={{ headerShown: false, animation: 'none' }} />
-        <Stack.Screen name="delivery-details" options={{ headerShown: false, animation: 'none' }} />
+        <Stack.Screen
+          name="delivery-offer"
+          options={{
+            headerShown: false,
+            presentation: 'transparentModal',
+            animation: 'slide_from_bottom',
+            contentStyle: { backgroundColor: 'transparent' },
+          }}
+        />
+        <Stack.Screen
+          name="delivery-details"
+          options={{
+            headerShown: false,
+            presentation: 'transparentModal',
+            animation: 'slide_from_bottom',
+            contentStyle: { backgroundColor: 'transparent' },
+          }}
+        />
         <Stack.Screen name="pending-trips" options={{ headerShown: true, title: 'Trips', animation: 'none' }} />
       </Stack>
       <StatusBar style="auto" />
