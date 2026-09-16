@@ -165,6 +165,7 @@ model DeliveryRequest {
   settlementType         SettlementType    @default(NONE)
   driverEarnings         Decimal?          @db.Decimal(10, 2)
   platformFee            Decimal?          @db.Decimal(10, 2)
+  stateShare             Decimal?          @db.Decimal(10, 2)
   riderRefundPending     Decimal?          @db.Decimal(10, 2)
   settledAt              DateTime?
   updatedAt              DateTime          @updatedAt
@@ -250,7 +251,8 @@ model ServiceMethod {
 }
 
 model PlatformSetting {
-  id            String   @id @default("default")
-  driverFeeRate Decimal  @default(0.05) @db.Decimal(5, 4)
-  updatedAt     DateTime @updatedAt
+  id                    String   @id @default("default")
+  driverFeeRate         Decimal  @default(0.05) @db.Decimal(5, 4)
+  deliveryStateBalance  Decimal  @default(0) @db.Decimal(12, 2)
+  updatedAt             DateTime @updatedAt
 }

@@ -54,6 +54,10 @@ export async function syncDriverWallet(driverUserId: string) {
     (sum, row) => sum.add(row.driverEarnings || new Prisma.Decimal(0)),
     new Prisma.Decimal(0)
   );
+  const totalEarnings = settled.reduce(
+    (sum, row) => sum.add(row.driverEarnings || new Prisma.Decimal(0)),
+    new Prisma.Decimal(0)
+  );
 
   const tripsCompleted = settled.filter((r) => r.completedAt || r.userConfirmedDeliveryAt).length;
 
@@ -80,6 +84,7 @@ export async function syncDriverWallet(driverUserId: string) {
     tripsCancelled: wallet.tripsCancelled,
     todayCompleted: todayRows.length,
     todayEarnings: Number(todayEarnings).toFixed(2),
+    totalBalance: Number(totalEarnings).toFixed(2),
     updatedAt: wallet.updatedAt.toISOString(),
   };
 }

@@ -111,9 +111,10 @@ export async function settleFullTrip(deliveryId: string) {
 
   const price = Number(row.deliveryPrice);
   const stateTrip = await isOpenFleetMethod(row.deliveryMethod);
-  const { platformFee, driverEarnings } = stateTrip
+  const split = stateTrip
     ? splitStateTripEarnings(price)
-    : splitTripEarnings(price, await getDriverFeeRate());
+    : { ...splitTripEarnings(price, await getDriverFeeRate()), stateShare: 0 };
+  const { platformFee, driverEarnings, stateShare } = split;
 
   if (row.paymentHoldStatus === PaymentHoldStatus.HELD && row.waafiTransactionId) {
     const commit = await waafiCommit(row.waafiTransactionId, `Commit order ${row.orderId}`);
@@ -137,10 +138,19 @@ export async function settleFullTrip(deliveryId: string) {
       settlementType: SettlementType.FULL,
       driverEarnings,
       platformFee,
+      stateShare: stateTrip ? stateShare : 0,
       riderRefundPending: 0,
       settledAt: new Date(),
     },
   });
+
+  if (stateTrip && stateShare > 0) {
+    await prisma.platformSetting.upsert({
+      where: { id: 'default' },
+      update: { deliveryStateBalance: { increment: stateShare } },
+      create: { id: 'default', deliveryStateBalance: stateShare },
+    });
+  }
 
   await refreshDriverDailyWallet(row.driverUserId);
   return updated;

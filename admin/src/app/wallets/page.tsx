@@ -15,6 +15,7 @@ type WalletPayload = {
     isActive: boolean;
     isOnline: boolean;
     todayBalance: string;
+    totalBalance?: string;
     tripsCompletedToday: number;
     tripsCancelled: number;
   }[];
@@ -58,7 +59,7 @@ export default function WalletsPage() {
               Delivery State balance
             </p>
             <p className="mt-1 text-xl font-semibold">{money(data.deliveryStateBalance || "0")}</p>
-            <p className="text-xs text-muted">Total after $0.50 driver payout</p>
+            <p className="text-xs text-muted">Kept after each $0.50 driver payout</p>
           </div>
         ) : null}
       </div>
@@ -67,13 +68,14 @@ export default function WalletsPage() {
       <div className="grid gap-6 xl:grid-cols-2">
         <section className="overflow-hidden rounded-xl border border-line bg-panel">
           <div className="border-b border-line px-4 py-3">
-            <h3 className="text-sm font-semibold">Drivers · today</h3>
+            <h3 className="text-sm font-semibold">Drivers</h3>
           </div>
           <table className="w-full text-left text-sm">
             <thead className="text-xs uppercase text-muted">
               <tr>
                 <th className="px-4 py-2">Driver</th>
-                <th className="px-4 py-2">Balance</th>
+                <th className="px-4 py-2">Today</th>
+                <th className="px-4 py-2">Total earned</th>
                 <th className="px-4 py-2">Trips</th>
               </tr>
             </thead>
@@ -86,6 +88,7 @@ export default function WalletsPage() {
                     <StatusBadge value={row.isOnline ? "online" : "offline"} />
                   </td>
                   <td className="px-4 py-3">{money(row.todayBalance)}</td>
+                  <td className="px-4 py-3 font-medium">{money(row.totalBalance || row.todayBalance)}</td>
                   <td className="px-4 py-3 text-xs text-muted">
                     {row.tripsCompletedToday} done · {row.tripsCancelled} cancelled
                   </td>

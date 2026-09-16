@@ -90,11 +90,15 @@ export function toDeliveryDto(row: DbDelivery): DeliveryDto {
       : stateSplit
         ? '0.00'
         : undefined;
+  const storedShare =
+    row.stateShare != null ? Number(row.stateShare) : null;
   const stateShare = stateSplit
     ? (
-        row.driverEarnings != null
-          ? Math.max(0, Math.round((price - Number(row.driverEarnings)) * 100) / 100)
-          : stateSplit.stateShare
+        storedShare != null
+          ? storedShare
+          : row.driverEarnings != null
+            ? Math.max(0, Math.round((price - Number(row.driverEarnings)) * 100) / 100)
+            : stateSplit.stateShare
       ).toFixed(2)
     : undefined;
 

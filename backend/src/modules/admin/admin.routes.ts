@@ -172,7 +172,14 @@ export async function adminRoutes(app: FastifyInstance) {
     return listPayments(query);
   });
 
-  app.get('/wallets', async () => listWallets());
+  app.get('/wallets', async (request, reply) => {
+    try {
+      return await listWallets();
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.code(500).send({ error: error.message || 'Could not load wallets' });
+    }
+  });
 
   app.get('/settings', async () => getPlatformSettings());
 

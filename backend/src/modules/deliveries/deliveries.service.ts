@@ -638,6 +638,15 @@ export async function applyDeliveryAction(
     data,
   });
 
+  if (action === 'complete' && row.driverUserId) {
+    const { isOpenFleetMethod } = await import('../../utils/vehicle-type.ts');
+    if (await isOpenFleetMethod(row.deliveryMethod)) {
+      const { settleFullTrip } = await import('../payments/payment.settlement.ts');
+      await settleFullTrip(id);
+      return getById(id);
+    }
+  }
+
   if (action === 'confirm_received' || action === 'cancel') {
     await prisma.driverActiveDelivery.updateMany({
       where: { requestId: id },

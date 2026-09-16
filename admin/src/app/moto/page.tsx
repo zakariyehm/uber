@@ -23,7 +23,7 @@ export default function MotoPage() {
   const [methods, setMethods] = useState<ServiceMethod[]>([]);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -78,33 +78,53 @@ export default function MotoPage() {
     });
   };
 
-  const save = async (id: string) => {
-    const draft = drafts[id];
-    if (!draft) return;
-    const price = parsePrice(draft.price);
-    if (!Number.isFinite(price) || price <= 0) {
-      setError("Enter a valid price greater than 0");
+  const saveAll = async () => {
+    const dirty = methods.filter((method) => {
+      const draft = drafts[method.id];
+      if (!draft) return false;
+      return (
+        draft.name.trim() !== method.name ||
+        draft.timeLabel.trim() !== method.timeLabel ||
+        draft.vehicleType !== (method.vehicleType || "MOTORCYCLE") ||
+        parsePrice(draft.price) !== Number(method.price)
+      );
+    });
+    if (!dirty.length) {
+      setNotice("No changes to save");
       return;
     }
-    setSaving(id);
+    for (const method of dirty) {
+      const draft = drafts[method.id];
+      const price = parsePrice(draft.price);
+      if (!draft.name.trim() || draft.timeLabel.trim().length < 2 || !Number.isFinite(price) || price <= 0) {
+        setError(`Check ${draft.name || method.name}: name, time, and a price greater than 0`);
+        return;
+      }
+    }
+    setSaving(true);
     setError(null);
     setNotice(null);
     try {
-      await api(`/admin/methods/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          name: draft.name.trim(),
-          timeLabel: draft.timeLabel.trim(),
-          price,
-          vehicleType: draft.vehicleType,
-        }),
-      });
-      setNotice(`${draft.name.trim() || "Method"} saved`);
+      await Promise.all(
+        dirty.map((method) => {
+          const draft = drafts[method.id];
+          return api(`/admin/methods/${method.id}`, {
+            method: "PATCH",
+            body: JSON.stringify({
+              name: draft.name.trim(),
+              timeLabel: draft.timeLabel.trim(),
+              price: parsePrice(draft.price),
+              vehicleType: draft.vehicleType,
+            }),
+          });
+        })
+      );
+      setNotice(`Saved ${dirty.length} method${dirty.length === 1 ? "" : "s"}`);
       await load();
     } catch (err) {
-      setError(errorMessage(err, "Could not save method"));
+      setError(errorMessage(err, "Could not save methods"));
     } finally {
-      setSaving(null);
+      setSaving(false);
     }
   };
 
@@ -185,11 +205,21 @@ export default function MotoPage() {
 
   return (
     <Shell>
-      <div className="mb-6">
-        <h2 className="text-2xl font-semibold">Moto</h2>
-        <p className="text-sm text-muted">
-          Price, ETA, and vehicle type riders see when they choose Moto. Motorcycle orders only go to motorcycle drivers.
-        </p>
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-semibold">Moto</h2>
+          <p className="text-sm text-muted">
+            Price, ETA, and vehicle type riders see when they choose Moto. Motorcycle orders only go to motorcycle drivers.
+          </p>
+        </div>
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => void saveAll()}
+          className="rounded-lg bg-raac px-4 py-2 text-sm font-semibold text-black disabled:opacity-40"
+        >
+          {saving ? "Saving…" : "Save changes"}
+        </button>
       </div>
 
       {error ? <p className="mb-4 text-sm text-danger">{error}</p> : null}
@@ -325,15 +355,8 @@ export default function MotoPage() {
                       {method.isActive ? "Hide" : "Show"}
                     </button>
                     <button
-                      className="mr-3 text-xs font-semibold text-raac"
-                      disabled={saving === method.id || deleting === method.id}
-                      onClick={() => void save(method.id)}
-                    >
-                      {saving === method.id ? "Saving…" : "Save"}
-                    </button>
-                    <button
                       className="text-xs font-semibold text-danger"
-                      disabled={deleting === method.id || saving === method.id}
+                      disabled={deleting === method.id || saving}
                       onClick={() => void remove(method)}
                     >
                       {deleting === method.id ? "Deleting…" : "Delete"}

@@ -75,6 +75,7 @@ async function settledSums(from?: Date) {
       deliveryPrice: true,
       platformFee: true,
       driverEarnings: true,
+      stateShare: true,
       riderRefundPending: true,
     },
   });
@@ -91,7 +92,9 @@ async function settledSums(from?: Date) {
       if (row.settlementType === SettlementType.NO_SHOW) acc.noShows += 1;
 
       if (row.settlementType === SettlementType.FULL && looksLikeOpenFleetMethod(row.deliveryMethod)) {
-        acc.deliveryStateBalance += Math.max(0, Math.round((price - driver) * 100) / 100);
+        const stored = money(row.stateShare);
+        acc.deliveryStateBalance +=
+          stored > 0 ? stored : Math.max(0, Math.round((price - driver) * 100) / 100);
       } else {
         acc.platformFee += money(row.platformFee);
       }
@@ -728,6 +731,7 @@ export async function listWallets() {
         isActive: wallet.driver.isActive,
         isOnline: Boolean(wallet.driver.driverProfile?.isOnline),
         todayBalance: synced.todayEarnings,
+        totalBalance: synced.totalBalance,
         tripsCompletedToday: synced.todayCompleted,
         tripsCancelled: synced.tripsCancelled,
         updatedAt: synced.updatedAt,
