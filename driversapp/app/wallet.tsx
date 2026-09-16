@@ -61,9 +61,6 @@ export default function WalletScreen() {
 
   const balance = wallet?.balance ?? '0.00';
   const todayCompleted = wallet?.todayCompleted ?? 0;
-  const todayEarnings = wallet?.todayEarnings ?? '0.00';
-  const tripsCompleted = wallet?.tripsCompleted ?? 0;
-  const tripsCancelled = wallet?.tripsCancelled ?? 0;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -94,7 +91,7 @@ export default function WalletScreen() {
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.caption}>Available balance</Text>
+          <Text style={styles.caption}>Today's balance</Text>
           <View style={styles.balanceContainer}>
             <Text style={styles.priceText}>
               {isBalanceVisible ? `$${balance}` : '••••••'}
@@ -105,12 +102,7 @@ export default function WalletScreen() {
 
           <Text style={styles.todayText}>TODAY</Text>
           <Text style={styles.infoText}>{todayCompleted} trips completed</Text>
-          <Text style={styles.infoText}>${todayEarnings} earned today</Text>
-
-          <View style={styles.divider} />
-
-          <Text style={styles.infoText}>{tripsCompleted} trips completed (all time)</Text>
-          <Text style={styles.infoText}>{tripsCancelled} trips cancelled</Text>
+          <Text style={styles.hintText}>Resets to $0.00 every new day</Text>
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
         </View>
@@ -181,6 +173,12 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     color: '#FFFFFF',
     marginTop: 8,
+  },
+  hintText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.55)',
+    marginTop: 14,
   },
   errorText: {
     color: '#FF6B6B',

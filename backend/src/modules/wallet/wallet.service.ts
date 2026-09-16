@@ -17,7 +17,7 @@ export async function getOrCreateWallet(driverUserId: string) {
   });
 }
 
-/** Recompute wallet from confirmed completed deliveries so the amount is always correct. */
+/** Daily wallet: balance is only what the driver earned today (resets at midnight). */
 export async function syncDriverWallet(driverUserId: string) {
   const [completed, cancelledCount] = await Promise.all([
     prisma.deliveryRequest.findMany({
@@ -36,12 +36,6 @@ export async function syncDriverWallet(driverUserId: string) {
     }),
   ]);
 
-  const balance = completed.reduce(
-    (sum, row) => sum.add(row.deliveryPrice),
-    new Prisma.Decimal(0)
-  );
-  const tripsCompleted = completed.length;
-
   const todayStart = startOfToday();
   const todayRows = completed.filter((row) => {
     const at = row.userConfirmedDeliveryAt || row.completedAt;
@@ -55,21 +49,22 @@ export async function syncDriverWallet(driverUserId: string) {
   const wallet = await prisma.driverWallet.upsert({
     where: { driverUserId },
     update: {
-      balance,
-      tripsCompleted,
+      // Stored balance mirrors today's earnings so a new day starts at 0.00
+      balance: todayEarnings,
+      tripsCompleted: completed.length,
       tripsCancelled: cancelledCount,
     },
     create: {
       driverUserId,
-      balance,
-      tripsCompleted,
+      balance: todayEarnings,
+      tripsCompleted: completed.length,
       tripsCancelled: cancelledCount,
     },
   });
 
   return {
-    balance: Number(wallet.balance).toFixed(2),
-    tripsCompleted: wallet.tripsCompleted,
+    balance: Number(todayEarnings).toFixed(2),
+    tripsCompleted: todayRows.length,
     tripsCancelled: wallet.tripsCancelled,
     todayCompleted: todayRows.length,
     todayEarnings: Number(todayEarnings).toFixed(2),
@@ -77,15 +72,9 @@ export async function syncDriverWallet(driverUserId: string) {
   };
 }
 
-export async function creditDriverForDelivery(driverUserId: string, amount: Prisma.Decimal | number) {
-  await getOrCreateWallet(driverUserId);
-  await prisma.driverWallet.update({
-    where: { driverUserId },
-    data: {
-      balance: { increment: amount },
-      tripsCompleted: { increment: 1 },
-    },
-  });
+export async function creditDriverForDelivery(driverUserId: string, _amount: Prisma.Decimal | number) {
+  // Recompute from today's confirmed completions so each new day starts at 0.00
+  await syncDriverWallet(driverUserId);
 }
 
 export async function walletRoutes(app: FastifyInstance) {
