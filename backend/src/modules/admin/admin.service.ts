@@ -224,6 +224,39 @@ export async function getLiveOps() {
   };
 }
 
+function parseDeliveryStatus(raw?: string): DeliveryStatus | null {
+  if (!raw) return null;
+  const status = raw.trim().toUpperCase().replace(/[-\s]+/g, '_');
+  return (Object.values(DeliveryStatus) as string[]).includes(status)
+    ? (status as DeliveryStatus)
+    : null;
+}
+
+async function listTripMethodOptions() {
+  const [catalog, used] = await Promise.all([
+    prisma.serviceMethod.findMany({
+      select: { name: true, category: true, sortOrder: true },
+      orderBy: [{ category: 'asc' }, { sortOrder: 'asc' }, { name: 'asc' }],
+    }),
+    prisma.deliveryRequest.findMany({
+      distinct: ['deliveryMethod'],
+      select: { deliveryMethod: true },
+      orderBy: { deliveryMethod: 'asc' },
+    }),
+  ]);
+
+  const seen = new Set<string>();
+  const methods: string[] = [];
+  for (const row of [...catalog, ...used]) {
+    const name = ('name' in row ? row.name : row.deliveryMethod).trim();
+    const key = name.toLowerCase();
+    if (!name || seen.has(key)) continue;
+    seen.add(key);
+    methods.push(name);
+  }
+  return methods;
+}
+
 export async function listTrips(input: {
   status?: string;
   method?: string;
@@ -237,14 +270,11 @@ export async function listTrips(input: {
   const skip = (page - 1) * limit;
 
   const where: Prisma.DeliveryRequestWhereInput = {};
-  if (input.status) {
-    const status = input.status.toUpperCase().replace('-', '_') as DeliveryStatus;
-    if ((Object.values(DeliveryStatus) as string[]).includes(status)) {
-      where.status = status;
-    }
-  }
-  if (input.method) {
-    where.deliveryMethod = { contains: input.method, mode: 'insensitive' };
+  const status = parseDeliveryStatus(input.status);
+  if (status) where.status = status;
+  const method = input.method?.trim();
+  if (method) {
+    where.deliveryMethod = { equals: method, mode: 'insensitive' };
   }
   if (input.vehicleType === 'MOTORCYCLE' || input.vehicleType === 'BICYCLE') {
     where.vehicleType = input.vehicleType;
@@ -265,7 +295,7 @@ export async function listTrips(input: {
     ];
   }
 
-  const [rows, total] = await Promise.all([
+  const [rows, total, methods] = await Promise.all([
     prisma.deliveryRequest.findMany({
       where,
       include: {
@@ -277,12 +307,14 @@ export async function listTrips(input: {
       take: limit,
     }),
     prisma.deliveryRequest.count({ where }),
+    listTripMethodOptions(),
   ]);
 
   return {
     page,
     limit,
     total,
+    methods,
     trips: rows.map((row) => ({
       ...toDeliveryDto(row),
       riderName: row.rider ? displayName(row.rider) : row.senderName || '—',

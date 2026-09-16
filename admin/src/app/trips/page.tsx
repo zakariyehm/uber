@@ -8,12 +8,21 @@ import { money, vehicleLabel, when } from "@/lib/format";
 import type { TripRow } from "@/lib/types";
 import { useEffect, useState } from "react";
 
-const STATUSES = ["", "pending", "accepted", "picked_up", "in_transit", "completed", "cancelled"];
+const STATUSES = [
+  { value: "", label: "All statuses" },
+  { value: "PENDING", label: "Pending" },
+  { value: "ACCEPTED", label: "Accepted" },
+  { value: "PICKED_UP", label: "Picked up" },
+  { value: "IN_TRANSIT", label: "In transit" },
+  { value: "COMPLETED", label: "Completed" },
+  { value: "CANCELLED", label: "Cancelled" },
+];
 
 export default function TripsPage() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
-  const [vehicleType, setVehicleType] = useState("");
+  const [method, setMethod] = useState("");
+  const [methods, setMethods] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [data, setData] = useState<{ trips: TripRow[]; total: number; page: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -23,12 +32,15 @@ export default function TripsPage() {
     const load = async () => {
       try {
         const params = new URLSearchParams({ page: String(page), limit: "20" });
-        if (q) params.set("q", q);
+        if (q.trim()) params.set("q", q.trim());
         if (status) params.set("status", status);
-        if (vehicleType) params.set("vehicleType", vehicleType);
-        const result = await api<{ trips: TripRow[]; total: number; page: number }>(`/admin/trips?${params}`);
+        if (method) params.set("method", method);
+        const result = await api<{ trips: TripRow[]; total: number; page: number; methods?: string[] }>(
+          `/admin/trips?${params}`
+        );
         if (!cancelled) {
           setData(result);
+          if (result.methods?.length) setMethods(result.methods);
           setError(null);
         }
       } catch (err) {
@@ -39,7 +51,7 @@ export default function TripsPage() {
     return () => {
       cancelled = true;
     };
-  }, [q, status, vehicleType, page]);
+  }, [q, status, method, page]);
 
   return (
     <Shell>
@@ -48,7 +60,7 @@ export default function TripsPage() {
           <h2 className="text-2xl font-semibold">Trips</h2>
           <p className="text-sm text-muted">{data?.total ?? 0} deliveries</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <input
             className="rounded-lg border border-line bg-panel px-3 py-2 text-sm outline-none"
             placeholder="Search order, phone, place"
@@ -60,15 +72,18 @@ export default function TripsPage() {
           />
           <select
             className="rounded-lg border border-line bg-panel px-3 py-2 text-sm"
-            value={vehicleType}
+            value={method}
             onChange={(e) => {
               setPage(1);
-              setVehicleType(e.target.value);
+              setMethod(e.target.value);
             }}
           >
             <option value="">All types</option>
-            <option value="MOTORCYCLE">Motorcycle</option>
-            <option value="BICYCLE">Bicycle</option>
+            {methods.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
           </select>
           <select
             className="rounded-lg border border-line bg-panel px-3 py-2 text-sm"
@@ -79,8 +94,8 @@ export default function TripsPage() {
             }}
           >
             {STATUSES.map((item) => (
-              <option key={item || "all"} value={item}>
-                {item ? item.replace("_", " ") : "All statuses"}
+              <option key={item.label} value={item.value}>
+                {item.label}
               </option>
             ))}
           </select>
@@ -130,6 +145,13 @@ export default function TripsPage() {
                 </td>
               </tr>
             ))}
+            {!data?.trips.length ? (
+              <tr>
+                <td className="px-4 py-10 text-center text-sm text-muted" colSpan={8}>
+                  No trips match these filters
+                </td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </div>
@@ -143,7 +165,8 @@ export default function TripsPage() {
           Prev
         </button>
         <button
-          className="rounded-lg border border-line px-3 py-1 text-sm"
+          className="rounded-lg border border-line px-3 py-1 text-sm disabled:opacity-40"
+          disabled={(data?.trips.length || 0) < 20}
           onClick={() => setPage((p) => p + 1)}
         >
           Next
