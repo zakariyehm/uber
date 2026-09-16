@@ -70,8 +70,8 @@ const priceSchema = z
 
 const createMethodSchema = z.object({
   category: z.enum(['MOTO', 'DELIVERY_STATE']).optional(),
-  name: z.string().min(2).max(40),
-  timeLabel: z.string().min(2).max(40),
+  name: z.string().min(2).max(60),
+  timeLabel: z.string().min(2).max(60),
   price: priceSchema,
   icon: z.string().optional(),
   sortOrder: z.coerce.number().int().optional(),
@@ -79,8 +79,8 @@ const createMethodSchema = z.object({
 });
 
 const patchMethodSchema = z.object({
-  name: z.string().min(2).max(40).optional(),
-  timeLabel: z.string().min(2).max(40).optional(),
+  name: z.string().min(2).max(60).optional(),
+  timeLabel: z.string().min(2).max(60).optional(),
   price: priceSchema.optional(),
   isActive: z.boolean().optional(),
   sortOrder: z.coerce.number().int().optional(),

@@ -73,7 +73,7 @@ async function main() {
 
   const { ensureDefaultMethods } = await import('../src/modules/catalog/catalog.service.ts');
   await ensureDefaultMethods();
-  console.log('Seeded Moto methods: Moto Fekon, Moto Bajaj, Moto Bicycle');
+  console.log('Seeded Moto methods and Delivery State destinations');
 
   await prisma.platformSetting.upsert({
     where: { id: 'default' },

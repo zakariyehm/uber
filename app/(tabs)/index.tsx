@@ -1,10 +1,11 @@
 import { BottomSheet } from '@/components/bottom-sheet';
-import { BANADIR_DISTRICTS, SOMALIA_STATES } from '@/constants/somalia';
+import { BANADIR_DISTRICTS } from '@/constants/somalia';
 import { AppColors, Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { fetchDeliveryStateMethods, type CatalogMethod } from '@/utils/catalog';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Dimensions,
   KeyboardAvoidingView,
@@ -33,14 +34,35 @@ export default function HomeScreen() {
   const [showDeliverySheet, setShowDeliverySheet] = useState(false);
   const [pickupDistrict, setPickupDistrict] = useState('');
   const [pickupNeighborhood, setPickupNeighborhood] = useState('');
-  const [dropoffState, setDropoffState] = useState('');
+  const [dropoffMethod, setDropoffMethod] = useState<CatalogMethod | null>(null);
+  const [stateMethods, setStateMethods] = useState<CatalogMethod[]>([]);
   const [picker, setPicker] = useState<PickerKind>(null);
 
   const canContinue = useMemo(
     () =>
-      Boolean(pickupDistrict && pickupNeighborhood.trim().length >= 2 && dropoffState),
-    [pickupDistrict, pickupNeighborhood, dropoffState]
+      Boolean(
+        pickupDistrict &&
+          pickupNeighborhood.trim().length >= 2 &&
+          dropoffMethod
+      ),
+    [pickupDistrict, pickupNeighborhood, dropoffMethod]
   );
+
+  useEffect(() => {
+    if (!showDeliverySheet) return;
+    let cancelled = false;
+    void fetchDeliveryStateMethods().then((methods) => {
+      if (cancelled) return;
+      setStateMethods(methods);
+      setDropoffMethod((current) => {
+        if (!current) return current;
+        return methods.find((row) => row.id === current.id || row.name === current.name) || null;
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [showDeliverySheet]);
 
   const openDeliverySheet = () => setShowDeliverySheet(true);
   const closeDeliverySheet = () => {
@@ -49,16 +71,16 @@ export default function HomeScreen() {
   };
 
   const handleContinueDelivery = () => {
-    if (!canContinue) return;
+    if (!canContinue || !dropoffMethod) return;
     closeDeliverySheet();
     router.push({
       pathname: '/delivery',
       params: {
         pickup: `${pickupDistrict}, ${pickupNeighborhood.trim()}`,
-        destination: dropoffState,
-        deliveryMethod: 'Delivery State',
-        deliveryTime: 'State delivery',
-        deliveryPrice: '',
+        destination: dropoffMethod.name,
+        deliveryMethod: dropoffMethod.name,
+        deliveryTime: dropoffMethod.time,
+        deliveryPrice: dropoffMethod.displayPrice || `$${dropoffMethod.price}`,
       },
     });
   };
@@ -151,8 +173,9 @@ export default function HomeScreen() {
               style={styles.pickerList}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled">
-              {(picker === 'district' ? BANADIR_DISTRICTS : SOMALIA_STATES).map((item) => {
-                const selected = picker === 'district' ? pickupDistrict === item : dropoffState === item;
+              {(picker === 'district' ? BANADIR_DISTRICTS : stateMethods.map((row) => row.name)).map((item) => {
+                const selected = picker === 'district' ? pickupDistrict === item : dropoffMethod?.name === item;
+                const method = picker === 'state' ? stateMethods.find((row) => row.name === item) : null;
                 return (
                   <TouchableOpacity
                     key={item}
@@ -162,12 +185,19 @@ export default function HomeScreen() {
                       if (picker === 'district') {
                         setPickupDistrict(item);
                         setPickupNeighborhood('');
-                      } else {
-                        setDropoffState(item);
+                      } else if (method) {
+                        setDropoffMethod(method);
                       }
                       setPicker(null);
                     }}>
-                    <Text style={[styles.pickerItemText, { color: colors.text }]}>{item}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.pickerItemText, { color: colors.text }]}>{item}</Text>
+                      {method ? (
+                        <Text style={[styles.fixedStateHint, { color: colors.icon }]}>
+                          {method.displayPrice || `$${method.price}`} · {method.time}
+                        </Text>
+                      ) : null}
+                    </View>
                     {selected ? <Ionicons name="checkmark" size={20} color={AppColors.header} /> : null}
                   </TouchableOpacity>
                 );
@@ -231,9 +261,14 @@ export default function HomeScreen() {
               onPress={() => setPicker('state')}>
               <View style={styles.selectFieldBody}>
                 <Text style={[styles.selectLabel, { color: colors.icon }]}>Gobolka / State</Text>
-                <Text style={[styles.selectValue, { color: dropoffState ? colors.text : colors.icon }]}>
-                  {dropoffState || 'Dooro gobol'}
+                <Text style={[styles.selectValue, { color: dropoffMethod ? colors.text : colors.icon }]}>
+                  {dropoffMethod?.name || 'Dooro gobol'}
                 </Text>
+                {dropoffMethod ? (
+                  <Text style={[styles.fixedStateHint, { color: colors.icon, marginTop: 4 }]}>
+                    {dropoffMethod.displayPrice || `$${dropoffMethod.price}`} · {dropoffMethod.time}
+                  </Text>
+                ) : null}
               </View>
               <Ionicons name="chevron-down" size={18} color={colors.icon} />
             </TouchableOpacity>

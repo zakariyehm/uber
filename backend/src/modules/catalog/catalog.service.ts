@@ -2,6 +2,27 @@ import { Prisma, ServiceCategory, VehicleType } from '@prisma/client';
 import { prisma } from '../../lib/prisma.ts';
 import { iconForVehicleType, parseVehicleType } from '../../utils/vehicle-type.ts';
 
+const STATE_DEFAULTS = [
+  { name: 'Banadir', timeLabel: 'Same day', price: 3, sortOrder: 1 },
+  { name: 'Lower Shabelle', timeLabel: '4-8 hours', price: 3, sortOrder: 2 },
+  { name: 'Middle Shabelle', timeLabel: '6-12 hours', price: 3, sortOrder: 3 },
+  { name: 'Hiiraan', timeLabel: '1 day', price: 3, sortOrder: 4 },
+  { name: 'Bay', timeLabel: '1 day', price: 3, sortOrder: 5 },
+  { name: 'Bakool', timeLabel: '1 day', price: 3, sortOrder: 6 },
+  { name: 'Galgaduud', timeLabel: '1 day', price: 3, sortOrder: 7 },
+  { name: 'Mudug', timeLabel: '1-2 days', price: 3, sortOrder: 8 },
+  { name: 'Nugaal', timeLabel: '1-2 days', price: 3, sortOrder: 9 },
+  { name: 'Gedo', timeLabel: '1-2 days', price: 3, sortOrder: 10 },
+  { name: 'Lower Juba', timeLabel: '1-2 days', price: 3, sortOrder: 11 },
+  { name: 'Middle Juba', timeLabel: '1-2 days', price: 3, sortOrder: 12 },
+  { name: 'Bari', timeLabel: '2 days', price: 3, sortOrder: 13 },
+  { name: 'Sool', timeLabel: '2-3 days', price: 3, sortOrder: 14 },
+  { name: 'Sanaag', timeLabel: '2-3 days', price: 3, sortOrder: 15 },
+  { name: 'Togdheer', timeLabel: '2-3 days', price: 3, sortOrder: 16 },
+  { name: 'Woqooyi Galbeed', timeLabel: '2-3 days', price: 3, sortOrder: 17 },
+  { name: 'Awdal', timeLabel: '2-3 days', price: 3, sortOrder: 18 },
+];
+
 const MOTO_DEFAULTS = [
   {
     slug: 'moto-fekon',
@@ -69,7 +90,7 @@ function parseCategory(value?: string) {
   return ServiceCategory.MOTO;
 }
 
-export async function ensureDefaultMethods() {
+async function ensureDefaultMotoMethods() {
   const existing = await prisma.serviceMethod.count({ where: { category: ServiceCategory.MOTO } });
   if (existing > 0) return;
 
@@ -83,6 +104,36 @@ export async function ensureDefaultMethods() {
       },
     });
   }
+}
+
+async function ensureDefaultDeliveryStates() {
+  const existing = await prisma.serviceMethod.count({
+    where: { category: ServiceCategory.DELIVERY_STATE },
+  });
+  if (existing > 0) return;
+
+  for (const method of STATE_DEFAULTS) {
+    const slug = `state-${method.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
+    await prisma.serviceMethod.upsert({
+      where: { slug },
+      update: {},
+      create: {
+        category: ServiceCategory.DELIVERY_STATE,
+        slug,
+        name: method.name,
+        icon: 'airplane',
+        timeLabel: method.timeLabel,
+        price: method.price,
+        sortOrder: method.sortOrder,
+        vehicleType: VehicleType.MOTORCYCLE,
+      },
+    });
+  }
+}
+
+export async function ensureDefaultMethods() {
+  await ensureDefaultMotoMethods();
+  await ensureDefaultDeliveryStates();
 }
 
 export async function listPublicMethods(categoryRaw?: string) {
@@ -105,11 +156,14 @@ export async function listAdminMethods(categoryRaw?: string) {
   return { category, methods: rows.map(toDto) };
 }
 
-function slugify(name: string) {
+function slugify(name: string, category = ServiceCategory.MOTO) {
   const base = name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
+  if (category === ServiceCategory.DELIVERY_STATE) {
+    return base.startsWith('state-') ? base : `state-${base || 'method'}`;
+  }
   return base.startsWith('moto-') ? base : `moto-${base || 'method'}`;
 }
 
@@ -124,7 +178,7 @@ export async function createServiceMethod(input: {
 }) {
   const category = parseCategory(input.category);
   const vehicleType = parseVehicleType(input.vehicleType);
-  let slug = slugify(input.name);
+  let slug = slugify(input.name, category);
   const existing = await prisma.serviceMethod.findUnique({ where: { slug } });
   if (existing) slug = `${slug}-${Date.now().toString().slice(-4)}`;
 
@@ -134,7 +188,7 @@ export async function createServiceMethod(input: {
       category,
       slug,
       name: input.name.trim(),
-      icon: input.icon || iconForVehicleType(vehicleType),
+      icon: input.icon || (category === ServiceCategory.DELIVERY_STATE ? 'airplane' : iconForVehicleType(vehicleType)),
       timeLabel: input.timeLabel.trim(),
       price: input.price,
       vehicleType,
