@@ -1,6 +1,14 @@
 import * as Haptics from 'expo-haptics';
 import { Platform, Vibration } from 'react-native';
 
+/**
+ * Swap offer ringtone here:
+ * 1. Put your file in driversapp/assets/sounds/ (e.g. my-ring.mp3)
+ * 2. Change the require() path below to that file
+ * Supports .wav / .mp3 / .m4a
+ */
+const OFFER_ALERT_SOUND = require('../assets/sounds/offer-alert.wav');
+
 type OfferPlayer = {
   loop: boolean;
   volume: number;
@@ -61,7 +69,7 @@ export async function startOfferAlert() {
 
     await stopOfferSoundOnly();
 
-    const next = audio.createAudioPlayer(require('../assets/sounds/offer-alert.wav'));
+    const next = audio.createAudioPlayer(OFFER_ALERT_SOUND);
     next.loop = true;
     next.volume = 1;
     next.play();
