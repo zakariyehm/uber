@@ -71,12 +71,14 @@ export default function HomeScreen() {
       const resume = async () => {
         try {
           try {
-            const wallet = await apiRequest<{ balance: string }>('/wallet/me');
-            if (!cancelled && wallet?.balance != null) {
-              setWalletBalance(String(wallet.balance));
+            const wallet = await apiRequest<{ balance: string; todayEarnings?: string }>(
+              '/wallet/me'
+            );
+            if (!cancelled) {
+              setWalletBalance(wallet.todayEarnings ?? wallet.balance ?? '0.00');
             }
           } catch {
-            // keep last known balance
+            // keep last known today balance
           }
 
           const activeId = await getActiveDelivery();
@@ -122,9 +124,19 @@ export default function HomeScreen() {
         }
       };
       void resume();
+      const walletTick = setInterval(() => {
+        void apiRequest<{ balance: string; todayEarnings?: string }>('/wallet/me')
+          .then((wallet) => {
+            if (!cancelled) {
+              setWalletBalance(wallet.todayEarnings ?? wallet.balance ?? '0.00');
+            }
+          })
+          .catch(() => {});
+      }, 20000);
 
       return () => {
         cancelled = true;
+        clearInterval(walletTick);
         screenFocusedRef.current = false;
       };
     }, [])

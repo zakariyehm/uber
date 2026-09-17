@@ -82,21 +82,25 @@ export default function CommandPage() {
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <KpiCard
+          tone="green"
           label="Today GMV"
           value={money(overview?.today.gmv)}
           hint={`${overview?.today.settledCount ?? 0} settled trips`}
         />
         <KpiCard
+          tone="amber"
           label="Platform fee"
           value={money(overview?.today.platformFee)}
           hint={`Moto ${overview?.driverFeePercent ?? storedFeePercent ?? 5}% · next completed trip`}
         />
         <KpiCard
+          tone="blue"
           label="Driver earnings"
           value={money(overview?.today.driverEarnings)}
           hint="Today’s wallet total"
         />
         <KpiCard
+          tone="indigo"
           label="Live trips"
           value={String(overview?.fleet.liveTrips ?? 0)}
           hint={`${overview?.fleet.pendingOffers ?? 0} offers in rotation`}
@@ -105,6 +109,7 @@ export default function CommandPage() {
 
       <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <KpiCard
+          tone="lime"
           label="Delivery State balance"
           value={money(overview?.allTime.deliveryStateBalance)}
           hint={`Today ${money(overview?.today.deliveryStateBalance)} · driver keeps ${money(
@@ -112,16 +117,19 @@ export default function CommandPage() {
           )}`}
         />
         <KpiCard
+          tone="teal"
           label="Online drivers"
           value={`${overview?.fleet.onlineDrivers ?? 0}`}
           hint={`${overview?.fleet.offlineDrivers ?? 0} offline`}
         />
         <KpiCard
+          tone="violet"
           label="Riders"
           value={String(overview?.allTime.riders ?? 0)}
           hint={`${overview?.today.newRiders ?? 0} new today`}
         />
         <KpiCard
+          tone="rose"
           label="Rider pending credits"
           value={money(overview?.wallets.riderPendingCredits)}
           hint="No-show refunds held"

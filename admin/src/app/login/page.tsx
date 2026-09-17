@@ -48,30 +48,30 @@ export default function LoginPage() {
     <div className="grid min-h-screen place-items-center bg-bg px-4">
       <form
         onSubmit={onSubmit}
-        className="w-full max-w-md rounded-2xl border border-line bg-panel p-8 shadow-2xl"
+        className="w-full max-w-md rounded-2xl bg-sidebar p-8 text-sidebar-ink shadow-xl"
       >
         <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-raac">Raac</p>
-        <h1 className="mt-2 text-3xl font-semibold">Owner console</h1>
-        <p className="mt-2 text-sm text-muted">
+        <h1 className="mt-2 text-3xl font-semibold text-sidebar-ink">Owner console</h1>
+        <p className="mt-2 text-sm text-sidebar-muted">
           Sign in to monitor trips, fleet, payments, and wallets.
         </p>
 
-        <label className="mt-8 block text-xs font-semibold uppercase tracking-wide text-muted">
+        <label className="mt-8 block text-xs font-semibold uppercase tracking-wide text-sidebar-muted">
           Email or phone
         </label>
         <input
-          className="mt-2 w-full rounded-lg border border-line bg-panel-2 px-3 py-3 text-sm outline-none ring-raac focus:ring-2"
+          className="mt-2 w-full rounded-lg border border-sidebar-line bg-sidebar-hover px-3 py-3 text-sm text-sidebar-ink outline-none ring-raac placeholder:text-sidebar-muted focus:ring-2"
           value={identifier}
           onChange={(e) => setIdentifier(e.target.value)}
           autoComplete="username"
         />
 
-        <label className="mt-5 block text-xs font-semibold uppercase tracking-wide text-muted">
+        <label className="mt-5 block text-xs font-semibold uppercase tracking-wide text-sidebar-muted">
           Password
         </label>
         <input
           type="password"
-          className="mt-2 w-full rounded-lg border border-line bg-panel-2 px-3 py-3 text-sm outline-none ring-raac focus:ring-2"
+          className="mt-2 w-full rounded-lg border border-sidebar-line bg-sidebar-hover px-3 py-3 text-sm text-sidebar-ink outline-none ring-raac focus:ring-2"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           autoComplete="current-password"

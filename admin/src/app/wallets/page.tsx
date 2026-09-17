@@ -55,7 +55,7 @@ export default function WalletsPage() {
           <p className="text-sm text-muted">Driver daily earnings and rider pending credits</p>
         </div>
         {data ? (
-          <div className="rounded-xl border border-line bg-panel px-4 py-3 text-right">
+          <div className="rounded-xl border border-lime-200 bg-lime-50 px-4 py-3 text-right">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">
               Delivery State balance
             </p>

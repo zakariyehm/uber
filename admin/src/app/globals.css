@@ -1,17 +1,22 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #0b0d10;
-  --panel: #14181f;
-  --panel-2: #1b212b;
-  --line: #2a323e;
-  --text: #f4f6f8;
-  --muted: #8b95a7;
+  --bg: #ffffff;
+  --panel: #f4f5f7;
+  --panel-2: #eceef2;
+  --line: #e4e6eb;
+  --text: #161616;
+  --muted: #6b7280;
   --green: #03c167;
   --green-dim: rgba(3, 193, 103, 0.14);
-  --red: #ff4d4f;
-  --amber: #f5a524;
-  --blue: #3b89eb;
+  --red: #e11d48;
+  --amber: #d97706;
+  --blue: #2563eb;
+  --sidebar: #1b1b1b;
+  --sidebar-ink: #f4f4f4;
+  --sidebar-muted: #a1a1a1;
+  --sidebar-line: #2e2e2e;
+  --sidebar-hover: #262626;
 }
 
 @theme inline {
@@ -26,6 +31,11 @@
   --color-danger: var(--red);
   --color-warn: var(--amber);
   --color-info: var(--blue);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-ink: var(--sidebar-ink);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --color-sidebar-line: var(--sidebar-line);
+  --color-sidebar-hover: var(--sidebar-hover);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -43,5 +53,12 @@ body {
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: #2a323e transparent;
+  scrollbar-color: #c9cdd4 transparent;
+}
+
+input,
+select,
+textarea,
+button {
+  color: inherit;
 }
