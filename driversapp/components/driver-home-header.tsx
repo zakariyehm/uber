@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   todayTag: {
-    marginTop: -6,
+    marginTop: 8,
     minWidth: 92,
     alignItems: 'center',
     justifyContent: 'center',
