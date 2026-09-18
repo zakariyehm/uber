@@ -59,7 +59,7 @@ export const AppColors = {
   muted: '#6A6A6A',
   border: '#E6E6E6',
   accent: '#000000',
-  header: '#03C167',
+  header: '#02A6E4',
   disabled: '#F1F1F1',
   disabledText: '#B3B3B3',
   link: '#000000',

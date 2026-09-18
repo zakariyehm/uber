@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Dimensions,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -94,12 +95,15 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" translucent />
+      <StatusBar barStyle="light-content" translucent />
 
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <Text style={styles.logo} numberOfLines={1}>
-          RAAC
-        </Text>
+        <Image
+          source={require('@/assets/images/raac-logo.png')}
+          style={styles.logo}
+          resizeMode="contain"
+          accessibilityLabel="RAAC"
+        />
         <TouchableOpacity
           style={styles.profileIconContainer}
           activeOpacity={0.7}
@@ -305,17 +309,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     width: '100%',
-    paddingHorizontal: 20,
+    paddingLeft: 8,
+    paddingRight: 16,
     paddingBottom: 12,
-    gap: 16,
+    minHeight: 64,
   },
   logo: {
-    flex: 1,
-    fontFamily: 'Poppins-ExtraBold',
-    fontSize: 48,
-    color: '#000000',
-    letterSpacing: 1.5,
-    lineHeight: 56,
+    width: 128,
+    height: 50,
+    marginLeft: 0,
   },
   profileIconContainer: {
     width: 48,

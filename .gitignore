@@ -50,3 +50,4 @@ app-example
 admin/.next
 admin/node_modules
 admin/.env.local
+.venv-logo/
