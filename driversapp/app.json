@@ -1,18 +1,20 @@
 {
   "expo": {
-    "name": "driversapp",
-    "slug": "driversapp",
+    "name": "Raac Drivers",
+    "slug": "raac-drivers",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "driversapp",
+    "scheme": "raacdrivers",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.raac.drivers"
     },
     "android": {
+      "package": "com.raac.drivers",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#02A6E4",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
