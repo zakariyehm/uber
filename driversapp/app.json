@@ -13,6 +13,12 @@
     },
     "android": {
       "package": "com.raac.drivers",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_NETWORK_STATE",
+        "INTERNET"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#02A6E4",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -43,7 +49,8 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Allow Raac Drivers to use your location to match nearby trip requests."
+          "locationWhenInUsePermission": "Allow Raac Drivers to use your location to match nearby trip requests.",
+          "isAndroidForegroundServiceEnabled": false
         }
       ],
       [

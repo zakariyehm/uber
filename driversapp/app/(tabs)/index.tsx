@@ -13,7 +13,11 @@ import {
   setDriverOnline,
   updateDriverLocation,
 } from '@/utils/deliveryRequests';
-import { readDriverCoords } from '@/utils/driver-location';
+import {
+  getDriverLocationBlockReason,
+  openDeviceLocationSettings,
+  readDriverCoords,
+} from '@/utils/driver-location';
 import { toUserFriendlyError } from '@/utils/errors';
 import { useFocusEffect, router } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -261,9 +265,21 @@ export default function HomeScreen() {
       const coords = await readDriverCoords();
       if (!coords) {
         applyStatus('offline');
+        const reason = await getDriverLocationBlockReason();
         Alert.alert(
           'Location required',
-          'Turn on location permission so nearby customers can find you.'
+          reason === 'services'
+            ? 'Turn on Location / GPS in system settings so nearby customers can find you.'
+            : 'Allow location access for Raac Drivers so nearby customers can find you.',
+          [
+            { text: 'Not now', style: 'cancel' },
+            {
+              text: 'Open Settings',
+              onPress: () => {
+                void openDeviceLocationSettings();
+              },
+            },
+          ]
         );
         return;
       }

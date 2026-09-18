@@ -1,8 +1,10 @@
+import '@/lib/dev-setup';
 import { DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
+import { ReduceMotion, ReducedMotionConfig } from 'react-native-reanimated';
 
 import { AuthProvider, useAuth } from '@/contexts/auth';
 
@@ -11,6 +13,8 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 export default function RootLayout() {
   return (
     <ThemeProvider value={DefaultTheme}>
+      {/* Keep driver UI animations on even if Android accessibility reduce-motion is on. */}
+      <ReducedMotionConfig mode={ReduceMotion.Never} />
       <AuthProvider>
         <RootNavigator />
         <StatusBar style="dark" />
