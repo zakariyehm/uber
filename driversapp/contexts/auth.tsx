@@ -6,6 +6,7 @@ import {
   type StoredDriverUser,
 } from '@/lib/api';
 import { isNetworkError, waitForOnline } from '@/lib/bootstrap';
+import { LocalImages, warmLocalImages } from '@/lib/local-images';
 import { fetchCurrentDriver } from '@/utils/driverAuth';
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
@@ -28,6 +29,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+
+    // Persist logo + home background to device storage while splash is up.
+    void warmLocalImages([LocalImages.headerLogo, LocalImages.homeBg]);
 
     const restore = async () => {
       while (!cancelled) {

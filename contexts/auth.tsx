@@ -1,5 +1,6 @@
 import { getAuthToken, getStoredUser, setAuthToken, setStoredUser, type StoredAuthUser } from '@/lib/api';
 import { isNetworkError, waitForOnline } from '@/lib/bootstrap';
+import { LocalImages, warmLocalImages } from '@/lib/local-images';
 import { fetchCurrentUser } from '@/utils/auth';
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
@@ -22,6 +23,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+
+    // Persist header logo to device storage while splash is up.
+    void warmLocalImages([LocalImages.headerLogo]);
 
     const restore = async () => {
       // Keep native splash until we have network, then resolve auth.

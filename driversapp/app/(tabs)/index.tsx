@@ -2,6 +2,7 @@ import { BottomNav } from '@/components/bottom-nav';
 import { DriverHomeHeader } from '@/components/driver-home-header';
 import { AppColors } from '@/constants/theme';
 import { apiRequest } from '@/lib/api';
+import { LocalImages, useCachedAsset } from '@/lib/local-images';
 import {
   DeliveryRequest,
   getActiveDelivery,
@@ -36,6 +37,7 @@ export default function HomeScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [toggling, setToggling] = useState(false);
   const [walletBalance, setWalletBalance] = useState('0.00');
+  const homeBgSource = useCachedAsset(LocalImages.homeBg.key, LocalImages.homeBg.moduleId);
 
   const requestListenerRef = useRef<(() => void) | null>(null);
   const offerInFlightRef = useRef(false);
@@ -311,7 +313,7 @@ export default function HomeScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" translucent />
       <ImageBackground
-        source={require('@/assets/images/racapp.png')}
+        source={homeBgSource}
         style={styles.mapBackground}
         resizeMode="cover">
         <View style={styles.homeContainer}>

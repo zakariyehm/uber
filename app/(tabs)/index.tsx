@@ -2,6 +2,7 @@ import { BottomSheet } from '@/components/bottom-sheet';
 import { BANADIR_DISTRICTS } from '@/constants/somalia';
 import { AppColors, Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { LocalImages, useCachedAsset } from '@/lib/local-images';
 import { fetchDeliveryStateMethods, type CatalogMethod } from '@/utils/catalog';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -32,6 +33,10 @@ export default function HomeScreen() {
   const isDark = colorScheme === 'dark';
   const router = useRouter();
   const cardHeight = height * 0.3;
+  const logoSource = useCachedAsset(
+    LocalImages.headerLogo.key,
+    LocalImages.headerLogo.moduleId
+  );
   const [showDeliverySheet, setShowDeliverySheet] = useState(false);
   const [pickupDistrict, setPickupDistrict] = useState('');
   const [pickupNeighborhood, setPickupNeighborhood] = useState('');
@@ -99,7 +104,7 @@ export default function HomeScreen() {
 
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <Image
-          source={require('@/assets/images/raac-logo.png')}
+          source={logoSource}
           style={styles.logo}
           resizeMode="contain"
           accessibilityLabel="RAAC"
