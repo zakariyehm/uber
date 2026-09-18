@@ -5,6 +5,8 @@ import { normalizePhone } from '../../utils/dates.ts';
 import { parseVehicleType } from '../../utils/vehicle-type.ts';
 
 export class AuthError extends Error {
+  driverName?: string;
+
   constructor(
     message: string,
     public code: string,
@@ -69,7 +71,7 @@ export async function loginUser(input: { phone?: string; email?: string; passwor
       : null;
 
   if (!user) {
-    throw new AuthError('No account found with this phone or email.', 'auth/user-not-found');
+    throw new AuthError('Account not found.', 'auth/user-not-found');
   }
 
   const ok = user.passwordHash ? await bcrypt.compare(input.password, user.passwordHash) : false;
@@ -78,7 +80,16 @@ export async function loginUser(input: { phone?: string; email?: string; passwor
   }
 
   if (!user.isActive) {
-    throw new AuthError('This account is disabled', 'auth/user-disabled');
+    const name = [user.firstName, user.lastName].filter(Boolean).join(' ').trim();
+    const error = new AuthError(
+      name
+        ? `${name}, your driver account is disabled. Contact Raac operations to restore access.`
+        : 'Your driver account is disabled. Contact Raac operations to restore access.',
+      'auth/user-disabled',
+      403
+    );
+    if (name) error.driverName = name;
+    throw error;
   }
 
   return user;

@@ -76,9 +76,11 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
       const error = new Error(data.error || 'Request failed') as Error & {
         code?: string;
         status?: number;
+        driverName?: string;
       };
       error.code = data.code;
       error.status = res.status;
+      if (typeof data.driverName === 'string') error.driverName = data.driverName;
       throw error;
     }
 

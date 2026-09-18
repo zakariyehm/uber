@@ -21,6 +21,7 @@ import { AppColors } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth';
 import { loginDriver } from '@/utils/driverAuth';
 import { toUserFriendlyError } from '@/utils/errors';
+import { showDriverAccountAlert } from '@/utils/accountStatus';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -60,19 +61,28 @@ export default function LoginScreen() {
     } catch (error: any) {
       console.error('[Login] Login error:', error);
       setIsLoggingIn(false);
-      
-      // Show error alert
+
+      if (error?.code === 'auth/user-disabled') {
+        showDriverAccountAlert('disabled', {
+          driverName: typeof error.driverName === 'string' ? error.driverName : undefined,
+        });
+        return;
+      }
+
+      if (error?.code === 'auth/user-not-found') {
+        showDriverAccountAlert('not_found');
+        return;
+      }
+
       let errorMessage = 'An error occurred during login. Please try again.';
-      if (error.code === 'auth/user-not-found') {
-        errorMessage = 'No driver account for this number. Ask Raac operations to issue a login.';
-      } else if (error.code === 'auth/wrong-password') {
+      if (error.code === 'auth/wrong-password') {
         errorMessage = 'Incorrect password. Please try again.';
       } else if (error.code === 'auth/invalid-email') {
         errorMessage = 'Invalid phone number format.';
       } else {
         errorMessage = toUserFriendlyError(error, errorMessage);
       }
-      
+
       Alert.alert('Login Failed', errorMessage, [{ text: 'OK' }]);
     }
   };

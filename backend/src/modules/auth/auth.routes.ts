@@ -49,7 +49,11 @@ export async function authRoutes(app: FastifyInstance) {
       return { token, user: toPublicUser(user) };
     } catch (error) {
       if (error instanceof AuthError) {
-        return reply.code(error.statusCode).send({ error: error.message, code: error.code });
+        return reply.code(error.statusCode).send({
+          error: error.message,
+          code: error.code,
+          ...(error.driverName ? { driverName: error.driverName } : {}),
+        });
       }
       throw error;
     }
@@ -139,8 +143,20 @@ export async function authRoutes(app: FastifyInstance) {
       where: { id: request.user.sub },
       include: { driverProfile: true, riderProfile: true },
     });
-    if (!user || !user.isActive) {
-      return reply.code(401).send({ error: 'Unauthorized', code: 'auth/unauthorized' });
+    if (!user) {
+      return reply.code(401).send({
+        error: 'Account not found.',
+        code: 'auth/user-not-found',
+      });
+    }
+    if (!user.isActive) {
+      const driverName =
+        [user.firstName, user.lastName].filter(Boolean).join(' ').trim() || 'Driver';
+      return reply.code(403).send({
+        error: 'This driver account is disabled.',
+        code: 'auth/user-disabled',
+        driverName,
+      });
     }
     return { user: toPublicUser(user) };
   });
