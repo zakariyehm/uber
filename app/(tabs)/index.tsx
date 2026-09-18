@@ -309,7 +309,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     width: '100%',
-    paddingLeft: 8,
+    paddingLeft: 2,
     paddingRight: 16,
     paddingBottom: 12,
     minHeight: 64,
