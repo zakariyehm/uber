@@ -44,22 +44,21 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!phoneNumber.trim() || !password.trim()) {
-      Alert.alert('Error', 'Please enter both phone number and password');
+      Alert.alert(
+        'Missing details',
+        'Please enter both your phone number and password to continue.',
+        [{ text: 'OK' }]
+      );
       return;
     }
 
     setIsLoggingIn(true);
-    
+
     try {
-      console.log('[Login] Attempting driver login...');
       const session = await loginDriver(phoneNumber, password);
       await signIn(session.token, session.user);
-      console.log('[Login] Driver logged in successfully!');
-      
-      // Navigate to home after successful login
       router.replace('/(tabs)');
     } catch (error: any) {
-      console.error('[Login] Login error:', error);
       setIsLoggingIn(false);
 
       if (error?.code === 'auth/user-disabled') {
@@ -70,20 +69,33 @@ export default function LoginScreen() {
       }
 
       if (error?.code === 'auth/user-not-found') {
-        showDriverAccountAlert('not_found');
+        Alert.alert(
+          'Account not found',
+          'No driver account exists for this phone number. Check the number, or contact Raac operations if you need a login.',
+          [{ text: 'OK' }]
+        );
         return;
       }
 
-      let errorMessage = 'An error occurred during login. Please try again.';
-      if (error.code === 'auth/wrong-password') {
-        errorMessage = 'Incorrect password. Please try again.';
-      } else if (error.code === 'auth/invalid-email') {
-        errorMessage = 'Invalid phone number format.';
-      } else {
-        errorMessage = toUserFriendlyError(error, errorMessage);
+      if (error?.code === 'auth/wrong-password') {
+        Alert.alert(
+          'Incorrect password or number',
+          'The phone number or password you entered is incorrect. Please check and try again.',
+          [{ text: 'OK' }]
+        );
+        return;
       }
 
-      Alert.alert('Login Failed', errorMessage, [{ text: 'OK' }]);
+      if (error?.code === 'auth/invalid-email') {
+        Alert.alert('Invalid phone number', 'Please enter a valid phone number.', [{ text: 'OK' }]);
+        return;
+      }
+
+      Alert.alert(
+        'Could not sign in',
+        toUserFriendlyError(error, 'Something went wrong. Please try again.'),
+        [{ text: 'OK' }]
+      );
     }
   };
 

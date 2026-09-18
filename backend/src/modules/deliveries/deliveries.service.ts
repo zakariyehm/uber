@@ -12,6 +12,7 @@ import { getDriverPresence } from '../../lib/driver-presence.ts';
 import { allocateOrderId } from '../../utils/order-id.ts';
 import { toDeliveryDto } from '../../utils/delivery-mapper.ts';
 import { isOpenFleetMethod, resolveVehicleTypeForMethod } from '../../utils/vehicle-type.ts';
+import { filterActiveDriverIds } from '../../lib/driver-session.ts';
 
 /** Uber-style: each online driver gets 30s to accept/decline, then offer rotates. */
 export const OFFER_TTL_SEC = 30;
@@ -73,7 +74,11 @@ export async function getBusyActiveRequestId(driverUserId: string): Promise<stri
 
 async function listOnlineAvailableDrivers(vehicleType?: VehicleType | null): Promise<string[]> {
   const profiles = await prisma.driverProfile.findMany({
-    where: vehicleType ? { isOnline: true, vehicleType } : { isOnline: true },
+    where: {
+      isOnline: true,
+      user: { isActive: true },
+      ...(vehicleType ? { vehicleType } : {}),
+    },
     select: { userId: true },
     orderBy: { updatedAt: 'asc' },
   });
@@ -141,9 +146,11 @@ async function listRankedAvailableDrivers(
     }
   }
 
-  if (busyFiltered.length > 0) return busyFiltered;
+  if (busyFiltered.length > 0) {
+    return filterActiveDriverIds(busyFiltered);
+  }
 
-  // No GPS pool → legacy online FIFO (still skip declined/busy).
+  // No GPS pool → legacy online FIFO (still skip declined/busy/inactive).
   const legacy = await listOnlineAvailableDrivers(delivery.vehicleType);
   return legacy.filter((id) => !exclude.has(id));
 }
@@ -297,12 +304,13 @@ function isOfflineGraceElapsed(delivery: DbDelivery, now = Date.now()) {
   return now - delivery.createdAt.getTime() >= OFFLINE_CANCEL_GRACE_SEC * 1000;
 }
 
-/** True online drivers for this request (ignores declined/busy — offline check only). */
+/** True online + active drivers for this request (ignores declined/busy — offline check only). */
 async function countOnlineMatchingDrivers(delivery: DbDelivery): Promise<number> {
   if (await isOpenFleetMethod(delivery.deliveryMethod)) {
     return prisma.driverProfile.count({
       where: {
         isOnline: true,
+        user: { isActive: true },
         vehicleType: { in: [VehicleType.MOTORCYCLE, VehicleType.BICYCLE] },
       },
     });
@@ -310,6 +318,7 @@ async function countOnlineMatchingDrivers(delivery: DbDelivery): Promise<number>
   return prisma.driverProfile.count({
     where: {
       isOnline: true,
+      user: { isActive: true },
       ...(delivery.vehicleType ? { vehicleType: delivery.vehicleType } : {}),
     },
   });
@@ -354,13 +363,23 @@ export async function ensureOfferAssignment(delivery: DbDelivery): Promise<DbDel
   const now = Date.now();
   const expiresAt = delivery.offerExpiresAt?.getTime() ?? 0;
 
-  // Active offer still within its 30s window — keep if driver still online + right vehicle.
+  // Active offer still within its 30s window — keep if driver still eligible.
   if (delivery.offeredToDriverId && expiresAt > now + 250) {
     const offered = await prisma.driverProfile.findUnique({
       where: { userId: delivery.offeredToDriverId },
-      select: { vehicleType: true, isOnline: true },
+      select: {
+        vehicleType: true,
+        isOnline: true,
+        user: { select: { isActive: true } },
+      },
     });
-    if (offered?.isOnline && offered.vehicleType === delivery.vehicleType) return delivery;
+    if (
+      offered?.isOnline &&
+      offered.user.isActive &&
+      offered.vehicleType === delivery.vehicleType
+    ) {
+      return delivery;
+    }
   }
 
   // Waiting briefly for a driver to come online — keep until offline grace / search timeout.
@@ -538,11 +557,16 @@ export async function listPendingForDriver(driverUserId: string) {
   const busyId = await getBusyActiveRequestId(driverUserId);
   if (busyId) return [];
 
-  const profile = await prisma.driverProfile.findUnique({
-    where: { userId: driverUserId },
-    select: { vehicleType: true },
+  const user = await prisma.user.findUnique({
+    where: { id: driverUserId },
+    select: {
+      isActive: true,
+      driverProfile: { select: { vehicleType: true, isOnline: true } },
+    },
   });
-  if (!profile) return [];
+  if (!user?.isActive || !user.driverProfile?.isOnline) return [];
+
+  const profile = user.driverProfile;
 
   const rows = await prisma.deliveryRequest.findMany({
     where: { status: DeliveryStatus.PENDING },

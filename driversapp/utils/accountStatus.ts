@@ -24,7 +24,7 @@ export function showDriverAccountAlert(
 
   Alert.alert(
     'Account not found',
-    'This driver account no longer exists. Contact Raac operations if you need a new login.',
+    'This driver account no longer exists. Sign-in is not available for this number. Contact Raac operations if you need a new login.',
     [{ text: 'OK', style: 'default' }]
   );
 }

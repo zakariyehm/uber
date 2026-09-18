@@ -14,7 +14,9 @@ export async function loginDriver(phone: string, password: string) {
   });
 
   if (result.user.role !== 'DRIVER') {
-    const error = new Error('This account is not a driver account') as Error & { code?: string };
+    const error = new Error(
+      'No driver account exists for this phone number.'
+    ) as Error & { code?: string };
     error.code = 'auth/user-not-found';
     throw error;
   }

@@ -71,12 +71,18 @@ export async function loginUser(input: { phone?: string; email?: string; passwor
       : null;
 
   if (!user) {
-    throw new AuthError('Account not found.', 'auth/user-not-found');
+    throw new AuthError(
+      'No account was found for this phone number.',
+      'auth/user-not-found'
+    );
   }
 
   const ok = user.passwordHash ? await bcrypt.compare(input.password, user.passwordHash) : false;
   if (!ok) {
-    throw new AuthError('Incorrect password. Please try again.', 'auth/wrong-password');
+    throw new AuthError(
+      'Incorrect password or phone number. Please check and try again.',
+      'auth/wrong-password'
+    );
   }
 
   if (!user.isActive) {

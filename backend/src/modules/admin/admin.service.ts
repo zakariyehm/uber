@@ -13,6 +13,7 @@ import { AuthError, registerUser, toPublicUser } from '../auth/auth.service.ts';
 import { applyDeliveryAction } from '../deliveries/deliveries.service.ts';
 import { syncDriverWallet } from '../wallet/wallet.service.ts';
 import { getPlatformSettings } from './settings.service.ts';
+import { forceDriverFullyOffline } from '../../lib/driver-session.ts';
 
 const ACTIVE_TRIP_STATUSES: DeliveryStatus[] = [
   DeliveryStatus.PENDING,
@@ -574,10 +575,7 @@ export async function patchUser(
   });
 
   if (updated.role === UserRole.DRIVER && updated.driverProfile && shouldOffline) {
-    await prisma.driverProfile.update({
-      where: { userId: id },
-      data: { isOnline: false },
-    });
+    await forceDriverFullyOffline(id);
   }
 
   if (updated.role === UserRole.DRIVER && input.vehicleType) {
@@ -620,12 +618,7 @@ export async function deleteDriver(id: string) {
     await cancelTrip(trip.id, 'driver_deleted');
   }
 
-  if (user.driverProfile?.isOnline) {
-    await prisma.driverProfile.update({
-      where: { userId: id },
-      data: { isOnline: false },
-    });
-  }
+  await forceDriverFullyOffline(id);
 
   await prisma.$transaction([
     prisma.deliveryRequest.updateMany({
