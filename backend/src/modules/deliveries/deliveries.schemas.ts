@@ -3,6 +3,8 @@ import { z } from 'zod';
 export const createDeliverySchema = z.object({
   orderId: z.string().min(3).optional(),
   pickupLocation: z.string().min(1),
+  pickupLat: z.number().finite().optional(),
+  pickupLng: z.number().finite().optional(),
   destinationLocation: z.string().min(1),
   recipientName: z.string().min(1),
   recipientNumber: z.string().min(1),
@@ -13,6 +15,12 @@ export const createDeliverySchema = z.object({
   senderPhone: z.string().min(7, 'Sender phone required for Waafi'),
   referenceId: z.string().optional(),
   deliveryTimeLabel: z.string().optional(),
+});
+
+export const driverLocationSchema = z.object({
+  latitude: z.number().finite().min(-90).max(90),
+  longitude: z.number().finite().min(-180).max(180),
+  isOnline: z.boolean().optional(),
 });
 
 export const deliveryActionSchema = z.object({

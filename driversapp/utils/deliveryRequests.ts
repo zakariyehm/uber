@@ -136,10 +136,18 @@ export const updateDeliveryRequest = async (
   return getDeliveryRequestById(requestId);
 };
 
-export const setDriverOnline = async (isOnline: boolean): Promise<boolean> => {
+export const setDriverOnline = async (
+  isOnline: boolean,
+  coords?: { latitude: number; longitude: number } | null
+): Promise<boolean> => {
   const result = await apiRequest<{ isOnline: boolean }>('/deliveries/drivers/me/online', {
     method: 'PUT',
-    body: JSON.stringify({ isOnline }),
+    body: JSON.stringify({
+      isOnline,
+      ...(coords
+        ? { latitude: coords.latitude, longitude: coords.longitude }
+        : {}),
+    }),
   });
   return result.isOnline;
 };
@@ -147,6 +155,17 @@ export const setDriverOnline = async (isOnline: boolean): Promise<boolean> => {
 export const getDriverOnline = async (): Promise<boolean> => {
   const result = await apiRequest<{ isOnline: boolean }>('/deliveries/drivers/me/online');
   return Boolean(result.isOnline);
+};
+
+/** Heartbeat while online — powers H3 nearby matching. */
+export const updateDriverLocation = async (coords: {
+  latitude: number;
+  longitude: number;
+}): Promise<{ ok: boolean; status?: string; h3Index?: string }> => {
+  return apiRequest('/deliveries/drivers/me/location', {
+    method: 'PUT',
+    body: JSON.stringify(coords),
+  });
 };
 
 export const getMyDriverDeliveries = async (): Promise<DeliveryRequest[]> => {

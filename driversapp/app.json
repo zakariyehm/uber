@@ -41,6 +41,12 @@
       "expo-status-bar",
       "expo-web-browser",
       [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow Raac Drivers to use your location to match nearby trip requests."
+        }
+      ],
+      [
         "expo-audio",
         {
           "enableBackgroundPlayback": true,

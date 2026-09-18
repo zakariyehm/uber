@@ -7,6 +7,7 @@ import {
   confirmPackagePickup,
   DeliveryRequest as DeliveryRequestType,
   DeliveryStatus,
+  getDeliveryRequestById,
   getDeliveryRequestByOrderId,
 } from '@/utils/deliveryRequests';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,6 +16,7 @@ import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import React, { useEffect, useLayoutEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   Platform,
   ScrollView,
@@ -36,6 +38,43 @@ const scaleFont = (size: number) => {
   return Platform.OS === 'ios' ? Math.round(newSize) : Math.round(newSize);
 };
 
+function cancelReasonCopy(reason?: string, cancelledBy?: string) {
+  if (reason === 'no_driver') {
+    return {
+      title: 'No driver available',
+      message:
+        'We could not find an available driver for your delivery right now. Your order has been cancelled and the payment hold on your Waafi account has been released — you were not charged.',
+      short: 'No driver was available. Your payment hold was released; you were not charged.',
+    };
+  }
+  if (reason === 'rider_not_responding') {
+    return {
+      title: 'Order cancelled',
+      message: 'Your driver cancelled because confirmation was not received in time.',
+      short: 'Your driver cancelled because confirmation was not received in time.',
+    };
+  }
+  if (reason === 'no_show') {
+    return {
+      title: 'Order cancelled',
+      message: 'The driver waited at pickup and cancelled after no confirmation.',
+      short: 'Cancelled after no-show at pickup.',
+    };
+  }
+  if (cancelledBy === 'driver') {
+    return {
+      title: 'Order cancelled',
+      message: 'Your driver cancelled this delivery. If a payment hold was placed, it has been released.',
+      short: 'Your driver cancelled this delivery.',
+    };
+  }
+  return {
+    title: 'Order cancelled',
+    message: 'This delivery was cancelled. If a payment hold was placed, it has been released.',
+    short: 'This delivery was cancelled.',
+  };
+}
+
 export default function OrderSuccessScreen() {
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
@@ -48,21 +87,35 @@ export default function OrderSuccessScreen() {
   const [deliveryStatus, setDeliveryStatus] = useState<DeliveryStatus>('pending');
   const [driverName, setDriverName] = useState<string>('');
   const [deliveryRequest, setDeliveryRequest] = useState<DeliveryRequestType | null>(null);
+  const cancelAlertShown = React.useRef(false);
 
   const orderId = (params.orderId as string) || '';
+  const requestId = (params.requestId as string) || '';
   const fromOrders = params.from === 'orders';
 
   const goHome = () => {
     router.replace('/(tabs)');
   };
 
+  const showCancelPopup = (request: DeliveryRequestType) => {
+    if (cancelAlertShown.current) return;
+    if (request.status !== 'cancelled') return;
+    cancelAlertShown.current = true;
+    const copy = cancelReasonCopy(request.cancelReason, request.cancelledBy);
+    Alert.alert(copy.title, copy.message, [{ text: 'OK', style: 'default' }]);
+  };
+
   const refresh = async () => {
-    if (!orderId) return;
-    const request = await getDeliveryRequestByOrderId(orderId);
+    if (!requestId && !orderId) return;
+    // Prefer id (stable) — order code lookup is a fallback.
+    const request = requestId
+      ? await getDeliveryRequestById(requestId)
+      : await getDeliveryRequestByOrderId(orderId);
     if (request) {
       setDeliveryRequest(request);
       setDeliveryStatus(request.status);
       if (request.driverName) setDriverName(request.driverName);
+      if (request.status === 'cancelled') showCancelPopup(request);
     }
   };
 
@@ -90,11 +143,11 @@ export default function OrderSuccessScreen() {
   }, [navigation, fromOrders]);
 
   useEffect(() => {
-    if (!orderId) return;
+    if (!requestId && !orderId) return;
     void refresh();
     const statusInterval = setInterval(() => void refresh(), 2500);
     return () => clearInterval(statusInterval);
-  }, [orderId]);
+  }, [requestId, orderId]);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -125,6 +178,11 @@ export default function OrderSuccessScreen() {
     };
   }, []);
 
+  const cancelCopy =
+    deliveryStatus === 'cancelled'
+      ? cancelReasonCopy(deliveryRequest?.cancelReason, deliveryRequest?.cancelledBy)
+      : null;
+
   const statusMessage = (() => {
     if (deliveryStatus === 'pending') return 'Waiting for a driver to accept your delivery request...';
     if (deliveryStatus === 'accepted' && deliveryRequest?.driverArrived && !deliveryRequest.userConfirmedArrival) {
@@ -144,15 +202,7 @@ export default function OrderSuccessScreen() {
       return 'Driver marked delivery complete. Hold to confirm you received the package.';
     }
     if (deliveryStatus === 'completed') return 'Delivery completed and confirmed. Thank you!';
-    if (deliveryStatus === 'cancelled') {
-      if (deliveryRequest?.cancelReason === 'rider_not_responding') {
-        return 'Your driver cancelled because confirmation was not received in time.';
-      }
-      if (deliveryRequest?.cancelledBy === 'driver') {
-        return 'Your driver cancelled this delivery.';
-      }
-      return 'This delivery was cancelled.';
-    }
+    if (deliveryStatus === 'cancelled' && cancelCopy) return cancelCopy.short;
     return 'Your order has been confirmed.';
   })();
 
@@ -211,7 +261,7 @@ export default function OrderSuccessScreen() {
         <View style={styles.messageContainer}>
           <Text style={[styles.successTitle, { color: colors.text }]}>
             {deliveryStatus === 'cancelled'
-              ? 'Order cancelled'
+              ? cancelCopy?.title || 'Order cancelled'
               : fromOrders
                 ? 'Track your order'
                 : 'Order placed successfully'}
@@ -227,6 +277,17 @@ export default function OrderSuccessScreen() {
                 Status: Cancelled
               </Text>
             </View>
+            {deliveryRequest?.cancelReason === 'no_driver' ? (
+              <Text style={[styles.cancelReasonDetail, { color: isDark ? '#FFAB91' : '#B71C1C' }]}>
+                Reason: No driver available
+              </Text>
+            ) : null}
+            {deliveryRequest?.paymentHoldStatus === 'RELEASED' ||
+            deliveryRequest?.cancelReason === 'no_driver' ? (
+              <Text style={[styles.cancelReasonDetail, { color: isDark ? '#A5D6A7' : '#2E7D32' }]}>
+                Payment hold released · you were not charged
+              </Text>
+            ) : null}
           </View>
         ) : (
           <View style={[styles.statusContainer, { backgroundColor: isDark ? '#1C1C1E' : '#F0F0F0' }]}>
@@ -262,7 +323,9 @@ export default function OrderSuccessScreen() {
           <View style={[styles.infoContainer, { backgroundColor: isDark ? '#1C1C1E' : '#FFF3E0' }]}>
             <Ionicons name="information-circle" size={scaleFont(20)} color="#FF9500" />
             <Text style={[styles.infoText, { color: isDark ? '#FFCC80' : '#E65100' }]}>
-              You can place a new delivery anytime from Home.
+              {deliveryRequest?.cancelReason === 'no_driver'
+                ? 'Try again in a few minutes — more drivers may be online nearby.'
+                : 'You can place a new delivery anytime from Home.'}
             </Text>
           </View>
         )}
@@ -422,6 +485,13 @@ const styles = StyleSheet.create({
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: scaleWidth(12) },
   statusDot: { width: scaleWidth(12), height: scaleWidth(12), borderRadius: scaleWidth(6) },
   statusText: { fontSize: scaleFont(16), fontWeight: '600' },
+  cancelReasonDetail: {
+    marginTop: scaleHeight(10),
+    fontSize: scaleFont(13),
+    fontWeight: '500',
+    textAlign: 'center',
+    lineHeight: scaleFont(18),
+  },
   infoMessage: {
     flexDirection: 'row',
     alignItems: 'center',

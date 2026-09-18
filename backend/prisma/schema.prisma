@@ -119,6 +119,9 @@ model DeliveryRequest {
   riderUserId            String?
   rider                  User?          @relation("RiderDeliveries", fields: [riderUserId], references: [id])
   pickupLocation         String
+  /** Optional GPS for nearby matching (Uber-style). */
+  pickupLat              Float?
+  pickupLng              Float?
   destinationLocation    String
   recipientName          String
   recipientNumber        String

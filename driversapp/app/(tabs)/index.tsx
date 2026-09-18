@@ -11,7 +11,9 @@ import {
   listenForPendingRequests,
   setActiveDelivery,
   setDriverOnline,
+  updateDriverLocation,
 } from '@/utils/deliveryRequests';
+import { readDriverCoords } from '@/utils/driver-location';
 import { toUserFriendlyError } from '@/utils/errors';
 import { useFocusEffect, router } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -45,9 +47,34 @@ export default function HomeScreen() {
   const statusRef = useRef<DriverStatus>('offline');
   const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const statusEpochRef = useRef(0);
+  const locationWatchRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const goButtonSize = width * 0.18;
   const goButtonFontSize = width * 0.06;
+
+  const stopLocationHeartbeat = () => {
+    if (locationWatchRef.current) {
+      clearInterval(locationWatchRef.current);
+      locationWatchRef.current = null;
+    }
+  };
+
+  const startLocationHeartbeat = () => {
+    stopLocationHeartbeat();
+    const tick = async () => {
+      try {
+        const coords = await readDriverCoords();
+        if (!coords) return;
+        await updateDriverLocation(coords);
+      } catch {
+        // ignore transient GPS/network errors
+      }
+    };
+    void tick();
+    locationWatchRef.current = setInterval(() => {
+      void tick();
+    }, 8000);
+  };
 
   const clearTransitionTimer = () => {
     if (transitionTimerRef.current) {
@@ -62,8 +89,19 @@ export default function HomeScreen() {
   };
 
   useEffect(() => {
-    return () => clearTransitionTimer();
+    return () => {
+      clearTransitionTimer();
+      stopLocationHeartbeat();
+    };
   }, []);
+
+  useEffect(() => {
+    if (driverStatus === 'online' || driverStatus === 'waiting') {
+      startLocationHeartbeat();
+    } else {
+      stopLocationHeartbeat();
+    }
+  }, [driverStatus]);
 
   useFocusEffect(
     useCallback(() => {
@@ -220,7 +258,17 @@ export default function HomeScreen() {
         }
       }
 
-      await setDriverOnline(true);
+      const coords = await readDriverCoords();
+      if (!coords) {
+        applyStatus('offline');
+        Alert.alert(
+          'Location required',
+          'Turn on location permission so nearby customers can find you.'
+        );
+        return;
+      }
+
+      await setDriverOnline(true, coords);
       clearTransitionTimer();
       const epoch = ++statusEpochRef.current;
       applyStatus('waiting');

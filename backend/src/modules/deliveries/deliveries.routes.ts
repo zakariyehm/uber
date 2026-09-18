@@ -2,6 +2,12 @@ import type { FastifyInstance } from 'fastify';
 import { prisma } from '../../lib/prisma.ts';
 import { authenticate, requireDriver } from '../../middleware/authenticate.ts';
 import {
+  clearDriverPresence,
+  getDriverPresence,
+  upsertDriverPresence,
+} from '../../lib/driver-presence.ts';
+import { persistDriverLocation } from '../../lib/driver-locations.ts';
+import {
   applyDeliveryAction,
   createDelivery,
   declineDeliveryForDriver,
@@ -12,7 +18,11 @@ import {
   listPending,
   listPendingForDriver,
 } from './deliveries.service.ts';
-import { createDeliverySchema, deliveryActionSchema } from './deliveries.schemas.ts';
+import {
+  createDeliverySchema,
+  deliveryActionSchema,
+  driverLocationSchema,
+} from './deliveries.schemas.ts';
 
 export async function deliveryRoutes(app: FastifyInstance) {
   app.post('/', async (request, reply) => {
@@ -116,13 +126,49 @@ export async function deliveryRoutes(app: FastifyInstance) {
     }
   });
 
-  app.put('/drivers/me/online', { preHandler: requireDriver }, async (request) => {
-    const body = (request.body as { isOnline?: boolean }) ?? {};
+  app.put('/drivers/me/online', { preHandler: requireDriver }, async (request, reply) => {
+    const body = (request.body as {
+      isOnline?: boolean;
+      latitude?: number;
+      longitude?: number;
+    }) ?? {};
+    const isOnline = Boolean(body.isOnline);
     const profile = await prisma.driverProfile.update({
       where: { userId: request.user.sub },
-      data: { isOnline: Boolean(body.isOnline) },
+      data: { isOnline },
     });
-    return { isOnline: profile.isOnline };
+
+    if (!isOnline) {
+      await clearDriverPresence(request.user.sub);
+      return { isOnline: false };
+    }
+
+    const lat = Number(body.latitude);
+    const lng = Number(body.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return reply.code(400).send({
+        error: 'latitude and longitude are required to go online',
+        code: 'driver/location_required',
+      });
+    }
+
+    await upsertDriverPresence({
+      driverUserId: request.user.sub,
+      latitude: lat,
+      longitude: lng,
+      vehicleType: profile.vehicleType,
+      status: 'AVAILABLE',
+      offerId: null,
+    });
+    await persistDriverLocation({
+      driverUserId: request.user.sub,
+      latitude: lat,
+      longitude: lng,
+      status: 'AVAILABLE',
+      vehicleType: profile.vehicleType,
+    });
+
+    return { isOnline: true };
   });
 
   app.get('/drivers/me/online', { preHandler: requireDriver }, async (request) => {
@@ -130,6 +176,52 @@ export async function deliveryRoutes(app: FastifyInstance) {
       where: { userId: request.user.sub },
     });
     return { isOnline: Boolean(profile?.isOnline) };
+  });
+
+  /** Heartbeat while online — keeps Redis H3 + PostGIS fresh. */
+  app.put('/drivers/me/location', { preHandler: requireDriver }, async (request, reply) => {
+    const body = driverLocationSchema.parse(request.body);
+    const profile = await prisma.driverProfile.findUnique({
+      where: { userId: request.user.sub },
+    });
+    if (!profile) {
+      return reply.code(404).send({ error: 'Driver profile not found' });
+    }
+    if (!profile.isOnline) {
+      return reply.code(409).send({
+        error: 'Go online before sending location',
+        code: 'driver/offline',
+      });
+    }
+
+    const previous = await getDriverPresence(request.user.sub);
+    const keepStatus =
+      previous?.status === 'OFFERED' || previous?.status === 'BUSY'
+        ? previous.status
+        : 'AVAILABLE';
+
+    const presence = await upsertDriverPresence({
+      driverUserId: request.user.sub,
+      latitude: body.latitude,
+      longitude: body.longitude,
+      vehicleType: profile.vehicleType,
+      status: keepStatus,
+      offerId: keepStatus === 'OFFERED' ? previous?.offerId ?? null : null,
+    });
+
+    await persistDriverLocation({
+      driverUserId: request.user.sub,
+      latitude: body.latitude,
+      longitude: body.longitude,
+      status: presence?.status || keepStatus,
+      vehicleType: profile.vehicleType,
+    });
+
+    return {
+      ok: true,
+      h3Index: presence?.h3Index,
+      status: presence?.status || keepStatus,
+    };
   });
 
   app.put('/drivers/me/active', { preHandler: authenticate }, async (request) => {

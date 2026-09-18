@@ -66,18 +66,40 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  const response = await fetch(`${getApiBaseUrl()}${path}`, {
-    ...options,
-    headers,
-  });
+  const url = `${getApiBaseUrl()}${path}`;
+  const maxAttempts = 3;
+  let lastError: unknown;
 
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const error = new Error(data.error || 'Request failed') as Error & { code?: string; status?: number };
-    error.code = data.code;
-    error.status = response.status;
-    throw error;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers,
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const error = new Error(data.error || 'Request failed') as Error & {
+          code?: string;
+          status?: number;
+        };
+        error.code = data.code;
+        error.status = response.status;
+        throw error;
+      }
+
+      return data as T;
+    } catch (error: unknown) {
+      lastError = error;
+      const status = (error as { status?: number })?.status;
+      // Retry only transient connection failures, not 4xx/5xx business errors.
+      if (status) throw error;
+      if (attempt === maxAttempts) break;
+      await new Promise((r) => setTimeout(r, 400 * attempt));
+    }
   }
 
-  return data as T;
+  throw lastError instanceof Error
+    ? lastError
+    : new Error('Could not connect to the server');
 }

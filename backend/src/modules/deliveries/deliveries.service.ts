@@ -1,5 +1,14 @@
 import { DeliveryStatus, VehicleType, type DeliveryRequest as DbDelivery } from '@prisma/client';
 import { prisma } from '../../lib/prisma.ts';
+import { resolvePickupCoords } from '../../lib/geo.ts';
+import {
+  claimDriverForOffer,
+  findNearbyAvailableDrivers,
+  releaseDriverOffer,
+  setDriverPresenceStatus,
+} from '../../lib/driver-presence.ts';
+import { nearbyDriversPostgis, persistDriverLocation } from '../../lib/driver-locations.ts';
+import { getDriverPresence } from '../../lib/driver-presence.ts';
 import { allocateOrderId } from '../../utils/order-id.ts';
 import { toDeliveryDto } from '../../utils/delivery-mapper.ts';
 import { isOpenFleetMethod, resolveVehicleTypeForMethod } from '../../utils/vehicle-type.ts';
@@ -8,6 +17,10 @@ import { isOpenFleetMethod, resolveVehicleTypeForMethod } from '../../utils/vehi
 export const OFFER_TTL_SEC = 30;
 /** After every online driver declines/times out, wait this long before looping back to driver 1. */
 export const OFFER_CYCLE_PAUSE_SEC = 60;
+/** Max time searching for a driver before system cancel + API_PREAUTHORIZE_CANCEL. */
+export const SEARCH_TIMEOUT_SEC = 90;
+/** When every matching driver is offline, cancel after this short grace. */
+export const OFFLINE_CANCEL_GRACE_SEC = 20;
 
 function parseDeclinedIds(raw: string | null | undefined): string[] {
   try {
@@ -73,6 +86,68 @@ async function listOnlineAvailableDrivers(vehicleType?: VehicleType | null): Pro
   return available;
 }
 
+/**
+ * Closest-first pool (Uber/Bolt):
+ * Redis+H3 live presence → PostGIS fallback → legacy online list.
+ * Drivers in OFFERED/BUSY are excluded so one driver is never dual-offered.
+ */
+async function listRankedAvailableDrivers(
+  delivery: DbDelivery,
+  declinedIds: string[] = []
+): Promise<string[]> {
+  const pickup = resolvePickupCoords({
+    pickupLat: (delivery as DbDelivery & { pickupLat?: number | null }).pickupLat,
+    pickupLng: (delivery as DbDelivery & { pickupLng?: number | null }).pickupLng,
+    pickupLocation: delivery.pickupLocation,
+  });
+
+  const exclude = new Set(declinedIds);
+  const busyFiltered: string[] = [];
+
+  if (pickup) {
+    const nearby = await findNearbyAvailableDrivers({
+      pickup,
+      vehicleType: delivery.vehicleType,
+      excludeIds: [...exclude],
+      maxResults: 30,
+    });
+
+    for (const row of nearby) {
+      if (exclude.has(row.driverUserId)) continue;
+      const busy = await getBusyActiveRequestId(row.driverUserId);
+      if (busy) continue;
+      busyFiltered.push(row.driverUserId);
+    }
+
+    if (busyFiltered.length === 0) {
+      const postgis = await nearbyDriversPostgis({
+        pickup,
+        vehicleType: delivery.vehicleType,
+        radiusMeters: 8000,
+        limit: 30,
+      });
+      for (const row of postgis) {
+        if (exclude.has(row.driverUserId) || busyFiltered.includes(row.driverUserId)) continue;
+        const profile = await prisma.driverProfile.findUnique({
+          where: { userId: row.driverUserId },
+          select: { isOnline: true, vehicleType: true },
+        });
+        if (!profile?.isOnline) continue;
+        if (profile.vehicleType !== delivery.vehicleType) continue;
+        const busy = await getBusyActiveRequestId(row.driverUserId);
+        if (busy) continue;
+        busyFiltered.push(row.driverUserId);
+      }
+    }
+  }
+
+  if (busyFiltered.length > 0) return busyFiltered;
+
+  // No GPS pool → legacy online FIFO (still skip declined/busy).
+  const legacy = await listOnlineAvailableDrivers(delivery.vehicleType);
+  return legacy.filter((id) => !exclude.has(id));
+}
+
 function pickNextDriver(
   onlineIds: string[],
   declinedIds: string[],
@@ -99,16 +174,87 @@ function pickNextDriver(
   return pool[0] || null;
 }
 
-async function assignOfferToDriver(deliveryId: string, driverUserId: string, declinedIds: string[]) {
+/**
+ * Claim Redis lock FIRST (atomic NX), then write Postgres.
+ * If another customer already claimed this driver, returns null → try next.
+ */
+async function assignOfferToDriver(
+  deliveryId: string,
+  driverUserId: string,
+  declinedIds: string[],
+  previousDriverId: string | null = null
+): Promise<DbDelivery | null> {
+  const claimed = await claimDriverForOffer(driverUserId, deliveryId, OFFER_TTL_SEC + 5);
+  if (!claimed) return null;
+
   const expiresAt = new Date(Date.now() + OFFER_TTL_SEC * 1000);
-  return prisma.deliveryRequest.update({
-    where: { id: deliveryId },
+  const where =
+    previousDriverId != null
+      ? {
+          id: deliveryId,
+          status: DeliveryStatus.PENDING,
+          offeredToDriverId: previousDriverId,
+        }
+      : {
+          id: deliveryId,
+          status: DeliveryStatus.PENDING,
+          OR: [
+            { offeredToDriverId: null },
+            { offerExpiresAt: { lte: new Date() } },
+          ],
+        };
+
+  const updated = await prisma.deliveryRequest.updateMany({
+    where,
     data: {
       offeredToDriverId: driverUserId,
       offerExpiresAt: expiresAt,
       offerDeclinedIds: serializeDeclinedIds(declinedIds),
     },
   });
+
+  if (updated.count === 0) {
+    await releaseDriverOffer(driverUserId, deliveryId, 'AVAILABLE');
+    return null;
+  }
+
+  // Keep PostGIS in sync so fallback nearby also skips OFFERED drivers.
+  const presence = await getDriverPresence(driverUserId);
+  if (presence) {
+    await persistDriverLocation({
+      driverUserId,
+      latitude: presence.latitude,
+      longitude: presence.longitude,
+      status: 'OFFERED',
+      vehicleType: String(presence.vehicleType),
+    }).catch(() => null);
+  }
+
+  return prisma.deliveryRequest.findUniqueOrThrow({ where: { id: deliveryId } });
+}
+
+async function releaseOfferLock(
+  driverUserId: string | null | undefined,
+  expectedOfferId: string | null = null
+) {
+  if (!driverUserId) return;
+  const profile = await prisma.driverProfile.findUnique({
+    where: { userId: driverUserId },
+    select: { isOnline: true, vehicleType: true },
+  });
+  const nextStatus = profile?.isOnline ? 'AVAILABLE' : 'OFFLINE';
+  await releaseDriverOffer(driverUserId, expectedOfferId, nextStatus);
+
+  const presence = await getDriverPresence(driverUserId);
+  if (presence && profile) {
+    await persistDriverLocation({
+      driverUserId,
+      latitude: presence.latitude,
+      longitude: presence.longitude,
+      status: nextStatus,
+      vehicleType: String(profile.vehicleType),
+    }).catch(() => null);
+  }
 }
 
 async function clearOffer(deliveryId: string, declinedIds: string[]) {
@@ -122,7 +268,7 @@ async function clearOffer(deliveryId: string, declinedIds: string[]) {
   });
 }
 
-/** Pause after a full decline cycle; resume from driver 1 when offerExpiresAt passes. */
+/** Pause briefly when no drivers are online; resume when offerExpiresAt passes. */
 async function pauseOfferCycle(deliveryId: string) {
   const resumeAt = new Date(Date.now() + OFFER_CYCLE_PAUSE_SEC * 1000);
   return prisma.deliveryRequest.update({
@@ -143,17 +289,72 @@ function isCyclePaused(delivery: DbDelivery, now = Date.now()) {
   );
 }
 
+function isSearchTimedOut(delivery: DbDelivery, now = Date.now()) {
+  return now - delivery.createdAt.getTime() >= SEARCH_TIMEOUT_SEC * 1000;
+}
+
+function isOfflineGraceElapsed(delivery: DbDelivery, now = Date.now()) {
+  return now - delivery.createdAt.getTime() >= OFFLINE_CANCEL_GRACE_SEC * 1000;
+}
+
+/** True online drivers for this request (ignores declined/busy — offline check only). */
+async function countOnlineMatchingDrivers(delivery: DbDelivery): Promise<number> {
+  if (await isOpenFleetMethod(delivery.deliveryMethod)) {
+    return prisma.driverProfile.count({
+      where: {
+        isOnline: true,
+        vehicleType: { in: [VehicleType.MOTORCYCLE, VehicleType.BICYCLE] },
+      },
+    });
+  }
+  return prisma.driverProfile.count({
+    where: {
+      isOnline: true,
+      ...(delivery.vehicleType ? { vehicleType: delivery.vehicleType } : {}),
+    },
+  });
+}
+
+/**
+ * No driver available: cancel the trip and release the Waafi preauth hold
+ * (API_PREAUTHORIZE_CANCEL). Rider is not charged; no wallet credit.
+ */
+export async function cancelForNoDriver(deliveryId: string): Promise<DbDelivery> {
+  try {
+    await applyDeliveryAction(deliveryId, 'cancel', undefined, {
+      cancelledBy: 'system',
+      cancelReason: 'no_driver',
+    });
+  } catch (error) {
+    console.warn('[no-driver] cancel failed', deliveryId, error);
+  }
+  return prisma.deliveryRequest.findUniqueOrThrow({ where: { id: deliveryId } });
+}
+
 /** Expire stale offers and assign/rotate to the next online driver. */
 export async function ensureOfferAssignment(delivery: DbDelivery): Promise<DbDelivery> {
   if (delivery.status !== DeliveryStatus.PENDING) return delivery;
 
+  // Search window elapsed with no accept → cancel + release hold.
+  if (isSearchTimedOut(delivery)) {
+    return cancelForNoDriver(delivery.id);
+  }
+
+  const openFleet = await isOpenFleetMethod(delivery.deliveryMethod);
+  const onlineMatching = await countOnlineMatchingDrivers(delivery);
+
+  // Every matching driver is offline → same cancel + API_PREAUTHORIZE_CANCEL.
+  if (onlineMatching === 0 && isOfflineGraceElapsed(delivery)) {
+    return cancelForNoDriver(delivery.id);
+  }
+
   // Delivery State: every online motorcycle and bicycle driver can see the same offer.
-  if (await isOpenFleetMethod(delivery.deliveryMethod)) return delivery;
+  if (openFleet) return delivery;
 
   const now = Date.now();
   const expiresAt = delivery.offerExpiresAt?.getTime() ?? 0;
 
-  // Active offer still within its 30s window — only keep it if the driver can serve this vehicle type.
+  // Active offer still within its 30s window — keep if driver still online + right vehicle.
   if (delivery.offeredToDriverId && expiresAt > now + 250) {
     const offered = await prisma.driverProfile.findUnique({
       where: { userId: delivery.offeredToDriverId },
@@ -162,37 +363,78 @@ export async function ensureOfferAssignment(delivery: DbDelivery): Promise<DbDel
     if (offered?.isOnline && offered.vehicleType === delivery.vehicleType) return delivery;
   }
 
-  // Full cycle declined — wait 60s before looping back to driver 1.
-  if (isCyclePaused(delivery, now)) return delivery;
+  // Waiting briefly for a driver to come online — keep until offline grace / search timeout.
+  if (isCyclePaused(delivery, now) && onlineMatching === 0) return delivery;
 
-  const onlineIds = await listOnlineAvailableDrivers(delivery.vehicleType);
+  const expiredOffer =
+    Boolean(delivery.offeredToDriverId) && expiresAt > 0 && expiresAt <= now;
+  const midWindowReassign =
+    Boolean(delivery.offeredToDriverId) && expiresAt > now + 250;
+
+  // OFFERED → EXPIRED → AVAILABLE before rotating.
+  if ((expiredOffer || midWindowReassign) && delivery.offeredToDriverId) {
+    await releaseOfferLock(delivery.offeredToDriverId, delivery.id);
+  }
+
   const declinedIds = parseDeclinedIds(delivery.offerDeclinedIds);
   const resumingAfterPause = !delivery.offeredToDriverId && expiresAt > 0 && expiresAt <= now;
 
   let nextDeclined = resumingAfterPause ? [] : [...declinedIds];
-  if (delivery.offeredToDriverId && expiresAt > 0 && expiresAt <= now) {
+  if (expiredOffer && delivery.offeredToDriverId) {
     nextDeclined.push(delivery.offeredToDriverId);
   }
 
-  const allDeclined =
-    onlineIds.length > 0 && onlineIds.every((id) => nextDeclined.includes(id));
-  if (allDeclined) {
-    return pauseOfferCycle(delivery.id);
-  }
+  const candidates = await listRankedAvailableDrivers(delivery, nextDeclined);
 
-  const currentDriverId = resumingAfterPause ? null : delivery.offeredToDriverId;
-  const nextDriver = pickNextDriver(onlineIds, nextDeclined, currentDriverId);
-  if (!nextDriver) {
+  // No free candidate left.
+  if (candidates.length === 0) {
+    // Still nobody online → wait grace, then cancel (handled above on next tick too).
+    if (onlineMatching === 0) {
+      if (isOfflineGraceElapsed(delivery)) return cancelForNoDriver(delivery.id);
+      return clearOffer(delivery.id, nextDeclined);
+    }
+    // Drivers are online but all declined / unavailable → cancel + release hold.
+    if (nextDeclined.length > 0) {
+      return cancelForNoDriver(delivery.id);
+    }
     return clearOffer(delivery.id, nextDeclined);
   }
 
-  return assignOfferToDriver(delivery.id, nextDriver, nextDeclined);
+  // Optimistic concurrency: only succeed if DB still shows this previous offered driver.
+  const dbExpected = delivery.offeredToDriverId;
+
+  for (const candidate of candidates) {
+    const assigned = await assignOfferToDriver(
+      delivery.id,
+      candidate,
+      nextDeclined,
+      dbExpected
+    );
+    if (assigned) return assigned;
+
+    // Another worker may have already assigned this delivery — respect that.
+    const fresh = await prisma.deliveryRequest.findUnique({ where: { id: delivery.id } });
+    if (
+      fresh &&
+      fresh.status === DeliveryStatus.PENDING &&
+      fresh.offeredToDriverId &&
+      fresh.offerExpiresAt &&
+      fresh.offerExpiresAt.getTime() > Date.now() + 250
+    ) {
+      return fresh;
+    }
+    // Redis NX lost (another customer claimed this driver) → try next closest.
+  }
+
+  return clearOffer(delivery.id, nextDeclined);
 }
 
 export async function createDelivery(
   input: {
     orderId?: string;
     pickupLocation: string;
+    pickupLat?: number;
+    pickupLng?: number;
     destinationLocation: string;
     recipientName: string;
     recipientNumber: string;
@@ -215,6 +457,11 @@ export async function createDelivery(
   }
 
   const orderId = await allocateOrderId(input.orderId);
+  const pickupCoords = resolvePickupCoords({
+    pickupLat: input.pickupLat,
+    pickupLng: input.pickupLng,
+    pickupLocation: input.pickupLocation,
+  });
 
   let payerPhone = input.senderPhone?.trim() || '';
   // Prefer checkout sender number for Waafi charge; fall back to logged-in rider phone only if missing
@@ -253,6 +500,8 @@ export async function createDelivery(
     data: {
       orderId,
       pickupLocation: input.pickupLocation,
+      pickupLat: pickupCoords?.latitude,
+      pickupLng: pickupCoords?.longitude,
       destinationLocation: input.destinationLocation,
       recipientName: input.recipientName,
       recipientNumber: input.recipientNumber,
@@ -343,6 +592,7 @@ export async function declineDeliveryForDriver(deliveryId: string, driverUserId:
 
   const declinedIds = parseDeclinedIds(row.offerDeclinedIds);
   declinedIds.push(driverUserId);
+  await releaseOfferLock(driverUserId, deliveryId);
 
   if (openFleet) {
     await prisma.deliveryRequest.update({
@@ -361,38 +611,62 @@ export async function declineDeliveryForDriver(deliveryId: string, driverUserId:
     };
   }
 
-  const onlineIds = await listOnlineAvailableDrivers(row.vehicleType);
   const nextDeclined = [...new Set(declinedIds)];
-  const allDeclined =
-    onlineIds.length > 0 && onlineIds.every((id) => nextDeclined.includes(id));
+  const candidates = await listRankedAvailableDrivers(row, nextDeclined);
+  const onlineMatching = await countOnlineMatchingDrivers(row);
 
-  if (allDeclined || onlineIds.length === 0) {
-    await pauseOfferCycle(deliveryId);
+  // Nobody online at all → cancel + release Waafi hold (same as search timeout).
+  if (onlineMatching === 0) {
+    await cancelForNoDriver(deliveryId);
     return {
       ok: true,
       rotatedTo: null,
-      offerSeconds: OFFER_CYCLE_PAUSE_SEC,
-      cyclePaused: true,
+      offerSeconds: 0,
+      cyclePaused: false,
+      cancelled: true,
+      cancelReason: 'no_driver',
     };
   }
 
-  const nextDriver = pickNextDriver(onlineIds, nextDeclined, driverUserId);
-  if (!nextDriver) {
-    await pauseOfferCycle(deliveryId);
+  // Online drivers remain but all have declined / none free → cancel.
+  if (candidates.length === 0) {
+    await cancelForNoDriver(deliveryId);
     return {
       ok: true,
       rotatedTo: null,
-      offerSeconds: OFFER_CYCLE_PAUSE_SEC,
-      cyclePaused: true,
+      offerSeconds: 0,
+      cyclePaused: false,
+      cancelled: true,
+      cancelReason: 'no_driver',
     };
   }
 
-  const assigned = await assignOfferToDriver(deliveryId, nextDriver, nextDeclined);
+  for (const nextDriver of candidates) {
+    // DB still shows the declining driver until we successfully rotate.
+    const assigned = await assignOfferToDriver(
+      deliveryId,
+      nextDriver,
+      nextDeclined,
+      driverUserId
+    );
+    if (assigned) {
+      return {
+        ok: true,
+        rotatedTo: assigned.offeredToDriverId,
+        offerSeconds: OFFER_TTL_SEC,
+        cyclePaused: false,
+      };
+    }
+  }
+
+  await cancelForNoDriver(deliveryId);
   return {
     ok: true,
-    rotatedTo: assigned.offeredToDriverId,
-    offerSeconds: OFFER_TTL_SEC,
+    rotatedTo: null,
+    offerSeconds: 0,
     cyclePaused: false,
+    cancelled: true,
+    cancelReason: 'no_driver',
   };
 }
 
@@ -511,6 +785,8 @@ export async function applyDeliveryAction(
       update: { requestId: id },
       create: { driverUserId: actor.id, requestId: id },
     });
+
+    await setDriverPresenceStatus(actor.id, 'BUSY', null);
 
     return getById(id);
   }
@@ -652,6 +928,8 @@ export async function applyDeliveryAction(
       where: { requestId: id },
       data: { requestId: null },
     });
+    const unlockId = row.driverUserId || current.offeredToDriverId || actor?.id;
+    await releaseOfferLock(unlockId, id);
   }
 
   if (action === 'confirm_received' && row.driverUserId) {

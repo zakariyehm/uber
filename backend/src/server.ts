@@ -1,5 +1,7 @@
 import { env } from './config/env.ts';
 import { prisma } from './lib/prisma.ts';
+import { ensurePostgis } from './lib/driver-locations.ts';
+import { startOfferSweeper } from './lib/offer-sweeper.ts';
 import { connectRedis, redis } from './lib/redis.ts';
 import { buildApp } from './app.ts';
 
@@ -7,6 +9,7 @@ async function start() {
   const app = await buildApp();
   await prisma.$connect();
   await connectRedis();
+  await ensurePostgis();
   try {
     const { getPlatformSettings } = await import('./modules/admin/settings.service.ts');
     await getPlatformSettings();
@@ -15,6 +18,8 @@ async function start() {
   }
   const { shortenLegacyOrderIds } = await import('./utils/order-id.ts');
   await shortenLegacyOrderIds();
+
+  startOfferSweeper();
 
   try {
     await app.listen({ port: env.PORT, host: env.HOST });

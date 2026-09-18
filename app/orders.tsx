@@ -15,7 +15,7 @@ import {
   View,
 } from 'react-native';
 
-function statusLabel(status: DeliveryStatus | string) {
+function statusLabel(status: DeliveryStatus | string, cancelReason?: string) {
   switch (status) {
     case 'pending':
       return 'Waiting for driver';
@@ -28,7 +28,7 @@ function statusLabel(status: DeliveryStatus | string) {
     case 'completed':
       return 'Completed';
     case 'cancelled':
-      return 'Cancelled';
+      return cancelReason === 'no_driver' ? 'Cancelled · no driver' : 'Cancelled';
     default:
       return status;
   }
@@ -147,7 +147,9 @@ export default function OrdersScreen() {
                 </View>
                 <View style={styles.statusRow}>
                   <View style={[styles.dot, { backgroundColor: statusColor(order.status) }]} />
-                  <Text style={[styles.statusText, { color: colors.text }]}>{statusLabel(order.status)}</Text>
+                  <Text style={[styles.statusText, { color: colors.text }]}>
+                    {statusLabel(order.status, order.cancelReason)}
+                  </Text>
                   <Ionicons name="chevron-forward" size={16} color={colors.icon} />
                 </View>
               </TouchableOpacity>

@@ -86,6 +86,7 @@ export const getDeliveryRequestById = async (requestId: string): Promise<Deliver
     return await apiRequest<DeliveryRequest>(`/deliveries/${requestId}`);
   } catch (error: any) {
     if (error.status === 404) return null;
+    console.error('Error getting delivery request:', error);
     return null;
   }
 };
