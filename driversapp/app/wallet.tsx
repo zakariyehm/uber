@@ -1,4 +1,5 @@
 import { apiRequest } from '@/lib/api';
+import { AppColors } from '@/constants/theme';
 import { toUserFriendlyError } from '@/utils/errors';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -110,7 +111,7 @@ export default function WalletScreen() {
 
       {isLoading ? (
         <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#03C167" />
+          <ActivityIndicator size="large" color={AppColors.primary} />
         </View>
       ) : null}
     </View>
@@ -155,7 +156,7 @@ const styles = StyleSheet.create({
   priceText: {
     fontSize: width * 0.1,
     fontWeight: '800',
-    color: '#03C167',
+    color: AppColors.primary,
   },
   divider: {
     height: StyleSheet.hairlineWidth,

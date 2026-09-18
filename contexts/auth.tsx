@@ -1,4 +1,5 @@
 import { getAuthToken, getStoredUser, setAuthToken, setStoredUser, type StoredAuthUser } from '@/lib/api';
+import { isNetworkError, waitForOnline } from '@/lib/bootstrap';
 import { fetchCurrentUser } from '@/utils/auth';
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
@@ -23,36 +24,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
 
     const restore = async () => {
-      const savedToken = await getAuthToken();
-      const savedUser = await getStoredUser();
+      // Keep native splash until we have network, then resolve auth.
+      while (!cancelled) {
+        await waitForOnline();
+        if (cancelled) return;
 
-      if (!savedToken) {
-        if (!cancelled) {
-          setToken(null);
-          setUser(null);
-          setIsReady(true);
+        const savedToken = await getAuthToken();
+        const savedUser = await getStoredUser();
+
+        if (!savedToken) {
+          if (!cancelled) {
+            setToken(null);
+            setUser(null);
+            setIsReady(true);
+          }
+          return;
         }
-        return;
-      }
 
-      if (!cancelled) {
-        setToken(savedToken);
-        setUser(savedUser);
-        setIsReady(true);
-      }
+        try {
+          const freshUser = await fetchCurrentUser();
+          if (cancelled) return;
+          setToken(savedToken);
+          setUser(freshUser);
+          await setStoredUser(freshUser);
+          setIsReady(true);
+          return;
+        } catch (error: any) {
+          if (cancelled) return;
 
-      try {
-        const freshUser = await fetchCurrentUser();
-        if (cancelled) return;
-        setUser(freshUser);
-        await setStoredUser(freshUser);
-      } catch (error: any) {
-        if (cancelled) return;
-        if (error?.status === 401) {
-          await setAuthToken(null);
-          await setStoredUser(null);
-          setToken(null);
-          setUser(null);
+          if (error?.status === 401) {
+            await setAuthToken(null);
+            await setStoredUser(null);
+            setToken(null);
+            setUser(null);
+            setIsReady(true);
+            return;
+          }
+
+          if (isNetworkError(error)) {
+            // Stay on splash; brief pause then wait for a healthy network again.
+            await new Promise((r) => setTimeout(r, 1200));
+            continue;
+          }
+
+          // Non-auth server issues: keep local session so the user can enter the app.
+          setToken(savedToken);
+          setUser(savedUser);
+          setIsReady(true);
+          return;
         }
       }
     };

@@ -1,12 +1,15 @@
 import { DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import { useFonts } from 'expo-font';
+import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import 'react-native-reanimated';
 
-import { SplashView } from '@/components/splash-view';
 import { AppColors } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/contexts/auth';
+
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -30,8 +33,14 @@ export default function RootLayout() {
 function RootNavigator() {
   const { isReady, isLoggedIn } = useAuth();
 
+  useEffect(() => {
+    if (!isReady) return;
+    void SplashScreen.hideAsync().catch(() => {});
+  }, [isReady]);
+
+  // Keep the native splash visible until network + auth are ready.
   if (!isReady) {
-    return <SplashView />;
+    return null;
   }
 
   return (

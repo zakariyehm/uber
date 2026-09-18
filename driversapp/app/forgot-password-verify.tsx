@@ -14,6 +14,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AppColors } from '@/constants/theme';
 
 const { width } = Dimensions.get('window');
 
@@ -178,7 +179,7 @@ export default function ForgotPasswordVerifyScreen() {
       {/* Loading Overlay */}
       {isLoading && (
         <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#000000" />
+          <ActivityIndicator size="large" color={AppColors.primary} />
         </View>
       )}
     </View>
@@ -284,7 +285,7 @@ const styles = StyleSheet.create({
     marginTop: width * 0.02,
   },
   verifyButton: {
-    backgroundColor: '#000000',
+    backgroundColor: AppColors.primary,
     borderRadius: 8,
     paddingVertical: width * 0.045,
     alignItems: 'center',

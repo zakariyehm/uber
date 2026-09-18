@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -16,6 +17,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AppColors } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth';
 import { loginDriver } from '@/utils/driverAuth';
 import { toUserFriendlyError } from '@/utils/errors';
@@ -95,10 +97,16 @@ export default function LoginScreen() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled">
             
-            {/* Title Section */}
+            {/* Brand + Title */}
             <View style={styles.titleSection}>
+              <Image
+                source={require('@/assets/images/raac-logo.png')}
+                style={styles.brandLogo}
+                resizeMode="contain"
+                accessibilityLabel="RAAC"
+              />
               <Text style={styles.title}>Welcome back</Text>
-              <Text style={styles.subtitle}>Sign in to continue</Text>
+              <Text style={styles.subtitle}>Sign in to continue driving</Text>
             </View>
 
             {/* Form Section */}
@@ -206,7 +214,14 @@ const styles = StyleSheet.create({
     paddingBottom: scaleHeight(16),
   },
   titleSection: {
-    marginBottom: scaleHeight(40),
+    marginBottom: scaleHeight(36),
+    alignItems: 'flex-start',
+  },
+  brandLogo: {
+    width: scaleWidth(132),
+    height: scaleHeight(52),
+    marginBottom: scaleHeight(20),
+    tintColor: AppColors.primary,
   },
   title: {
     fontSize: scaleFont(32),
@@ -257,26 +272,27 @@ const styles = StyleSheet.create({
   forgotPasswordText: {
     fontSize: scaleFont(14),
     fontWeight: '500',
-    color: '#007AFF',
+    color: AppColors.primary,
   },
   loginButton: {
-    backgroundColor: '#000000',
+    backgroundColor: AppColors.primary,
     borderRadius: scaleWidth(12),
     paddingVertical: scaleHeight(16),
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: scaleHeight(52),
-    shadowColor: '#000',
+    shadowColor: AppColors.primary,
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.28,
     shadowRadius: 3.84,
     elevation: 5,
   },
   loginButtonDisabled: {
     backgroundColor: '#E0E0E0',
+    shadowOpacity: 0,
   },
   loginButtonText: {
     fontSize: scaleFont(18),

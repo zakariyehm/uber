@@ -1,5 +1,6 @@
 import { BottomNav } from '@/components/bottom-nav';
 import { DriverHomeHeader } from '@/components/driver-home-header';
+import { AppColors } from '@/constants/theme';
 import { apiRequest } from '@/lib/api';
 import {
   DeliveryRequest,
@@ -291,11 +292,11 @@ export default function HomeScreen() {
   const getStatusColor = (): string => {
     switch (driverStatus) {
       case 'offline':
-        return '#161616';
+        return AppColors.offline;
       case 'waiting':
-        return '#FF9500';
+        return AppColors.waiting;
       case 'online':
-        return '#3B89EB';
+        return AppColors.primary;
       case 'deactivating':
         return '#8E8E93';
       default:
@@ -323,7 +324,7 @@ export default function HomeScreen() {
                   width: goButtonSize,
                   height: goButtonSize,
                   borderRadius: goButtonSize / 2,
-                  backgroundColor: isOfflineUi ? '#007AFF' : '#FF3B30',
+                  backgroundColor: isOfflineUi ? AppColors.primary : AppColors.danger,
                   opacity: buttonDisabled ? 0.6 : 1,
                 },
               ]}
@@ -384,7 +385,7 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   goButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: AppColors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,

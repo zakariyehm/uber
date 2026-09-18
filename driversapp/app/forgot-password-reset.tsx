@@ -15,6 +15,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AppColors } from '@/constants/theme';
 import NetInfo from '@react-native-community/netinfo';
 
 const { width } = Dimensions.get('window');
@@ -116,7 +117,7 @@ export default function ForgotPasswordResetScreen() {
             style={styles.backButton}
             onPress={handleBackPress}
             activeOpacity={0.7}>
-            <Ionicons name="arrow-back" size={24} color="#000000" />
+            <Ionicons name="arrow-back" size={24} color={AppColors.primary} />
           </TouchableOpacity>
         </View>
 
@@ -237,7 +238,7 @@ export default function ForgotPasswordResetScreen() {
       {/* Loading Overlay */}
       {isLoading && (
         <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#000000" />
+          <ActivityIndicator size="large" color={AppColors.primary} />
         </View>
       )}
     </View>
@@ -342,7 +343,7 @@ const styles = StyleSheet.create({
     marginLeft: width * 0.02,
   },
   resetButton: {
-    backgroundColor: '#000000',
+    backgroundColor: AppColors.primary,
     borderRadius: 8,
     paddingVertical: width * 0.045,
     alignItems: 'center',

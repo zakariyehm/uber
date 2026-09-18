@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AppColors } from '@/constants/theme';
 
 type DriverHomeHeaderProps = {
   balance?: string | null;
@@ -63,7 +64,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   dollar: {
-    color: '#34C759',
+    color: AppColors.primary,
     fontSize: 18,
     fontWeight: '800',
     marginRight: 3,

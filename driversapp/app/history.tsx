@@ -1,5 +1,6 @@
 import { DeliveryRequest, getMyDriverDeliveries } from '@/utils/deliveryRequests';
 import { toUserFriendlyError } from '@/utils/errors';
+import { AppColors } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
@@ -30,13 +31,13 @@ function formatWhen(iso?: string) {
 function statusColor(status: string) {
   switch (status) {
     case 'completed':
-      return '#34C759';
+      return AppColors.success;
     case 'cancelled':
-      return '#FF3B30';
+      return AppColors.danger;
     case 'accepted':
     case 'picked_up':
     case 'in_transit':
-      return '#007AFF';
+      return AppColors.primary;
     default:
       return '#8E8E93';
   }
@@ -129,7 +130,7 @@ export default function HistoryScreen() {
 
         <View style={styles.routeBlock}>
           <View style={styles.routeRow}>
-            <View style={[styles.dot, { backgroundColor: '#34C759' }]} />
+            <View style={[styles.dot, { backgroundColor: AppColors.success }]} />
             <View style={{ flex: 1 }}>
               <Text style={styles.routeLabel}>Pickup</Text>
               <Text style={styles.routeValue} numberOfLines={1}>

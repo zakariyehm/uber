@@ -1,10 +1,26 @@
 /**
  * App colors — driversapp is light-only.
+ * Primary matches rider + ops: RGB(2, 166, 228).
  */
 
 import { Platform } from 'react-native';
 
-const tintColorLight = '#0a7ea4';
+/** Raac brand primary — RGB(2, 166, 228) */
+export const AppColors = {
+  primary: '#02A6E4',
+  primaryDim: 'rgba(2, 166, 228, 0.14)',
+  bg: '#FFFFFF',
+  surface: '#F3F3F3',
+  text: '#11181C',
+  muted: '#6A6A6A',
+  border: '#E6E6E6',
+  danger: '#FF3B30',
+  success: '#34C759',
+  offline: '#161616',
+  waiting: '#FF9500',
+};
+
+const tintColorLight = AppColors.primary;
 
 export const Colors = {
   light: {

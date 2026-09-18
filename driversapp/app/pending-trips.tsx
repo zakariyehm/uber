@@ -5,6 +5,7 @@ import {
   getDeliveryRequestById,
   getPendingRequests,
 } from '@/utils/deliveryRequests';
+import { AppColors } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
@@ -142,7 +143,7 @@ const styles = StyleSheet.create({
     borderColor: '#E6E6E6',
   },
   activeCard: {
-    borderColor: '#03C167',
+    borderColor: AppColors.primary,
     borderWidth: 1.5,
   },
   route: { fontSize: 15, fontWeight: '700', color: '#000', marginBottom: 4 },
