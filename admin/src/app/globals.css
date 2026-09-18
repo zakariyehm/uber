@@ -7,8 +7,9 @@
   --line: #e4e6eb;
   --text: #161616;
   --muted: #6b7280;
-  --green: #03c167;
-  --green-dim: rgba(3, 193, 103, 0.14);
+  /* Raac primary — RGB(2, 166, 228) */
+  --primary: #02a6e4;
+  --primary-dim: rgba(2, 166, 228, 0.14);
   --red: #e11d48;
   --amber: #d97706;
   --blue: #2563eb;
@@ -26,8 +27,8 @@
   --color-line: var(--line);
   --color-ink: var(--text);
   --color-muted: var(--muted);
-  --color-raac: var(--green);
-  --color-raac-dim: var(--green-dim);
+  --color-raac: var(--primary);
+  --color-raac-dim: var(--primary-dim);
   --color-danger: var(--red);
   --color-warn: var(--amber);
   --color-info: var(--blue);

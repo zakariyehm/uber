@@ -199,7 +199,7 @@ export function UsersBoard({ role }: { role: "DRIVER" | "RIDER" }) {
             <button
               type="button"
               disabled={creating || !form.phone.trim() || form.password.length < 6 || !form.vehicleType}
-              className="rounded-lg bg-raac px-3 py-2 text-sm font-semibold text-black disabled:opacity-40"
+              className="rounded-lg bg-raac px-3 py-2 text-sm font-semibold text-white disabled:opacity-40"
               onClick={() => void createDriver()}
             >
               {creating ? "Creating…" : "Create driver"}

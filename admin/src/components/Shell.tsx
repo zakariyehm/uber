@@ -61,9 +61,17 @@ export function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-bg text-ink">
       <aside className="fixed inset-y-0 left-0 z-20 flex w-60 flex-col bg-sidebar text-sidebar-ink">
-        <div className="border-b border-sidebar-line px-5 py-5">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-raac">Raac</p>
-          <h1 className="mt-1 text-lg font-semibold text-sidebar-ink">Operations</h1>
+        <div className="border-b border-sidebar-line px-4 py-4">
+          <Link href="/" className="inline-flex items-center">
+            <img
+              src="/raac-logo.png"
+              alt="RAAC"
+              width={128}
+              height={50}
+              className="h-10 w-auto"
+            />
+          </Link>
+          <h1 className="mt-3 text-lg font-semibold text-sidebar-ink">Operations</h1>
           <p className="mt-1 text-xs text-sidebar-muted">Owner command center</p>
         </div>
         <nav className="flex-1 space-y-1 p-3">

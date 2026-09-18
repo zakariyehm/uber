@@ -50,8 +50,14 @@ export default function LoginPage() {
         onSubmit={onSubmit}
         className="w-full max-w-md rounded-2xl bg-sidebar p-8 text-sidebar-ink shadow-xl"
       >
-        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-raac">Raac</p>
-        <h1 className="mt-2 text-3xl font-semibold text-sidebar-ink">Owner console</h1>
+        <img
+          src="/raac-logo.png"
+          alt="RAAC"
+          width={160}
+          height={62}
+          className="h-12 w-auto"
+        />
+        <h1 className="mt-4 text-3xl font-semibold text-sidebar-ink">Owner console</h1>
         <p className="mt-2 text-sm text-sidebar-muted">
           Sign in to monitor trips, fleet, payments, and wallets.
         </p>
@@ -82,7 +88,7 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={busy}
-          className="mt-6 w-full rounded-lg bg-raac py-3 text-sm font-semibold text-black disabled:opacity-60"
+          className="mt-6 w-full rounded-lg bg-raac py-3 text-sm font-semibold text-white disabled:opacity-60"
         >
           {busy ? "Signing in…" : "Enter operations"}
         </button>

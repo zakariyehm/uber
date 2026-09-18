@@ -216,7 +216,7 @@ export default function MotoPage() {
           type="button"
           disabled={saving}
           onClick={() => void saveAll()}
-          className="rounded-lg bg-raac px-4 py-2 text-sm font-semibold text-black disabled:opacity-40"
+          className="rounded-lg bg-raac px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
         >
           {saving ? "Saving…" : "Save changes"}
         </button>
@@ -275,7 +275,7 @@ export default function MotoPage() {
           <button
             type="submit"
             disabled={creating}
-            className="rounded-lg bg-raac px-3 py-2 text-sm font-semibold text-black disabled:opacity-40"
+            className="rounded-lg bg-raac px-3 py-2 text-sm font-semibold text-white disabled:opacity-40"
           >
             {creating ? "Adding…" : "Add method"}
           </button>

@@ -1,8 +1,8 @@
 const TONES = {
   slate: "border-line bg-panel",
-  green: "border-emerald-200 bg-emerald-50",
+  green: "border-sky-200 bg-sky-50",
   amber: "border-amber-200 bg-amber-50",
-  blue: "border-sky-200 bg-sky-50",
+  blue: "border-cyan-200 bg-cyan-50",
   indigo: "border-indigo-200 bg-indigo-50",
   lime: "border-lime-200 bg-lime-50",
   teal: "border-teal-200 bg-teal-50",

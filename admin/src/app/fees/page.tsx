@@ -176,7 +176,7 @@ export default function FeesPage() {
             <button
               type="submit"
               disabled={savingFee || loading}
-              className="rounded-lg bg-raac px-4 py-2 text-sm font-semibold text-black disabled:opacity-40"
+              className="rounded-lg bg-raac px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
             >
               {savingFee ? "Going live…" : feeDirty ? "Save & go live" : "Save"}
             </button>
@@ -230,7 +230,7 @@ export default function FeesPage() {
             <button
               type="submit"
               disabled={savingPayout || loading}
-              className="rounded-lg bg-raac px-4 py-2 text-sm font-semibold text-black disabled:opacity-40"
+              className="rounded-lg bg-raac px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
             >
               {savingPayout ? "Going live…" : payoutDirty ? "Save & go live" : "Save"}
             </button>
