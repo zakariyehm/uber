@@ -41,6 +41,9 @@ export default function CheckoutScreen() {
   const deliveryMethod = params.deliveryMethod as string || '';
   const deliveryTime = params.deliveryTime as string || '';
   const deliveryPrice = params.deliveryPrice as string || '';
+  const serviceCategory = (params.serviceCategory as string) || '';
+  /** Delivery State always charges the sender — no who-pays choice. */
+  const isDeliveryState = serviceCategory === 'DELIVERY_STATE';
 
   // Use delivery price from params, or calculate if not provided
   const estimatedPrice = deliveryPrice ? deliveryPrice.replace('$', '') : '10.00';
@@ -84,6 +87,26 @@ export default function CheckoutScreen() {
 
   const handlePlaceOrder = async (payerType: 'SENDER' | 'RECIPIENT') => {
     if (placingRef.current || isPlacingOrder) return;
+
+    const normalize = (phone: string) => {
+      let digits = phone.replace(/\D/g, '');
+      if (digits.startsWith('252')) digits = digits.slice(3);
+      if (digits.startsWith('0')) digits = digits.slice(1);
+      return digits;
+    };
+    const senderDigits = normalize(senderNumber);
+    const recipientDigits = normalize(recipientNumber);
+    if (
+      senderDigits.length >= 7 &&
+      recipientDigits.length >= 7 &&
+      senderDigits === recipientDigits
+    ) {
+      Alert.alert(
+        'Different numbers required',
+        'Sender and recipient must use two different phone numbers.'
+      );
+      return;
+    }
 
     if (payerType === 'SENDER' && !senderNumber.trim()) {
       Alert.alert('Sender number required', 'Enter the sender Waafi phone number before confirming.');
@@ -150,6 +173,12 @@ export default function CheckoutScreen() {
 
   const handleConfirmOrder = () => {
     if (placingRef.current || isPlacingOrder) return;
+
+    // Delivery State: always sender pays (existing Waafi hold flow).
+    if (isDeliveryState) {
+      void handlePlaceOrder('SENDER');
+      return;
+    }
 
     Alert.alert(
       'Who pays for this delivery?',
@@ -297,8 +326,9 @@ export default function CheckoutScreen() {
         </View>
 
         <Text style={[styles.holdHint, { color: colors.icon }]}>
-          Tap Confirm Order, then choose who pays: the sender (Waafi hold now) or the recipient
-          (pays when the package is delivered).
+          {isDeliveryState
+            ? `When you confirm, Waafi sends a prompt to ${senderNumber || 'the sender number'}. Approve it and enter your PIN to hold $${estimatedPrice}. Funds are captured only after the trip is completed.`
+            : 'Tap Confirm Order, then choose who pays: the sender (Waafi hold now) or the recipient (pays when the package is delivered).'}
         </Text>
 
         {/* Confirm Order Button */}
@@ -316,10 +346,14 @@ export default function CheckoutScreen() {
           {isPlacingOrder ? (
             <View style={styles.confirmBusy}>
               <ActivityIndicator size="small" color="#FFF" />
-              <Text style={styles.confirmBusyText}>Placing order…</Text>
+              <Text style={styles.confirmBusyText}>
+                {isDeliveryState ? 'Waiting for PIN approval…' : 'Placing order…'}
+              </Text>
             </View>
           ) : (
-            <Text style={styles.confirmButtonText}>Confirm Order</Text>
+            <Text style={styles.confirmButtonText}>
+              {isDeliveryState ? 'Confirm Order · Hold payment' : 'Confirm Order'}
+            </Text>
           )}
         </TouchableOpacity>
       </ScrollView>

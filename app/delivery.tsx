@@ -6,6 +6,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
+    Alert,
     Dimensions,
     KeyboardAvoidingView,
     Modal,
@@ -31,6 +32,20 @@ const scaleFont = (size: number) => {
   const newSize = size * scale;
   return Platform.OS === 'ios' ? Math.round(newSize) : Math.round(newSize);
 };
+
+/** Digits only, drop leading 252 / 0 so local numbers compare fairly. */
+function normalizePhoneDigits(phone: string) {
+  let digits = phone.replace(/\D/g, '');
+  if (digits.startsWith('252')) digits = digits.slice(3);
+  if (digits.startsWith('0')) digits = digits.slice(1);
+  return digits;
+}
+
+function phonesAreSame(a: string, b: string) {
+  const left = normalizePhoneDigits(a);
+  const right = normalizePhoneDigits(b);
+  return left.length >= 7 && right.length >= 7 && left === right;
+}
 
 const itemTypes = [
   'Mobile',
@@ -63,6 +78,7 @@ export default function DeliveryScreen() {
   const [deliveryMethod, setDeliveryMethod] = useState((params.deliveryMethod as string) || '');
   const [deliveryTime, setDeliveryTime] = useState((params.deliveryTime as string) || '');
   const [deliveryPrice, setDeliveryPrice] = useState((params.deliveryPrice as string) || '');
+  const serviceCategory = (params.serviceCategory as string) || '';
   
   // Modal state
   const [showItemPicker, setShowItemPicker] = useState(false);
@@ -106,6 +122,13 @@ export default function DeliveryScreen() {
 
   const handleContinue = () => {
     if (!isFormValid()) return;
+    if (phonesAreSame(senderNumber, recipientNumber)) {
+      Alert.alert(
+        'Different numbers required',
+        'Sender and recipient must use two different phone numbers. Please enter another number to continue.'
+      );
+      return;
+    }
     router.push({
       pathname: '/checkout',
       params: {
@@ -120,9 +143,12 @@ export default function DeliveryScreen() {
         deliveryMethod: deliveryMethod || '',
         deliveryTime: deliveryTime || '',
         deliveryPrice: deliveryPrice || '',
+        serviceCategory: serviceCategory || '',
       },
     });
   };
+
+  const numbersConflict = phonesAreSame(senderNumber, recipientNumber);
 
   const isFormValid = () => {
     return (
@@ -130,6 +156,7 @@ export default function DeliveryScreen() {
       senderNumber.trim().length > 0 &&
       recipientName.trim().length > 0 &&
       recipientNumber.trim().length > 0 &&
+      !numbersConflict &&
       selectedItem &&
       pickupLocation &&
       destinationLocation
@@ -288,8 +315,12 @@ export default function DeliveryScreen() {
               {
                 backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
                 color: isDark ? '#FFFFFF' : '#000000',
-                borderColor: isDark ? '#333333' : '#E0E0E0',
-                marginBottom: scaleHeight(12),
+                borderColor: numbersConflict
+                  ? '#FF3B30'
+                  : isDark
+                    ? '#333333'
+                    : '#E0E0E0',
+                marginBottom: scaleHeight(numbersConflict ? 6 : 12),
               },
             ]}
             placeholder="Enter recipient phone number *"
@@ -298,6 +329,11 @@ export default function DeliveryScreen() {
             onChangeText={setRecipientNumber}
             keyboardType="phone-pad"
           />
+          {numbersConflict ? (
+            <Text style={[styles.helperText, { color: '#FF3B30', marginBottom: scaleHeight(12) }]}>
+              Recipient number must be different from the sender number.
+            </Text>
+          ) : null}
 
           <TouchableOpacity
             style={[

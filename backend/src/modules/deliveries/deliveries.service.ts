@@ -483,9 +483,33 @@ export async function createDelivery(
     pickupLocation: input.pickupLocation,
   });
 
+  const normalizePhone = (phone: string) => {
+    let digits = phone.replace(/\D/g, '');
+    if (digits.startsWith('252')) digits = digits.slice(3);
+    if (digits.startsWith('0')) digits = digits.slice(1);
+    return digits;
+  };
+  const senderDigits = normalizePhone(input.senderPhone || '');
+  const recipientDigits = normalizePhone(input.recipientNumber || '');
+  if (
+    senderDigits.length >= 7 &&
+    recipientDigits.length >= 7 &&
+    senderDigits === recipientDigits
+  ) {
+    const error = new Error(
+      'Sender and recipient must use two different phone numbers'
+    ) as Error & { statusCode?: number };
+    error.statusCode = 400;
+    throw error;
+  }
+
   const { PaymentHoldStatus, PaymentPayer } = await import('@prisma/client');
+  const openFleet = await isOpenFleetMethod(input.deliveryMethod);
+  // Delivery State always charges the sender — ignore recipient-pays.
   const payerType =
-    input.payerType === 'RECIPIENT' ? PaymentPayer.RECIPIENT : PaymentPayer.SENDER;
+    openFleet || input.payerType !== 'RECIPIENT'
+      ? PaymentPayer.SENDER
+      : PaymentPayer.RECIPIENT;
 
   // Recipient pays at dropoff — create + offer with no Waafi hold.
   if (payerType === PaymentPayer.RECIPIENT) {

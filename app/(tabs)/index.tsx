@@ -87,6 +87,7 @@ export default function HomeScreen() {
         deliveryMethod: dropoffMethod.name,
         deliveryTime: dropoffMethod.time,
         deliveryPrice: dropoffMethod.displayPrice || `$${dropoffMethod.price}`,
+        serviceCategory: 'DELIVERY_STATE',
       },
     });
   };
