@@ -66,7 +66,11 @@ export async function authRoutes(app: FastifyInstance) {
       return result;
     } catch (error) {
       if (error instanceof AuthError) {
-        return reply.code(error.statusCode).send({ error: error.message, code: error.code });
+        return reply.code(error.statusCode).send({
+          error: error.message,
+          code: error.code,
+          ...(error.driverName ? { driverName: error.driverName, riderName: error.driverName } : {}),
+        });
       }
       throw error;
     }
@@ -103,7 +107,11 @@ export async function authRoutes(app: FastifyInstance) {
       };
     } catch (error) {
       if (error instanceof AuthError) {
-        return reply.code(error.statusCode).send({ error: error.message, code: error.code });
+        return reply.code(error.statusCode).send({
+          error: error.message,
+          code: error.code,
+          ...(error.driverName ? { driverName: error.driverName, riderName: error.driverName } : {}),
+        });
       }
       throw error;
     }
@@ -150,12 +158,15 @@ export async function authRoutes(app: FastifyInstance) {
       });
     }
     if (!user.isActive) {
-      const driverName =
-        [user.firstName, user.lastName].filter(Boolean).join(' ').trim() || 'Driver';
+      const accountName =
+        [user.firstName, user.lastName].filter(Boolean).join(' ').trim() ||
+        (user.role === 'DRIVER' ? 'Driver' : user.role === 'RIDER' ? 'Rider' : 'User');
+      const kind = user.role === 'DRIVER' ? 'driver' : user.role === 'RIDER' ? 'rider' : 'account';
       return reply.code(403).send({
-        error: 'This driver account is disabled.',
+        error: `This ${kind} account is disabled.`,
         code: 'auth/user-disabled',
-        driverName,
+        driverName: accountName,
+        riderName: accountName,
       });
     }
     return { user: toPublicUser(user) };

@@ -87,10 +87,12 @@ export async function loginUser(input: { phone?: string; email?: string; passwor
 
   if (!user.isActive) {
     const name = [user.firstName, user.lastName].filter(Boolean).join(' ').trim();
+    const kind =
+      user.role === UserRole.DRIVER ? 'driver' : user.role === UserRole.RIDER ? 'rider' : 'account';
     const error = new AuthError(
       name
-        ? `${name}, your driver account is disabled. Contact Raac operations to restore access.`
-        : 'Your driver account is disabled. Contact Raac operations to restore access.',
+        ? `${name}, your ${kind} account is disabled. Contact Raac operations to restore access.`
+        : `Your ${kind} account is disabled. Contact Raac operations to restore access.`,
       'auth/user-disabled',
       403
     );

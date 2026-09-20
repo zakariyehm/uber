@@ -2,7 +2,9 @@ import { getAuthToken, getStoredUser, setAuthToken, setStoredUser, type StoredAu
 import { isNetworkError, waitForOnline } from '@/lib/bootstrap';
 import { LocalImages, warmLocalImages } from '@/lib/local-images';
 import { fetchCurrentUser } from '@/utils/auth';
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { accountBlockFromError, showRiderAccountAlert } from '@/utils/accountStatus';
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState, type AppStateStatus } from 'react-native';
 
 export type AuthUser = StoredAuthUser;
 
@@ -16,19 +18,43 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+const ACCOUNT_POLL_MS = 12_000;
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isReady, setIsReady] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
+  const userRef = useRef<AuthUser | null>(null);
+  const alertedRef = useRef(false);
+
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
+  const clearSession = async () => {
+    await setAuthToken(null);
+    await setStoredUser(null);
+    setToken(null);
+    setUser(null);
+  };
+
+  const forceAccountBlock = async (
+    reason: 'disabled' | 'not_found',
+    riderName?: string
+  ) => {
+    const snapshot = userRef.current;
+    await clearSession();
+    if (alertedRef.current) return;
+    alertedRef.current = true;
+    showRiderAccountAlert(reason, { riderName, user: snapshot });
+  };
 
   useEffect(() => {
     let cancelled = false;
 
-    // Persist header logo to device storage while splash is up.
     void warmLocalImages([LocalImages.headerLogo]);
 
     const restore = async () => {
-      // Keep native splash until we have network, then resolve auth.
       while (!cancelled) {
         await waitForOnline();
         if (cancelled) return;
@@ -48,6 +74,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           const freshUser = await fetchCurrentUser();
           if (cancelled) return;
+          if (freshUser.role !== 'RIDER') {
+            await clearSession();
+            setIsReady(true);
+            return;
+          }
           setToken(savedToken);
           setUser(freshUser);
           await setStoredUser(freshUser);
@@ -56,22 +87,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } catch (error: any) {
           if (cancelled) return;
 
+          const block = accountBlockFromError(error);
+          if (block) {
+            await forceAccountBlock(
+              block,
+              typeof error?.riderName === 'string'
+                ? error.riderName
+                : typeof error?.driverName === 'string'
+                  ? error.driverName
+                  : undefined
+            );
+            setIsReady(true);
+            return;
+          }
+
           if (error?.status === 401) {
-            await setAuthToken(null);
-            await setStoredUser(null);
-            setToken(null);
-            setUser(null);
+            await clearSession();
             setIsReady(true);
             return;
           }
 
           if (isNetworkError(error)) {
-            // Stay on splash; brief pause then wait for a healthy network again.
             await new Promise((r) => setTimeout(r, 1200));
             continue;
           }
 
-          // Non-auth server issues: keep local session so the user can enter the app.
           setToken(savedToken);
           setUser(savedUser);
           setIsReady(true);
@@ -86,22 +126,70 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isReady || !token) return;
+
+    let cancelled = false;
+
+    const checkAccount = async () => {
+      try {
+        const freshUser = await fetchCurrentUser();
+        if (cancelled) return;
+        if (freshUser.role !== 'RIDER') {
+          await forceAccountBlock('not_found');
+          return;
+        }
+        setUser(freshUser);
+        await setStoredUser(freshUser);
+      } catch (error: any) {
+        if (cancelled) return;
+        const block = accountBlockFromError(error);
+        if (block) {
+          await forceAccountBlock(
+            block,
+            typeof error?.riderName === 'string'
+              ? error.riderName
+              : typeof error?.driverName === 'string'
+                ? error.driverName
+                : undefined
+          );
+          return;
+        }
+        if (error?.status === 401) {
+          await clearSession();
+        }
+      }
+    };
+
+    void checkAccount();
+    const interval = setInterval(() => void checkAccount(), ACCOUNT_POLL_MS);
+
+    const onAppState = (state: AppStateStatus) => {
+      if (state === 'active') void checkAccount();
+    };
+    const sub = AppState.addEventListener('change', onAppState);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      sub.remove();
+    };
+  }, [isReady, token]);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       isReady,
       isLoggedIn: Boolean(token),
       user,
       signIn: async (nextToken, nextUser) => {
+        alertedRef.current = false;
         await setAuthToken(nextToken);
         await setStoredUser(nextUser);
         setToken(nextToken);
         setUser(nextUser);
       },
       signOut: async () => {
-        await setAuthToken(null);
-        await setStoredUser(null);
-        setToken(null);
-        setUser(null);
+        await clearSession();
       },
     }),
     [isReady, token, user]

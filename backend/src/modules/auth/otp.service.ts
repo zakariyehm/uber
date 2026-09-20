@@ -13,6 +13,27 @@ function randomCode() {
 export async function requestOtp(phoneRaw: string, purpose: 'LOGIN' | 'REGISTER') {
   const phone = normalizePhone(phoneRaw);
   const purposeEnum = purpose === 'REGISTER' ? 'REGISTER' : 'LOGIN';
+
+  if (purposeEnum === 'LOGIN' || purposeEnum === 'REGISTER') {
+    const existing = await prisma.user.findUnique({
+      where: { phone },
+      select: { isActive: true, firstName: true, lastName: true, role: true },
+    });
+    if (existing && !existing.isActive) {
+      const name = [existing.firstName, existing.lastName].filter(Boolean).join(' ').trim();
+      const kind = existing.role === UserRole.DRIVER ? 'driver' : 'rider';
+      const error = new AuthError(
+        name
+          ? `${name}, your ${kind} account is disabled. Contact Raac operations to restore access.`
+          : `Your ${kind} account is disabled. Contact Raac operations to restore access.`,
+        'auth/user-disabled',
+        403
+      );
+      if (name) error.driverName = name;
+      throw error;
+    }
+  }
+
   const code = randomCode();
   const codeHash = await bcrypt.hash(code, 8);
 
@@ -78,6 +99,19 @@ export async function verifyOtp(phoneRaw: string, code: string, purpose: 'LOGIN'
   }
 
   const user = await prisma.user.findUnique({ where: { phone } });
+  if (user && !user.isActive) {
+    const name = [user.firstName, user.lastName].filter(Boolean).join(' ').trim();
+    const kind = user.role === UserRole.DRIVER ? 'driver' : 'rider';
+    const error = new AuthError(
+      name
+        ? `${name}, your ${kind} account is disabled. Contact Raac operations to restore access.`
+        : `Your ${kind} account is disabled. Contact Raac operations to restore access.`,
+      'auth/user-disabled',
+      403
+    );
+    if (name) error.driverName = name;
+    throw error;
+  }
   return { phone, purpose, user };
 }
 

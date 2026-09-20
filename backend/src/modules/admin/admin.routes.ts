@@ -13,6 +13,7 @@ import {
   listUsers,
   listWallets,
   patchUser,
+  resetUserPassword,
 } from './admin.service.ts';
 import { getPlatformSettings, patchPlatformSettings } from './settings.service.ts';
 import {
@@ -49,6 +50,10 @@ const createDriverSchema = z.object({
   firstName: z.string().min(1).max(40).optional(),
   lastName: z.string().min(1).max(40).optional(),
   vehicleType: z.enum(['MOTORCYCLE', 'BICYCLE']),
+});
+
+const resetPasswordSchema = z.object({
+  password: z.string().min(6).max(64),
 });
 
 const methodQuery = z.object({
@@ -153,6 +158,24 @@ export async function adminRoutes(app: FastifyInstance) {
       return reply
         .code(error.statusCode || 400)
         .send({ error: error.message || 'Could not update user' });
+    }
+  });
+
+  app.post('/users/:id/password', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    try {
+      const body = resetPasswordSchema.parse(request.body ?? {});
+      return await resetUserPassword(id, body.password);
+    } catch (error: any) {
+      if (error?.name === 'ZodError') {
+        return reply.code(400).send({
+          error: error.issues?.[0]?.message || 'Password must be at least 6 characters',
+          details: error.issues,
+        });
+      }
+      return reply
+        .code(error.statusCode || 400)
+        .send({ error: error.message || 'Could not reset password', code: error.code });
     }
   });
 

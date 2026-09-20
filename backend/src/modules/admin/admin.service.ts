@@ -6,6 +6,7 @@ import {
   SettlementType,
   UserRole,
 } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 import { prisma } from '../../lib/prisma.ts';
 import { toDeliveryDto } from '../../utils/delivery-mapper.ts';
 import { looksLikeOpenFleetMethod } from '../../utils/vehicle-type.ts';
@@ -597,6 +598,41 @@ export async function patchUser(
     isActive: updated.isActive,
     isOnline: shouldOffline ? false : Boolean(updated.driverProfile?.isOnline),
     vehicleType: input.vehicleType || updated.driverProfile?.vehicleType || null,
+  };
+}
+
+export async function resetUserPassword(id: string, password: string) {
+  if (!password || password.length < 6) {
+    throw adminError('Password must be at least 6 characters', 400);
+  }
+  if (password.length > 64) {
+    throw adminError('Password is too long', 400);
+  }
+
+  const user = await prisma.user.findUnique({ where: { id } });
+  if (!user) {
+    throw adminError('User not found', 404);
+  }
+  if (user.role === UserRole.ADMIN) {
+    throw adminError('Cannot reset the owner password here', 403);
+  }
+  if (user.role !== UserRole.DRIVER) {
+    throw adminError('Only driver passwords can be reset', 400);
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  const updated = await prisma.user.update({
+    where: { id },
+    data: { passwordHash },
+    include: { driverProfile: true, riderProfile: true },
+  });
+
+  return {
+    id: updated.id,
+    role: updated.role,
+    name: displayName(updated),
+    phone: updated.phone,
+    password,
   };
 }
 

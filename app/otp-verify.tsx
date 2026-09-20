@@ -67,7 +67,11 @@ export default function OtpVerifyScreen() {
         },
       });
     } catch (error: any) {
-      Alert.alert('Verification failed', error.message || 'Check the code and try again.');
+      if (error?.code === 'auth/user-disabled') {
+        Alert.alert('Account disabled', error.message || 'This account is disabled. Contact Raac operations.');
+      } else {
+        Alert.alert('Verification failed', error.message || 'Check the code and try again.');
+      }
       setCode('');
     } finally {
       setBusy(false);

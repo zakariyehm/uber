@@ -47,7 +47,11 @@ export function PhoneAuthScreen({ mode }: PhoneAuthScreenProps) {
         },
       });
     } catch (error: any) {
-      Alert.alert('Could not send code', error.message || 'Please try again.');
+      if (error?.code === 'auth/user-disabled') {
+        Alert.alert('Account disabled', error.message || 'This account is disabled. Contact Raac operations.');
+      } else {
+        Alert.alert('Could not send code', error.message || 'Please try again.');
+      }
     } finally {
       setBusy(false);
     }

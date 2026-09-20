@@ -44,6 +44,28 @@ export async function requireRider(request: FastifyRequest, reply: FastifyReply)
   if (request.user.role !== 'RIDER') {
     return reply.code(403).send({ error: 'Rider account required', code: 'auth/forbidden' });
   }
+
+  const user = await prisma.user.findUnique({
+    where: { id: request.user.sub },
+    select: { isActive: true, firstName: true, lastName: true },
+  });
+
+  if (!user) {
+    return reply.code(401).send({
+      error: 'Account not found.',
+      code: 'auth/user-not-found',
+    });
+  }
+
+  if (!user.isActive) {
+    const riderName = [user.firstName, user.lastName].filter(Boolean).join(' ').trim() || 'Rider';
+    return reply.code(403).send({
+      error: 'This rider account is disabled.',
+      code: 'auth/user-disabled',
+      riderName,
+      driverName: riderName,
+    });
+  }
 }
 
 export async function requireAdmin(request: FastifyRequest, reply: FastifyReply) {

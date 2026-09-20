@@ -1,6 +1,7 @@
 "use client";
 
 import { CreateDriverModal } from "@/components/CreateDriverModal";
+import { ResetPasswordModal } from "@/components/ResetPasswordModal";
 import { Shell } from "@/components/Shell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/Button";
@@ -29,6 +30,7 @@ export function UsersBoard({ role }: { role: "DRIVER" | "RIDER" }) {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<AdminUserRow | null>(null);
+  const [resetUser, setResetUser] = useState<AdminUserRow | null>(null);
 
   const load = async () => {
     try {
@@ -95,7 +97,7 @@ export function UsersBoard({ role }: { role: "DRIVER" | "RIDER" }) {
               }}
             />
             {role === "DRIVER" ? (
-              <Button variant="dark" onClick={() => setCreateOpen(true)}>
+              <Button variant="primary" onClick={() => setCreateOpen(true)}>
                 Create driver
               </Button>
             ) : null}
@@ -168,6 +170,15 @@ export function UsersBoard({ role }: { role: "DRIVER" | "RIDER" }) {
                         Force offline
                       </Button>
                     ) : null}
+                    {role === "DRIVER" ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setResetUser(user)}
+                      >
+                        Reset password
+                      </Button>
+                    ) : null}
                     <Button
                       variant="ghost"
                       size="sm"
@@ -213,6 +224,12 @@ export function UsersBoard({ role }: { role: "DRIVER" | "RIDER" }) {
           }}
         />
       ) : null}
+
+      <ResetPasswordModal
+        open={Boolean(resetUser)}
+        user={resetUser}
+        onClose={() => setResetUser(null)}
+      />
 
       <Modal
         open={Boolean(confirmDelete)}
