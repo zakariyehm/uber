@@ -462,6 +462,7 @@ export async function createDelivery(
     deliveryPrice: string;
     senderName?: string;
     senderPhone?: string;
+    payerType?: 'SENDER' | 'RECIPIENT';
     referenceId?: string;
     deliveryTimeLabel?: string;
   },
@@ -482,10 +483,55 @@ export async function createDelivery(
     pickupLocation: input.pickupLocation,
   });
 
+  const { PaymentHoldStatus, PaymentPayer } = await import('@prisma/client');
+  const payerType =
+    input.payerType === 'RECIPIENT' ? PaymentPayer.RECIPIENT : PaymentPayer.SENDER;
+
+  // Recipient pays at dropoff — create + offer with no Waafi hold.
+  if (payerType === PaymentPayer.RECIPIENT) {
+    const recipientPhone = input.recipientNumber?.trim() || '';
+    if (!recipientPhone) {
+      const error = new Error('Recipient phone is required when recipient pays') as Error & {
+        statusCode?: number;
+      };
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const row = await prisma.deliveryRequest.create({
+      data: {
+        orderId,
+        pickupLocation: input.pickupLocation,
+        pickupLat: pickupCoords?.latitude,
+        pickupLng: pickupCoords?.longitude,
+        destinationLocation: input.destinationLocation,
+        recipientName: input.recipientName,
+        recipientNumber: recipientPhone,
+        senderName: input.senderName,
+        senderPhone: input.senderPhone?.trim() || null,
+        payerType,
+        itemType: input.itemType,
+        deliveryMethod: input.deliveryMethod,
+        vehicleType: await resolveVehicleTypeForMethod(input.deliveryMethod),
+        deliveryPrice: amount,
+        referenceId: input.referenceId,
+        deliveryTimeLabel: input.deliveryTimeLabel,
+        riderUserId,
+        paymentHoldStatus: PaymentHoldStatus.NONE,
+      },
+    });
+
+    const offered = await ensureOfferAssignment(row);
+    return toDeliveryDto(offered);
+  }
+
+  // Sender pays — hold Waafi at checkout (existing flow).
   let payerPhone = input.senderPhone?.trim() || '';
-  // Prefer checkout sender number for Waafi charge; fall back to logged-in rider phone only if missing
   if (!payerPhone && riderUserId) {
-    const rider = await prisma.user.findUnique({ where: { id: riderUserId }, select: { phone: true } });
+    const rider = await prisma.user.findUnique({
+      where: { id: riderUserId },
+      select: { phone: true },
+    });
     if (rider?.phone) payerPhone = rider.phone;
   }
   if (!payerPhone) {
@@ -503,7 +549,6 @@ export async function createDelivery(
   });
 
   const { holdPaymentForOrder } = await import('../payments/payment.settlement.ts');
-  const { PaymentHoldStatus } = await import('@prisma/client');
   const hold = await holdPaymentForOrder({
     orderId,
     amount,
@@ -526,6 +571,7 @@ export async function createDelivery(
       recipientNumber: input.recipientNumber,
       senderName: input.senderName,
       senderPhone: input.senderPhone || payerPhone,
+      payerType,
       itemType: input.itemType,
       deliveryMethod: input.deliveryMethod,
       vehicleType: await resolveVehicleTypeForMethod(input.deliveryMethod),
@@ -866,13 +912,31 @@ export async function applyDeliveryAction(
       break;
     }
     case 'request_payment': {
-      if (current.status !== DeliveryStatus.IN_TRANSIT) fail('Payment only during trip');
+      if (current.payerType !== 'RECIPIENT') {
+        fail('Request payment is only for recipient-pays orders');
+      }
+      if (
+        current.status !== DeliveryStatus.IN_TRANSIT &&
+        current.status !== DeliveryStatus.COMPLETED
+      ) {
+        fail('Request payment only when delivering to the recipient');
+      }
+      if (current.paymentHoldStatus === 'COMMITTED' || current.settlementType !== 'NONE') {
+        fail('Payment already collected');
+      }
       data.paymentRequested = true;
-      data.paymentRequestedAt = now;
+      data.paymentRequestedAt = current.paymentRequestedAt || now;
       break;
     }
     case 'complete': {
       if (current.status !== DeliveryStatus.IN_TRANSIT) fail('Complete only during an active trip');
+      // Recipient-pays: driver must collect Waafi from recipient before completing.
+      if (
+        current.payerType === 'RECIPIENT' &&
+        current.paymentHoldStatus !== 'COMMITTED'
+      ) {
+        fail('Request payment from the recipient before completing');
+      }
       data.status = DeliveryStatus.COMPLETED;
       data.completedAt = now;
       break;
@@ -947,6 +1011,18 @@ export async function applyDeliveryAction(
     }
   }
 
+  if (action === 'request_payment') {
+    const { chargeRecipientAndSettle } = await import('../payments/payment.settlement.ts');
+    await chargeRecipientAndSettle(id);
+    await prisma.driverActiveDelivery.updateMany({
+      where: { requestId: id },
+      data: { requestId: null },
+    });
+    const unlockId = row.driverUserId || current.offeredToDriverId || actor?.id;
+    await releaseOfferLock(unlockId, id);
+    return getById(id);
+  }
+
   if (action === 'confirm_received' || action === 'cancel') {
     await prisma.driverActiveDelivery.updateMany({
       where: { requestId: id },
@@ -965,7 +1041,10 @@ export async function applyDeliveryAction(
   if (action === 'cancel') {
     const { settleNoShow, releasePaymentHold } = await import('../payments/payment.settlement.ts');
     if (row.cancelReason === 'no_show') {
-      await settleNoShow(id);
+      // Recipient-pays with no hold: cancel only — no Waafi / no $0.50 capture.
+      if (row.paymentHoldStatus === 'HELD') {
+        await settleNoShow(id);
+      }
     } else {
       await releasePaymentHold(id);
     }

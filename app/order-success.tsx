@@ -184,7 +184,12 @@ export default function OrderSuccessScreen() {
       : null;
 
   const statusMessage = (() => {
-    if (deliveryStatus === 'pending') return 'Waiting for a driver to accept your delivery request...';
+    if (deliveryStatus === 'pending') {
+      if (deliveryRequest?.payerType === 'RECIPIENT') {
+        return 'Waiting for a driver. The recipient will pay with Waafi when the package is delivered.';
+      }
+      return 'Waiting for a driver to accept your delivery request...';
+    }
     if (deliveryStatus === 'accepted' && deliveryRequest?.driverArrived && !deliveryRequest.userConfirmedArrival) {
       return `${driverName || 'Your driver'} is at pickup. Hold to confirm they arrived.`;
     }
@@ -197,11 +202,21 @@ export default function OrderSuccessScreen() {
       return 'Driver says the package was collected. Hold to confirm they took it.';
     }
     if (deliveryStatus === 'picked_up') return 'Package confirmed. Driver can start the trip.';
-    if (deliveryStatus === 'in_transit') return 'Your package is on the way to the destination.';
+    if (deliveryStatus === 'in_transit') {
+      if (deliveryRequest?.payerType === 'RECIPIENT') {
+        return 'Your package is on the way. The recipient will pay with Waafi when the driver requests payment.';
+      }
+      return 'Your package is on the way to the destination.';
+    }
     if (deliveryStatus === 'completed' && !deliveryRequest?.userConfirmedDelivery) {
       return 'Driver marked delivery complete. Hold to confirm you received the package.';
     }
-    if (deliveryStatus === 'completed') return 'Delivery completed and confirmed. Thank you!';
+    if (deliveryStatus === 'completed') {
+      if (deliveryRequest?.payerType === 'RECIPIENT') {
+        return 'Delivery completed. Recipient payment collected. Thank you!';
+      }
+      return 'Delivery completed and confirmed. Thank you!';
+    }
     if (deliveryStatus === 'cancelled' && cancelCopy) return cancelCopy.short;
     return 'Your order has been confirmed.';
   })();

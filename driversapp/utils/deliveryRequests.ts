@@ -40,6 +40,7 @@ export interface DeliveryRequest {
   cancelledAt?: string;
   cancelledBy?: string;
   cancelReason?: string;
+  payerType?: 'SENDER' | 'RECIPIENT' | string;
   paymentHoldStatus?: string;
   settlementType?: string;
   driverEarnings?: string;

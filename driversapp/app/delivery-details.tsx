@@ -8,6 +8,7 @@ import {
   getDeliveryRequestById,
   markAsPickedUp,
   markDriverArrived,
+  requestPayment,
   setActiveDelivery,
   startTrip,
 } from '@/utils/deliveryRequests';
@@ -48,6 +49,12 @@ function sheetCopy(request: DeliveryRequest): { title: string; subtitle: string 
     return { title: 'Ready to start trip', subtitle: request.destinationLocation };
   }
   if (request.status === 'in_transit') {
+    if (request.payerType === 'RECIPIENT' && request.paymentHoldStatus !== 'COMMITTED') {
+      return {
+        title: 'Collect payment',
+        subtitle: `Request Waafi from ${request.recipientNumber}`,
+      };
+    }
     return { title: 'Delivering package', subtitle: request.destinationLocation };
   }
   if (request.status === 'completed' && !request.userConfirmedDelivery) {
@@ -251,6 +258,14 @@ export default function DeliveryDetailsScreen() {
     }
 
     if (request.status === 'in_transit') {
+      if (request.payerType === 'RECIPIENT' && request.paymentHoldStatus !== 'COMMITTED') {
+        return {
+          kind: 'hold',
+          label: `Hold · Request payment · ${request.recipientNumber}`,
+          color: '#03C167',
+          run: () => requestPayment(request.id),
+        };
+      }
       return {
         kind: 'hold',
         label: 'Hold · Complete delivery',

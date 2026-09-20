@@ -37,6 +37,7 @@ export interface DeliveryRequest {
   cancelledAt?: string;
   cancelledBy?: string;
   cancelReason?: string;
+  payerType?: 'SENDER' | 'RECIPIENT' | string;
   paymentHoldStatus?: string;
   settlementType?: string;
   driverEarnings?: string;
@@ -55,7 +56,8 @@ export const createDeliveryRequest = async (orderData: {
   deliveryMethod: string;
   deliveryPrice: string;
   senderName?: string;
-  senderPhone: string;
+  senderPhone?: string;
+  payerType?: 'SENDER' | 'RECIPIENT';
 }): Promise<DeliveryRequest> => {
   return apiRequest<DeliveryRequest>('/deliveries', {
     method: 'POST',

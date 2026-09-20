@@ -1,21 +1,33 @@
 import { z } from 'zod';
 
-export const createDeliverySchema = z.object({
-  orderId: z.string().min(3).optional(),
-  pickupLocation: z.string().min(1),
-  pickupLat: z.number().finite().optional(),
-  pickupLng: z.number().finite().optional(),
-  destinationLocation: z.string().min(1),
-  recipientName: z.string().min(1),
-  recipientNumber: z.string().min(1),
-  itemType: z.string().min(1),
-  deliveryMethod: z.string().min(1),
-  deliveryPrice: z.string().min(1),
-  senderName: z.string().optional(),
-  senderPhone: z.string().min(7, 'Sender phone required for Waafi'),
-  referenceId: z.string().optional(),
-  deliveryTimeLabel: z.string().optional(),
-});
+export const createDeliverySchema = z
+  .object({
+    orderId: z.string().min(3).optional(),
+    pickupLocation: z.string().min(1),
+    pickupLat: z.number().finite().optional(),
+    pickupLng: z.number().finite().optional(),
+    destinationLocation: z.string().min(1),
+    recipientName: z.string().min(1),
+    recipientNumber: z.string().min(1),
+    itemType: z.string().min(1),
+    deliveryMethod: z.string().min(1),
+    deliveryPrice: z.string().min(1),
+    senderName: z.string().optional(),
+    senderPhone: z.string().min(7).optional(),
+    /** Who Waafi charges: sender at checkout, or recipient at dropoff. */
+    payerType: z.enum(['SENDER', 'RECIPIENT']).optional().default('SENDER'),
+    referenceId: z.string().optional(),
+    deliveryTimeLabel: z.string().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.payerType === 'SENDER' && !data.senderPhone?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Sender phone required for Waafi',
+        path: ['senderPhone'],
+      });
+    }
+  });
 
 export const driverLocationSchema = z.object({
   latitude: z.number().finite().min(-90).max(90),

@@ -644,14 +644,18 @@ export async function listPayments(input: {
   const limit = Math.min(50, Math.max(1, input.limit || 20));
   const skip = (page - 1) * limit;
 
-  const where: Prisma.DeliveryRequestWhereInput = {
-    NOT: { paymentHoldStatus: PaymentHoldStatus.NONE },
-  };
+  // Include Waafi holds plus recipient-pays trips awaiting / after collection.
+  const where: Prisma.DeliveryRequestWhereInput = {};
   if (input.status) {
     const status = input.status.toUpperCase() as PaymentHoldStatus;
     if ((Object.values(PaymentHoldStatus) as string[]).includes(status)) {
       where.paymentHoldStatus = status;
     }
+  } else {
+    where.OR = [
+      { NOT: { paymentHoldStatus: PaymentHoldStatus.NONE } },
+      { payerType: 'RECIPIENT' },
+    ];
   }
 
   const [rows, total] = await Promise.all([
@@ -680,6 +684,10 @@ export async function listPayments(input: {
         amount: moneyStr(row.deliveryPrice),
         status: row.paymentHoldStatus,
         settlementType: row.settlementType,
+        payerType: row.payerType,
+        paymentRequested: row.paymentRequested,
+        paymentRequestedAt: row.paymentRequestedAt?.toISOString() || null,
+        recipientNumber: row.recipientNumber,
         deliveryMethod: row.deliveryMethod,
         openToAllVehicleTypes: dto.openToAllVehicleTypes,
         driverEarnings: dto.driverEarnings || null,

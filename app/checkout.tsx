@@ -82,11 +82,15 @@ export default function CheckoutScreen() {
     };
   }, []);
 
-  const handleConfirmOrder = async () => {
+  const handlePlaceOrder = async (payerType: 'SENDER' | 'RECIPIENT') => {
     if (placingRef.current || isPlacingOrder) return;
 
-    if (!senderNumber.trim()) {
+    if (payerType === 'SENDER' && !senderNumber.trim()) {
       Alert.alert('Sender number required', 'Enter the sender Waafi phone number before confirming.');
+      return;
+    }
+    if (payerType === 'RECIPIENT' && !recipientNumber.trim()) {
+      Alert.alert('Recipient number required', 'Recipient phone is needed so they can pay on delivery.');
       return;
     }
     if (!estimatedPrice || Number.parseFloat(estimatedPrice) <= 0) {
@@ -107,10 +111,13 @@ export default function CheckoutScreen() {
         deliveryMethod: deliveryMethod || 'Standard',
         deliveryPrice: estimatedPrice,
         senderName: senderName || 'Sender',
-        senderPhone: senderNumber.trim(),
+        ...(payerType === 'SENDER'
+          ? { senderPhone: senderNumber.trim() }
+          : senderNumber.trim()
+            ? { senderPhone: senderNumber.trim() }
+            : {}),
+        payerType,
       });
-
-      console.log('[Checkout] Order created after Waafi hold', deliveryRequest.id);
 
       router.replace({
         pathname: '/order-success',
@@ -124,6 +131,7 @@ export default function CheckoutScreen() {
           selectedType,
           deliveryMethod,
           estimatedPrice,
+          payerType,
         },
       });
     } catch (error: unknown) {
@@ -132,9 +140,32 @@ export default function CheckoutScreen() {
       const message =
         error instanceof Error && error.message
           ? error.message
-          : 'Lacag bixintu ma dhammaan. Isku day mar kale.';
-      Alert.alert('Lacag bixintu ma dhammaan', message);
+          : 'Order could not be placed. Please try again.';
+      Alert.alert(
+        payerType === 'SENDER' ? 'Payment hold failed' : 'Could not place order',
+        message
+      );
     }
+  };
+
+  const handleConfirmOrder = () => {
+    if (placingRef.current || isPlacingOrder) return;
+
+    Alert.alert(
+      'Who pays for this delivery?',
+      'Choose who Waafi will charge for this order.',
+      [
+        {
+          text: 'Sender pays now',
+          onPress: () => void handlePlaceOrder('SENDER'),
+        },
+        {
+          text: 'Recipient pays on delivery',
+          onPress: () => void handlePlaceOrder('RECIPIENT'),
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
   };
 
   return (
@@ -266,8 +297,8 @@ export default function CheckoutScreen() {
         </View>
 
         <Text style={[styles.holdHint, { color: colors.icon }]}>
-          When you confirm, Waafi sends a prompt to {senderNumber || 'this number'}. Approve it and enter
-          your PIN to hold ${estimatedPrice}. Funds are captured only after the trip is completed.
+          Tap Confirm Order, then choose who pays: the sender (Waafi hold now) or the recipient
+          (pays when the package is delivered).
         </Text>
 
         {/* Confirm Order Button */}
@@ -285,10 +316,10 @@ export default function CheckoutScreen() {
           {isPlacingOrder ? (
             <View style={styles.confirmBusy}>
               <ActivityIndicator size="small" color="#FFF" />
-              <Text style={styles.confirmBusyText}>Waiting for PIN approval…</Text>
+              <Text style={styles.confirmBusyText}>Placing order…</Text>
             </View>
           ) : (
-            <Text style={styles.confirmButtonText}>Confirm Order · Hold payment</Text>
+            <Text style={styles.confirmButtonText}>Confirm Order</Text>
           )}
         </TouchableOpacity>
       </ScrollView>

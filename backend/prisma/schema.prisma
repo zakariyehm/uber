@@ -45,6 +45,11 @@ enum SettlementType {
   NO_SHOW
 }
 
+enum PaymentPayer {
+  SENDER
+  RECIPIENT
+}
+
 model User {
   id           String   @id @default(uuid())
   role         UserRole
@@ -127,6 +132,8 @@ model DeliveryRequest {
   recipientNumber        String
   senderName             String?
   senderPhone            String?
+  /** Who Waafi charges: sender at checkout hold, or recipient at dropoff. */
+  payerType              PaymentPayer   @default(SENDER)
   itemType               String
   deliveryMethod         String
   vehicleType            VehicleType    @default(MOTORCYCLE)

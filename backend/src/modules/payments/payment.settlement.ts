@@ -237,6 +237,71 @@ export async function releasePaymentHold(deliveryId: string) {
   });
 }
 
+/**
+ * Recipient-pays at dropoff: PreAuth + immediate Commit on recipientNumber,
+ * then FULL settlement + mark trip completed/confirmed.
+ */
+export async function chargeRecipientAndSettle(deliveryId: string) {
+  const row = await prisma.deliveryRequest.findUnique({ where: { id: deliveryId } });
+  if (!row) {
+    const error = new Error('Delivery not found') as Error & { statusCode?: number };
+    error.statusCode = 404;
+    throw error;
+  }
+  if (row.payerType !== 'RECIPIENT') {
+    const error = new Error('Request payment is only for recipient-pays orders') as Error & {
+      statusCode?: number;
+    };
+    error.statusCode = 409;
+    throw error;
+  }
+  if (row.settlementType !== SettlementType.NONE || row.paymentHoldStatus === PaymentHoldStatus.COMMITTED) {
+    return row;
+  }
+  if (row.status !== DeliveryStatus.IN_TRANSIT && row.status !== DeliveryStatus.COMPLETED) {
+    const error = new Error('Request payment only when delivering to the recipient') as Error & {
+      statusCode?: number;
+    };
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const payerPhone = String(row.recipientNumber || '').trim();
+  if (!payerPhone) {
+    const error = new Error('Recipient phone is required for Waafi payment') as Error & {
+      statusCode?: number;
+    };
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const amount = Number(row.deliveryPrice);
+  const hold = await holdPaymentForOrder({
+    orderId: row.orderId,
+    amount,
+    payerPhone,
+  });
+
+  await prisma.deliveryRequest.update({
+    where: { id: deliveryId },
+    data: {
+      paymentRequested: true,
+      paymentRequestedAt: row.paymentRequestedAt || new Date(),
+      paymentHoldStatus: PaymentHoldStatus.HELD,
+      waafiTransactionId: hold.waafiTransactionId,
+      waafiReferenceId: hold.waafiReferenceId,
+      paymentHeldAt: new Date(),
+      status: DeliveryStatus.COMPLETED,
+      completedAt: row.completedAt || new Date(),
+      userConfirmedDelivery: true,
+      userConfirmedDeliveryAt: new Date(),
+    },
+  });
+
+  const settled = await settleFullTrip(deliveryId);
+  return settled;
+}
+
 export function money(n: number | Prisma.Decimal | null | undefined) {
   return Number(n ?? 0);
 }

@@ -13,6 +13,10 @@ type PaymentRow = {
   amount: string;
   status: string;
   settlementType: string;
+  payerType?: string;
+  paymentRequested?: boolean;
+  paymentRequestedAt?: string | null;
+  recipientNumber?: string | null;
   driverEarnings: string | null;
   platformFee: string | null;
   stateShare: string | null;
@@ -26,6 +30,20 @@ type PaymentRow = {
   driverName: string | null;
   tripStatus: string;
 };
+
+function payerLabel(row: PaymentRow) {
+  if (row.payerType === "RECIPIENT") return "Recipient";
+  return "Sender";
+}
+
+function paymentProgress(row: PaymentRow) {
+  if (row.payerType === "RECIPIENT") {
+    if (row.status === "COMMITTED") return "Collected from recipient";
+    if (row.paymentRequested) return "Driver requested · awaiting Waafi";
+    return "Awaiting driver request payment";
+  }
+  return row.settlementType;
+}
 
 export default function PaymentsPage() {
   const [status, setStatus] = useState("");
@@ -59,7 +77,9 @@ export default function PaymentsPage() {
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h2 className="text-2xl font-semibold">Payments</h2>
-          <p className="text-sm text-muted">Waafi hold lifecycle · {data?.total ?? 0} records</p>
+          <p className="text-sm text-muted">
+            Waafi holds + recipient-pays collection · {data?.total ?? 0} records
+          </p>
         </div>
         <select
           className="rounded-lg border border-line bg-panel px-3 py-2 text-sm"
@@ -69,7 +89,8 @@ export default function PaymentsPage() {
             setStatus(e.target.value);
           }}
         >
-          <option value="">All holds</option>
+          <option value="">All payments</option>
+          <option value="NONE">Awaiting (recipient)</option>
           <option value="HELD">Held</option>
           <option value="COMMITTED">Committed</option>
           <option value="RELEASED">Released</option>
@@ -81,6 +102,7 @@ export default function PaymentsPage() {
           <thead className="text-xs uppercase text-muted">
             <tr>
               <th className="px-4 py-3">Trip</th>
+              <th className="px-4 py-3">Payer</th>
               <th className="px-4 py-3">Amount</th>
               <th className="px-4 py-3">Hold</th>
               <th className="px-4 py-3">Split</th>
@@ -92,12 +114,22 @@ export default function PaymentsPage() {
               <tr key={row.id} className="border-t border-line/70">
                 <td className="px-4 py-3">
                   <OrderCode id={row.orderId} href={`/trips/${row.id}`} />
-                  <p className="text-xs text-muted">{row.riderPhone} · {row.driverName || "no driver"}</p>
+                  <p className="text-xs text-muted">
+                    {row.riderPhone} · {row.driverName || "no driver"} · {row.tripStatus}
+                  </p>
+                </td>
+                <td className="px-4 py-3">
+                  <p className="font-medium">{payerLabel(row)}</p>
+                  <p className="text-xs text-muted">
+                    {row.payerType === "RECIPIENT"
+                      ? row.recipientNumber || "—"
+                      : row.riderPhone || "—"}
+                  </p>
                 </td>
                 <td className="px-4 py-3">{money(row.amount)}</td>
                 <td className="px-4 py-3">
                   <StatusBadge value={row.status} />
-                  <p className="mt-1 text-xs text-muted">{row.settlementType}</p>
+                  <p className="mt-1 text-xs text-muted">{paymentProgress(row)}</p>
                 </td>
                 <td className="px-4 py-3 text-xs text-muted">
                   {row.openToAllVehicleTypes
@@ -106,7 +138,13 @@ export default function PaymentsPage() {
                   {row.riderRefundPending ? ` · credit ${money(row.riderRefundPending)}` : ""}
                 </td>
                 <td className="px-4 py-3 text-xs text-muted">
-                  {when(row.committedAt || row.releasedAt || row.heldAt)}
+                  {when(
+                    row.committedAt ||
+                      row.releasedAt ||
+                      row.heldAt ||
+                      row.paymentRequestedAt ||
+                      null
+                  )}
                 </td>
               </tr>
             ))}
@@ -114,10 +152,17 @@ export default function PaymentsPage() {
         </table>
       </div>
       <div className="mt-4 flex justify-end gap-2">
-        <button className="rounded-lg border border-line px-3 py-1 text-sm disabled:opacity-40" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+        <button
+          className="rounded-lg border border-line px-3 py-1 text-sm disabled:opacity-40"
+          disabled={page <= 1}
+          onClick={() => setPage((p) => p - 1)}
+        >
           Prev
         </button>
-        <button className="rounded-lg border border-line px-3 py-1 text-sm" onClick={() => setPage((p) => p + 1)}>
+        <button
+          className="rounded-lg border border-line px-3 py-1 text-sm"
+          onClick={() => setPage((p) => p + 1)}
+        >
           Next
         </button>
       </div>

@@ -56,6 +56,7 @@ export type DeliveryDto = {
   cancelledAt?: string;
   cancelledBy?: string;
   cancelReason?: string;
+  payerType?: string;
   paymentHoldStatus?: string;
   settlementType?: string;
   driverEarnings?: string;
@@ -141,6 +142,7 @@ export function toDeliveryDto(row: DbDelivery): DeliveryDto {
     cancelledAt: toIso(row.cancelledAt),
     cancelledBy: row.cancelledBy ?? undefined,
     cancelReason: row.cancelReason ?? undefined,
+    payerType: row.payerType,
     paymentHoldStatus: row.paymentHoldStatus,
     settlementType: row.settlementType,
     driverEarnings,
