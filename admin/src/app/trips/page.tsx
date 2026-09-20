@@ -1,5 +1,7 @@
-import { redirect } from "next/navigation";
+"use client";
 
-export default function TripsIndexPage() {
-  redirect("/trips/local");
+import { TripsBoard } from "@/components/TripsBoard";
+
+export default function TripsPage() {
+  return <TripsBoard />;
 }

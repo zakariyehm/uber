@@ -185,11 +185,8 @@ export default function TripDetailPage() {
                     {data?.driver?.vehicleType ? ` · ${vehicleLabel(data.driver.vehicleType)}` : ""}
                   </span>
                 </p>
-                <Link
-                  href={trip.openToAllVehicleTypes ? "/trips/state" : "/trips/local"}
-                  className="mt-4 inline-block text-xs text-raac"
-                >
-                  {trip.openToAllVehicleTypes ? "All state trips" : "All local trips"}
+                <Link href="/trips" className="mt-4 inline-block text-xs text-raac">
+                  All trips
                 </Link>
               </section>
             </div>

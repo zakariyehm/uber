@@ -1,13 +1,5 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { TripsBoard } from "@/components/TripsBoard";
-
-export default function LocalTripsPage() {
-  return (
-    <TripsBoard
-      kind="local"
-      title="Local trips"
-      subtitle="Moto Fekon, Bajaj, and Bicycle"
-    />
-  );
+export default function LocalTripsRedirect() {
+  redirect("/trips");
 }

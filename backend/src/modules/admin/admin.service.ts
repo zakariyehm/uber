@@ -367,7 +367,7 @@ export async function listTrips(input: {
 
   const where: Prisma.DeliveryRequestWhereInput = and.length ? { AND: and } : {};
 
-  const [rows, total, methods] = await Promise.all([
+  const [rows, total, methods, stateNames] = await Promise.all([
     prisma.deliveryRequest.findMany({
       where,
       include: {
@@ -380,7 +380,10 @@ export async function listTrips(input: {
     }),
     prisma.deliveryRequest.count({ where }),
     listTripMethodOptions(input.category),
+    stateMethodNames(),
   ]);
+
+  const stateSet = new Set(stateNames.map((name) => name.trim().toLowerCase()));
 
   return {
     page,
@@ -389,6 +392,7 @@ export async function listTrips(input: {
     methods,
     trips: rows.map((row) => ({
       ...toDeliveryDto(row),
+      tripKind: stateSet.has((row.deliveryMethod || '').trim().toLowerCase()) ? 'STATE' : 'LOCAL',
       riderName: row.rider ? displayName(row.rider) : row.senderName || '—',
       riderPhone: row.rider?.phone || row.senderPhone || null,
       driverPhone: row.driver?.phone || null,

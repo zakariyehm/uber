@@ -8,9 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 
 const NAV: { href?: string; label: string; section?: boolean }[] = [
   { href: "/", label: "Command" },
-  { label: "Trips", section: true },
-  { href: "/trips/local", label: "Local" },
-  { href: "/trips/state", label: "State" },
+  { href: "/trips", label: "Trips" },
   { href: "/moto", label: "Moto" },
   { href: "/states", label: "States" },
   { href: "/drivers", label: "Drivers" },

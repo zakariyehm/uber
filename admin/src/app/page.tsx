@@ -140,14 +140,9 @@ export default function CommandPage() {
         <section className="rounded-xl border border-line bg-panel">
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
             <h3 className="text-sm font-semibold">Live trips</h3>
-            <div className="flex gap-3 text-xs">
-              <Link href="/trips/local" className="text-raac">
-                Local
-              </Link>
-              <Link href="/trips/state" className="text-raac">
-                State
-              </Link>
-            </div>
+            <Link href="/trips" className="text-xs text-raac">
+              All trips
+            </Link>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">

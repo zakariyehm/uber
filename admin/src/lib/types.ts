@@ -55,6 +55,8 @@ export type TripRow = {
   settlementType?: string;
   offeredToDriverId?: string;
   offerExpiresAt?: string;
+  /** LOCAL | STATE when returned from admin listTrips */
+  tripKind?: string | null;
 };
 
 export type LiveDriver = {

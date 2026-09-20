@@ -6,7 +6,6 @@ import { api, errorMessage } from "@/lib/api";
 import { OrderCode } from "@/components/OrderCode";
 import { money, vehicleLabel, when } from "@/lib/format";
 import type { TripRow } from "@/lib/types";
-import Link from "next/link";
 import { useEffect, useState } from "react";
 
 const STATUSES = [
@@ -19,23 +18,21 @@ const STATUSES = [
   { value: "CANCELLED", label: "Cancelled" },
 ];
 
-export type TripKind = "local" | "state";
+type KindFilter = "" | "local" | "state";
 
-type Props = {
-  kind: TripKind;
-  title: string;
-  subtitle: string;
-};
+function isStateTrip(trip: TripRow) {
+  return trip.tripKind === "STATE" || trip.tripKind === "DELIVERY_STATE";
+}
 
-export function TripsBoard({ kind, title, subtitle }: Props) {
+export function TripsBoard() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
+  const [kind, setKind] = useState<KindFilter>("");
   const [method, setMethod] = useState("");
   const [methods, setMethods] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [data, setData] = useState<{ trips: TripRow[]; total: number; page: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const other = kind === "local" ? "state" : "local";
 
   useEffect(() => {
     let cancelled = false;
@@ -44,8 +41,9 @@ export function TripsBoard({ kind, title, subtitle }: Props) {
         const params = new URLSearchParams({
           page: String(page),
           limit: "20",
-          category: kind === "state" ? "STATE" : "LOCAL",
         });
+        if (kind === "state") params.set("category", "STATE");
+        if (kind === "local") params.set("category", "LOCAL");
         if (q.trim()) params.set("q", q.trim());
         if (status) params.set("status", status);
         if (method) params.set("method", method);
@@ -71,33 +69,28 @@ export function TripsBoard({ kind, title, subtitle }: Props) {
     <Shell>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <div className="mb-3 inline-flex rounded-lg border border-line bg-panel p-1 text-sm">
-            <Link
-              href="/trips/local"
-              className={`rounded-md px-3 py-1.5 font-medium ${
-                kind === "local" ? "bg-raac-dim text-raac" : "text-muted hover:text-ink"
-              }`}
-            >
-              Local
-            </Link>
-            <Link
-              href="/trips/state"
-              className={`rounded-md px-3 py-1.5 font-medium ${
-                kind === "state" ? "bg-raac-dim text-raac" : "text-muted hover:text-ink"
-              }`}
-            >
-              State
-            </Link>
-          </div>
-          <h2 className="text-2xl font-semibold">{title}</h2>
+          <h2 className="text-2xl font-semibold">Trips</h2>
           <p className="text-sm text-muted">
-            {data?.total ?? 0} {kind === "local" ? "city Moto jobs" : "Delivery State jobs"} · {subtitle}
+            {data?.total ?? 0} jobs · Local Moto and Delivery State
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <select
+            className="rounded-lg border border-line bg-panel px-3 py-2 text-sm"
+            value={kind}
+            onChange={(e) => {
+              setPage(1);
+              setMethod("");
+              setKind(e.target.value as KindFilter);
+            }}
+          >
+            <option value="">All kinds</option>
+            <option value="local">Local</option>
+            <option value="state">State</option>
+          </select>
           <input
             className="rounded-lg border border-line bg-panel px-3 py-2 text-sm outline-none"
-            placeholder={kind === "local" ? "Search local trip" : "Search state trip"}
+            placeholder="Search trip"
             value={q}
             onChange={(e) => {
               setPage(1);
@@ -112,7 +105,7 @@ export function TripsBoard({ kind, title, subtitle }: Props) {
               setMethod(e.target.value);
             }}
           >
-            <option value="">{kind === "local" ? "All Moto types" : "All destinations"}</option>
+            <option value="">{kind === "state" ? "All destinations" : "All methods"}</option>
             {methods.map((item) => (
               <option key={item} value={item}>
                 {item}
@@ -143,8 +136,9 @@ export function TripsBoard({ kind, title, subtitle }: Props) {
           <thead className="text-xs uppercase text-muted">
             <tr>
               <th className="px-4 py-3">Trip</th>
+              <th className="px-4 py-3">Kind</th>
               <th className="px-4 py-3">Route</th>
-              <th className="px-4 py-3">{kind === "local" ? "Method" : "Destination"}</th>
+              <th className="px-4 py-3">Method</th>
               <th className="px-4 py-3">Rider</th>
               <th className="px-4 py-3">Driver</th>
               <th className="px-4 py-3">Fare</th>
@@ -153,43 +147,46 @@ export function TripsBoard({ kind, title, subtitle }: Props) {
             </tr>
           </thead>
           <tbody>
-            {(data?.trips || []).map((trip) => (
-              <tr key={trip.id} className="border-t border-line/70 hover:bg-panel-2">
-                <td className="px-4 py-3">
-                  <OrderCode id={trip.orderId} href={`/trips/${trip.id}`} />
-                  <p className="mt-1 text-[11px] text-muted">{when(trip.createdAt)}</p>
-                </td>
-                <td className="px-4 py-3">
-                  <p className="max-w-[220px] truncate">{trip.pickupLocation}</p>
-                  <p className="max-w-[220px] truncate text-muted">{trip.destinationLocation}</p>
-                </td>
-                <td className="px-4 py-3">
-                  <p>{trip.deliveryMethod || "—"}</p>
-                  <p className="text-xs text-muted">
-                    {kind === "state" ? "Delivery State" : vehicleLabel(trip.vehicleType)}
-                  </p>
-                </td>
-                <td className="px-4 py-3">
-                  {trip.riderName}
-                  <p className="text-xs text-muted">{trip.riderPhone}</p>
-                </td>
-                <td className="px-4 py-3">{trip.driverName || "—"}</td>
-                <td className="px-4 py-3">{money(trip.deliveryPrice)}</td>
-                <td className="px-4 py-3">
-                  <StatusBadge value={trip.status} />
-                </td>
-                <td className="px-4 py-3">
-                  <StatusBadge value={trip.paymentHoldStatus || "NONE"} />
-                </td>
-              </tr>
-            ))}
+            {(data?.trips || []).map((trip) => {
+              const state = isStateTrip(trip);
+              return (
+                <tr key={trip.id} className="border-t border-line/70 hover:bg-panel-2">
+                  <td className="px-4 py-3">
+                    <OrderCode id={trip.orderId} href={`/trips/${trip.id}`} />
+                    <p className="mt-1 text-[11px] text-muted">{when(trip.createdAt)}</p>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="text-xs font-medium text-muted">{state ? "State" : "Local"}</span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <p className="max-w-[220px] truncate">{trip.pickupLocation}</p>
+                    <p className="max-w-[220px] truncate text-muted">{trip.destinationLocation}</p>
+                  </td>
+                  <td className="px-4 py-3">
+                    <p>{trip.deliveryMethod || "—"}</p>
+                    <p className="text-xs text-muted">
+                      {state ? "Delivery State" : vehicleLabel(trip.vehicleType)}
+                    </p>
+                  </td>
+                  <td className="px-4 py-3">
+                    {trip.riderName}
+                    <p className="text-xs text-muted">{trip.riderPhone}</p>
+                  </td>
+                  <td className="px-4 py-3">{trip.driverName || "—"}</td>
+                  <td className="px-4 py-3">{money(trip.deliveryPrice)}</td>
+                  <td className="px-4 py-3">
+                    <StatusBadge value={trip.status} />
+                  </td>
+                  <td className="px-4 py-3">
+                    <StatusBadge value={trip.paymentHoldStatus || "NONE"} />
+                  </td>
+                </tr>
+              );
+            })}
             {!data?.trips.length ? (
               <tr>
-                <td className="px-4 py-10 text-center text-sm text-muted" colSpan={8}>
-                  No {kind} trips match these filters.{" "}
-                  <Link href={`/trips/${other}`} className="text-raac">
-                    Open {other} trips
-                  </Link>
+                <td className="px-4 py-10 text-center text-sm text-muted" colSpan={9}>
+                  No trips match these filters.
                 </td>
               </tr>
             ) : null}
