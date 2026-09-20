@@ -2,6 +2,8 @@
 
 import { Shell } from "@/components/Shell";
 import { StatusBadge } from "@/components/StatusBadge";
+import { Button } from "@/components/ui/Button";
+import { PageHeader, Panel } from "@/components/ui/PageChrome";
 import { api, ApiError, errorMessage } from "@/lib/api";
 import { money } from "@/lib/format";
 import type { ServiceMethod } from "@/lib/types";
@@ -195,27 +197,20 @@ export default function StatesPage() {
 
   return (
     <Shell>
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-semibold">States</h2>
-          <p className="text-sm text-muted">
-            Price and ETA riders pay for Delivery State from Banadir to each destination. Hide a state to take it off the rider app.
-          </p>
-        </div>
-        <button
-          type="button"
-          disabled={saving}
-          onClick={() => void saveAll()}
-          className="rounded-lg bg-raac px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
-        >
-          {saving ? "Saving…" : "Save changes"}
-        </button>
-      </div>
+      <PageHeader
+        title="Delivery State"
+        subtitle="Destinations, prices, and ETAs riders see for Delivery State trips."
+        actions={
+          <Button variant="primary" disabled={saving} onClick={() => void saveAll()}>
+            {saving ? "Saving…" : "Save changes"}
+          </Button>
+        }
+      />
 
       {error ? <p className="mb-4 text-sm text-danger">{error}</p> : null}
       {notice ? <p className="mb-4 text-sm text-raac">{notice}</p> : null}
 
-      <section className="mb-6 rounded-xl border border-line bg-panel p-4">
+      <Panel className="mb-6 p-4">
         <h3 className="mb-3 text-sm font-semibold">Add destination</h3>
         <form
           className="grid gap-3 md:grid-cols-4"
@@ -246,17 +241,13 @@ export default function StatesPage() {
               onChange={(e) => setForm((current) => ({ ...current, price: e.target.value }))}
             />
           </div>
-          <button
-            type="submit"
-            disabled={creating}
-            className="rounded-lg bg-raac px-3 py-2 text-sm font-semibold text-white disabled:opacity-40"
-          >
+          <Button type="submit" variant="primary" disabled={creating}>
             {creating ? "Adding…" : "Add state"}
-          </button>
+          </Button>
         </form>
-      </section>
+      </Panel>
 
-      <div className="overflow-hidden rounded-xl border border-line bg-panel">
+      <Panel>
         <table className="w-full text-left text-sm">
           <thead className="text-xs uppercase text-muted">
             <tr>
@@ -326,7 +317,7 @@ export default function StatesPage() {
             })}
           </tbody>
         </table>
-      </div>
+      </Panel>
     </Shell>
   );
 }

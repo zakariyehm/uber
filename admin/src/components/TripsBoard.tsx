@@ -2,8 +2,19 @@
 
 import { Shell } from "@/components/Shell";
 import { StatusBadge } from "@/components/StatusBadge";
-import { api, errorMessage } from "@/lib/api";
 import { OrderCode } from "@/components/OrderCode";
+import { SearchInput } from "@/components/ui/Field";
+import {
+  EmptyRow,
+  PageHeader,
+  Pagination,
+  Panel,
+  Table,
+  Td,
+  Th,
+  THead,
+} from "@/components/ui/PageChrome";
+import { api, errorMessage } from "@/lib/api";
 import { money, vehicleLabel, when } from "@/lib/format";
 import type { TripRow } from "@/lib/types";
 import { useEffect, useState } from "react";
@@ -19,6 +30,9 @@ const STATUSES = [
 ];
 
 type KindFilter = "" | "local" | "state";
+
+const filterClass =
+  "h-10 rounded-lg border border-line bg-panel px-3 text-sm outline-none focus:border-raac focus:ring-2 focus:ring-raac/20";
 
 function isStateTrip(trip: TripRow) {
   return trip.tripKind === "STATE" || trip.tripKind === "DELIVERY_STATE";
@@ -67,149 +81,133 @@ export function TripsBoard() {
 
   return (
     <Shell>
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-semibold">Trips</h2>
-          <p className="text-sm text-muted">
-            {data?.total ?? 0} jobs · Local Moto and Delivery State
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <select
-            className="rounded-lg border border-line bg-panel px-3 py-2 text-sm"
-            value={kind}
-            onChange={(e) => {
-              setPage(1);
-              setMethod("");
-              setKind(e.target.value as KindFilter);
-            }}
-          >
-            <option value="">All kinds</option>
-            <option value="local">Local</option>
-            <option value="state">State</option>
-          </select>
-          <input
-            className="rounded-lg border border-line bg-panel px-3 py-2 text-sm outline-none"
-            placeholder="Search trip"
-            value={q}
-            onChange={(e) => {
-              setPage(1);
-              setQ(e.target.value);
-            }}
-          />
-          <select
-            className="rounded-lg border border-line bg-panel px-3 py-2 text-sm"
-            value={method}
-            onChange={(e) => {
-              setPage(1);
-              setMethod(e.target.value);
-            }}
-          >
-            <option value="">{kind === "state" ? "All destinations" : "All methods"}</option>
-            {methods.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
-          <select
-            className="rounded-lg border border-line bg-panel px-3 py-2 text-sm"
-            value={status}
-            onChange={(e) => {
-              setPage(1);
-              setStatus(e.target.value);
-            }}
-          >
-            {STATUSES.map((item) => (
-              <option key={item.label} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+      <PageHeader
+        title="Trips"
+        subtitle={`${data?.total ?? 0} jobs · Local motorcycle and Delivery State`}
+        actions={
+          <>
+            <select
+              className={filterClass}
+              value={kind}
+              onChange={(e) => {
+                setPage(1);
+                setMethod("");
+                setKind(e.target.value as KindFilter);
+              }}
+            >
+              <option value="">All kinds</option>
+              <option value="local">Motorcycle</option>
+              <option value="state">Delivery State</option>
+            </select>
+            <SearchInput
+              placeholder="Search trip"
+              value={q}
+              onChange={(e) => {
+                setPage(1);
+                setQ(e.target.value);
+              }}
+            />
+            <select
+              className={filterClass}
+              value={method}
+              onChange={(e) => {
+                setPage(1);
+                setMethod(e.target.value);
+              }}
+            >
+              <option value="">{kind === "state" ? "All destinations" : "All methods"}</option>
+              {methods.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+            <select
+              className={filterClass}
+              value={status}
+              onChange={(e) => {
+                setPage(1);
+                setStatus(e.target.value);
+              }}
+            >
+              {STATUSES.map((item) => (
+                <option key={item.label} value={item.value}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </>
+        }
+      />
 
       {error ? <p className="mb-4 text-sm text-danger">{error}</p> : null}
 
-      <div className="overflow-hidden rounded-xl border border-line bg-panel">
-        <table className="w-full text-left text-sm">
-          <thead className="text-xs uppercase text-muted">
+      <Panel>
+        <Table>
+          <THead>
             <tr>
-              <th className="px-4 py-3">Trip</th>
-              <th className="px-4 py-3">Kind</th>
-              <th className="px-4 py-3">Route</th>
-              <th className="px-4 py-3">Method</th>
-              <th className="px-4 py-3">Rider</th>
-              <th className="px-4 py-3">Driver</th>
-              <th className="px-4 py-3">Fare</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Pay</th>
+              <Th>Trip</Th>
+              <Th>Kind</Th>
+              <Th>Route</Th>
+              <Th>Method</Th>
+              <Th>Rider</Th>
+              <Th>Driver</Th>
+              <Th>Fare</Th>
+              <Th>Status</Th>
+              <Th>Pay</Th>
             </tr>
-          </thead>
+          </THead>
           <tbody>
             {(data?.trips || []).map((trip) => {
               const state = isStateTrip(trip);
               return (
-                <tr key={trip.id} className="border-t border-line/70 hover:bg-panel-2">
-                  <td className="px-4 py-3">
+                <tr key={trip.id} className="border-t border-line/80 hover:bg-panel-2/50">
+                  <Td>
                     <OrderCode id={trip.orderId} href={`/trips/${trip.id}`} />
                     <p className="mt-1 text-[11px] text-muted">{when(trip.createdAt)}</p>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="text-xs font-medium text-muted">{state ? "State" : "Local"}</span>
-                  </td>
-                  <td className="px-4 py-3">
+                  </Td>
+                  <Td>
+                    <span className="inline-flex rounded-md bg-panel-2 px-2 py-0.5 text-[11px] font-semibold text-muted">
+                      {state ? "Delivery State" : "Motorcycle"}
+                    </span>
+                  </Td>
+                  <Td>
                     <p className="max-w-[220px] truncate">{trip.pickupLocation}</p>
                     <p className="max-w-[220px] truncate text-muted">{trip.destinationLocation}</p>
-                  </td>
-                  <td className="px-4 py-3">
+                  </Td>
+                  <Td>
                     <p>{trip.deliveryMethod || "—"}</p>
                     <p className="text-xs text-muted">
                       {state ? "Delivery State" : vehicleLabel(trip.vehicleType)}
                     </p>
-                  </td>
-                  <td className="px-4 py-3">
+                  </Td>
+                  <Td>
                     {trip.riderName}
                     <p className="text-xs text-muted">{trip.riderPhone}</p>
-                  </td>
-                  <td className="px-4 py-3">{trip.driverName || "—"}</td>
-                  <td className="px-4 py-3">{money(trip.deliveryPrice)}</td>
-                  <td className="px-4 py-3">
+                  </Td>
+                  <Td>{trip.driverName || "—"}</Td>
+                  <Td className="font-medium tabular-nums">{money(trip.deliveryPrice)}</Td>
+                  <Td>
                     <StatusBadge value={trip.status} />
-                  </td>
-                  <td className="px-4 py-3">
+                  </Td>
+                  <Td>
                     <StatusBadge value={trip.paymentHoldStatus || "NONE"} />
-                  </td>
+                  </Td>
                 </tr>
               );
             })}
-            {!data?.trips.length ? (
-              <tr>
-                <td className="px-4 py-10 text-center text-sm text-muted" colSpan={9}>
-                  No trips match these filters.
-                </td>
-              </tr>
-            ) : null}
+            {!data?.trips.length ? <EmptyRow colSpan={9} message="No trips match these filters." /> : null}
           </tbody>
-        </table>
-      </div>
+        </Table>
+      </Panel>
 
-      <div className="mt-4 flex justify-end gap-2">
-        <button
-          className="rounded-lg border border-line px-3 py-1 text-sm disabled:opacity-40"
-          disabled={page <= 1}
-          onClick={() => setPage((p) => p - 1)}
-        >
-          Prev
-        </button>
-        <button
-          className="rounded-lg border border-line px-3 py-1 text-sm disabled:opacity-40"
-          disabled={(data?.trips.length || 0) < 20}
-          onClick={() => setPage((p) => p + 1)}
-        >
-          Next
-        </button>
-      </div>
+      <Pagination
+        page={page}
+        disablePrev={page <= 1}
+        disableNext={(data?.trips.length || 0) < 20}
+        onPrev={() => setPage((p) => p - 1)}
+        onNext={() => setPage((p) => p + 1)}
+      />
     </Shell>
   );
 }

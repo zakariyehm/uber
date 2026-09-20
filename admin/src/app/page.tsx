@@ -3,6 +3,7 @@
 import { KpiCard } from "@/components/KpiCard";
 import { Shell } from "@/components/Shell";
 import { StatusBadge } from "@/components/StatusBadge";
+import { PageHeader, Panel } from "@/components/ui/PageChrome";
 import { api, errorMessage } from "@/lib/api";
 import { DRIVER_FEE_EVENT, DRIVER_FEE_STORAGE_KEY, STATE_PAYOUT_STORAGE_KEY } from "@/lib/fee";
 import { OrderCode } from "@/components/OrderCode";
@@ -70,13 +71,11 @@ export default function CommandPage() {
 
   return (
     <Shell>
-      <div className="mb-6 flex items-end justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold">Command center</h2>
-          <p className="text-sm text-muted">Live snapshot of the Raac network</p>
-        </div>
-        <p className="text-xs text-muted">Refreshes every 20s</p>
-      </div>
+      <PageHeader
+        title="Command center"
+        subtitle="Live snapshot of the Raac network"
+        actions={<p className="text-xs font-medium text-muted">Refreshes every 20s</p>}
+      />
 
       {error ? <p className="mb-4 text-sm text-danger">{error}</p> : null}
 
@@ -91,7 +90,7 @@ export default function CommandPage() {
           tone="amber"
           label="Platform fee"
           value={money(overview?.today.platformFee)}
-          hint={`Moto ${overview?.driverFeePercent ?? storedFeePercent ?? 5}% · next completed trip`}
+          hint={`Motorcycle ${overview?.driverFeePercent ?? storedFeePercent ?? 5}% · next completed trip`}
         />
         <KpiCard
           tone="blue"
@@ -137,10 +136,10 @@ export default function CommandPage() {
       </div>
 
       <div className="mt-8 grid gap-6 xl:grid-cols-[1.6fr_1fr]">
-        <section className="rounded-xl border border-line bg-panel">
+        <Panel>
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
             <h3 className="text-sm font-semibold">Live trips</h3>
-            <Link href="/trips" className="text-xs text-raac">
+            <Link href="/trips" className="text-xs font-semibold text-raac hover:text-raac-strong">
               All trips
             </Link>
           </div>
@@ -169,7 +168,7 @@ export default function CommandPage() {
                     <td className="px-4 py-3">
                       <p>{trip.deliveryMethod || "—"}</p>
                       <p className="text-xs text-muted">
-                        {trip.openToAllVehicleTypes ? "State" : "Local"}
+                        {trip.openToAllVehicleTypes ? "Delivery State" : "Motorcycle"}
                         {trip.vehicleType ? ` · ${vehicleLabel(trip.vehicleType)}` : ""}
                       </p>
                     </td>
@@ -189,9 +188,9 @@ export default function CommandPage() {
               </tbody>
             </table>
           </div>
-        </section>
+        </Panel>
 
-        <section className="rounded-xl border border-line bg-panel">
+        <Panel>
           <div className="border-b border-line px-4 py-3">
             <h3 className="text-sm font-semibold">Online fleet</h3>
           </div>
@@ -212,7 +211,7 @@ export default function CommandPage() {
               <li className="px-4 py-8 text-center text-sm text-muted">No drivers online</li>
             ) : null}
           </ul>
-        </section>
+        </Panel>
       </div>
     </Shell>
   );

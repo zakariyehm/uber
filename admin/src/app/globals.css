@@ -1,23 +1,27 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #ffffff;
-  --panel: #f4f5f7;
-  --panel-2: #eceef2;
-  --line: #e4e6eb;
-  --text: #161616;
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --panel-2: #f1f3f5;
+  --line: #e5e7eb;
+  --text: #111827;
   --muted: #6b7280;
   /* Raac primary — RGB(2, 166, 228) */
   --primary: #02a6e4;
-  --primary-dim: rgba(2, 166, 228, 0.14);
-  --red: #e11d48;
+  --primary-dim: rgba(2, 166, 228, 0.12);
+  --primary-strong: #028fc4;
+  --red: #dc2626;
   --amber: #d97706;
   --blue: #2563eb;
-  --sidebar: #1b1b1b;
-  --sidebar-ink: #f4f4f4;
-  --sidebar-muted: #a1a1a1;
-  --sidebar-line: #2e2e2e;
-  --sidebar-hover: #262626;
+  --sidebar: #111111;
+  --sidebar-ink: #f5f5f5;
+  --sidebar-muted: #9ca3af;
+  --sidebar-line: #262626;
+  --sidebar-hover: #1c1c1c;
+  --sidebar-active: #1a1a1a;
+  --overlay: rgba(17, 17, 17, 0.48);
+  --shadow-modal: 0 24px 64px rgba(17, 17, 17, 0.18);
 }
 
 @theme inline {
@@ -29,6 +33,7 @@
   --color-muted: var(--muted);
   --color-raac: var(--primary);
   --color-raac-dim: var(--primary-dim);
+  --color-raac-strong: var(--primary-strong);
   --color-danger: var(--red);
   --color-warn: var(--amber);
   --color-info: var(--blue);
@@ -37,8 +42,11 @@
   --color-sidebar-muted: var(--sidebar-muted);
   --color-sidebar-line: var(--sidebar-line);
   --color-sidebar-hover: var(--sidebar-hover);
+  --color-sidebar-active: var(--sidebar-active);
+  --color-overlay: var(--overlay);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --shadow-modal: var(--shadow-modal);
 }
 
 html,
@@ -62,4 +70,32 @@ select,
 textarea,
 button {
   color: inherit;
+}
+
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-modal-in {
+  animation: modal-in 0.18s ease-out;
+}
+
+.animate-overlay-in {
+  animation: overlay-in 0.16s ease-out;
 }

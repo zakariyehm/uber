@@ -4,6 +4,8 @@ import { Shell } from "@/components/Shell";
 import { api, errorMessage } from "@/lib/api";
 import { publishDriverFee, publishStatePayout } from "@/lib/fee";
 import { money, when } from "@/lib/format";
+import { Button } from "@/components/ui/Button";
+import { PageHeader, Panel } from "@/components/ui/PageChrome";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 type Settings = {
@@ -101,7 +103,7 @@ export default function FeesPage() {
         body: JSON.stringify({ driverFeePercent: value }),
       });
       applySettings(result);
-      setNotice(`${result.driverFeePercent}% is live. The next completed Moto trip uses this fee.`);
+      setNotice(`${result.driverFeePercent}% is live. The next completed motorcycle trip uses this fee.`);
     } catch (err) {
       setError(errorMessage(err, "Could not save fee"));
     } finally {
@@ -138,32 +140,29 @@ export default function FeesPage() {
 
   return (
     <Shell>
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-semibold">Fees</h2>
-          <p className="text-sm text-muted">
-            Change the Moto service fee or Delivery State driver payout, then Save. Each goes live
-            immediately for the next trip.
-          </p>
-        </div>
-        <div className="rounded-full border border-raac/30 bg-raac-dim px-3 py-1 text-xs font-semibold text-raac">
-          Live {loading ? "…" : `${livePercent}% · ${money(livePayout)}`}
-        </div>
-      </div>
+      <PageHeader
+        title="Fees"
+        subtitle="Motorcycle service fee and Delivery State driver payout go live on the next trip."
+        actions={
+          <span className="rounded-full border border-raac/30 bg-raac-dim px-3 py-1.5 text-xs font-semibold text-raac">
+            Live {loading ? "…" : `${livePercent}% · ${money(livePayout)}`}
+          </span>
+        }
+      />
 
       {error ? <p className="mb-4 text-sm text-danger">{error}</p> : null}
       {notice ? <p className="mb-4 text-sm text-raac">{notice}</p> : null}
 
-      <section className="max-w-xl rounded-xl border border-line bg-panel p-5">
-        <h3 className="text-sm font-semibold">Moto driver service fee</h3>
+      <Panel className="max-w-xl p-5">
+        <h3 className="text-sm font-semibold">Motorcycle driver service fee</h3>
         <p className="mt-1 text-xs text-muted">
-          Applied automatically when a Moto trip is completed. Delivery State is not included.
+          Applied automatically when a motorcycle trip is completed. Delivery State is not included.
           No-show fees stay $0.50 with 0% platform cut.
         </p>
         <form className="mt-4" onSubmit={(event) => void saveFee(event)}>
           <div className="flex items-center gap-3">
             <input
-              className="w-28 rounded-lg border border-line bg-panel-2 px-3 py-2 text-sm outline-none ring-raac focus:ring-2"
+              className="w-28 rounded-lg border border-line bg-panel-2 px-3 py-2 text-sm outline-none focus:border-raac focus:ring-2 focus:ring-raac/20"
               inputMode="decimal"
               value={percent}
               onChange={(e) => {
@@ -173,13 +172,9 @@ export default function FeesPage() {
               aria-label="Driver fee percent"
             />
             <span className="text-sm text-muted">%</span>
-            <button
-              type="submit"
-              disabled={savingFee || loading}
-              className="rounded-lg bg-raac px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
-            >
+            <Button type="submit" variant="primary" disabled={savingFee || loading}>
               {savingFee ? "Going live…" : feeDirty ? "Save & go live" : "Save"}
-            </button>
+            </Button>
           </div>
         </form>
 
@@ -206,9 +201,9 @@ export default function FeesPage() {
             <p className="mt-2 text-[11px] text-muted">Went live {when(saved.updatedAt)}</p>
           ) : null}
         </div>
-      </section>
+      </Panel>
 
-      <section className="mt-6 max-w-xl rounded-xl border border-line bg-panel p-5">
+      <Panel className="mt-6 max-w-xl p-5">
         <h3 className="text-sm font-semibold">Delivery State driver payout</h3>
         <p className="mt-1 text-xs text-muted">
           No system service fee. On complete the driver receives this amount. The rest goes to
@@ -218,7 +213,7 @@ export default function FeesPage() {
           <div className="flex items-center gap-3">
             <span className="text-sm text-muted">$</span>
             <input
-              className="w-28 rounded-lg border border-line bg-panel-2 px-3 py-2 text-sm outline-none ring-raac focus:ring-2"
+              className="w-28 rounded-lg border border-line bg-panel-2 px-3 py-2 text-sm outline-none focus:border-raac focus:ring-2 focus:ring-raac/20"
               inputMode="decimal"
               value={payout}
               onChange={(e) => {
@@ -227,13 +222,9 @@ export default function FeesPage() {
               }}
               aria-label="Delivery State driver payout"
             />
-            <button
-              type="submit"
-              disabled={savingPayout || loading}
-              className="rounded-lg bg-raac px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
-            >
+            <Button type="submit" variant="primary" disabled={savingPayout || loading}>
               {savingPayout ? "Going live…" : payoutDirty ? "Save & go live" : "Save"}
-            </button>
+            </Button>
           </div>
         </form>
 
@@ -261,7 +252,7 @@ export default function FeesPage() {
             <p className="mt-2 text-[11px] text-muted">Went live {when(saved.updatedAt)}</p>
           ) : null}
         </div>
-      </section>
+      </Panel>
     </Shell>
   );
 }

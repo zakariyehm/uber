@@ -2,8 +2,10 @@
 
 import { Shell } from "@/components/Shell";
 import { StatusBadge } from "@/components/StatusBadge";
-import { api, errorMessage } from "@/lib/api";
 import { OrderCode } from "@/components/OrderCode";
+import { Button } from "@/components/ui/Button";
+import { Panel } from "@/components/ui/PageChrome";
+import { api, errorMessage } from "@/lib/api";
 import { money, vehicleLabel, when } from "@/lib/format";
 import type { TripRow } from "@/lib/types";
 import Link from "next/link";
@@ -111,18 +113,14 @@ export default function TripDetailPage() {
               </div>
             </div>
             {canCancel ? (
-              <button
-                disabled={busy}
-                onClick={cancel}
-                className="rounded-lg bg-danger px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-              >
+              <Button variant="danger" disabled={busy} onClick={cancel}>
                 {busy ? "Cancelling…" : "Cancel trip"}
-              </button>
+              </Button>
             ) : null}
           </div>
 
           <div className="grid gap-6 xl:grid-cols-3">
-            <section className="rounded-xl border border-line bg-panel p-5 xl:col-span-2">
+            <Panel className="p-5 xl:col-span-2">
               <h3 className="text-sm font-semibold">Route</h3>
               <p className="mt-3 text-sm">{trip.pickupLocation}</p>
               <p className="mt-1 text-sm text-muted">{trip.destinationLocation}</p>
@@ -144,10 +142,10 @@ export default function TripDetailPage() {
                   Cancelled by {trip.cancelledBy}: {trip.cancelReason}
                 </p>
               ) : null}
-            </section>
+            </Panel>
 
             <div className="space-y-6">
-              <section className="rounded-xl border border-line bg-panel p-5">
+              <Panel className="p-5">
                 <h3 className="text-sm font-semibold">Fare split</h3>
                 <dl className="mt-3 space-y-2 text-sm">
                   <div className="flex justify-between"><dt>Fare</dt><dd>{money(trip.deliveryPrice)}</dd></div>
@@ -171,8 +169,8 @@ export default function TripDetailPage() {
                   <div className="flex justify-between"><dt>Rider credit</dt><dd>{money(trip.riderRefundPending)}</dd></div>
                   <div className="flex justify-between"><dt>Settlement</dt><dd>{trip.settlementType || "NONE"}</dd></div>
                 </dl>
-              </section>
-              <section className="rounded-xl border border-line bg-panel p-5">
+              </Panel>
+              <Panel className="p-5">
                 <h3 className="text-sm font-semibold">People</h3>
                 <p className="mt-3 text-sm">
                   Rider · {data?.rider?.name || "—"}
@@ -185,10 +183,10 @@ export default function TripDetailPage() {
                     {data?.driver?.vehicleType ? ` · ${vehicleLabel(data.driver.vehicleType)}` : ""}
                   </span>
                 </p>
-                <Link href="/trips" className="mt-4 inline-block text-xs text-raac">
+                <Link href="/trips" className="mt-4 inline-block text-xs font-semibold text-raac hover:text-raac-strong">
                   All trips
                 </Link>
-              </section>
+              </Panel>
             </div>
           </div>
         </>

@@ -2,6 +2,7 @@
 
 import { Shell } from "@/components/Shell";
 import { StatusBadge } from "@/components/StatusBadge";
+import { PageHeader } from "@/components/ui/PageChrome";
 import { api, errorMessage } from "@/lib/api";
 import { money } from "@/lib/format";
 import { useEffect, useState } from "react";
@@ -49,23 +50,25 @@ export default function WalletsPage() {
 
   return (
     <Shell>
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-semibold">Wallets</h2>
-          <p className="text-sm text-muted">Driver daily earnings and rider pending credits</p>
-        </div>
-        {data ? (
-          <div className="rounded-xl border border-lime-200 bg-lime-50 px-4 py-3 text-right">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">
-              Delivery State balance
-            </p>
-            <p className="mt-1 text-xl font-semibold">{money(data.deliveryStateBalance || "0")}</p>
-            <p className="text-xs text-muted">
-              Kept after each {money(data.stateDriverPayout ?? 0.5)} driver payout
-            </p>
-          </div>
-        ) : null}
-      </div>
+      <PageHeader
+        title="Wallets"
+        subtitle="Driver daily earnings and rider pending credits"
+        actions={
+          data ? (
+            <div className="rounded-xl border border-line bg-panel px-4 py-3 text-right shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+                Delivery State balance
+              </p>
+              <p className="mt-1 text-xl font-semibold tabular-nums">
+                {money(data.deliveryStateBalance || "0")}
+              </p>
+              <p className="text-xs text-muted">
+                Kept after each {money(data.stateDriverPayout ?? 0.5)} driver payout
+              </p>
+            </div>
+          ) : null
+        }
+      />
       {error ? <p className="mb-4 text-sm text-danger">{error}</p> : null}
 
       <div className="grid gap-6 xl:grid-cols-2">
