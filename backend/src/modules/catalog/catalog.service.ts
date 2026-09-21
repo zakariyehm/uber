@@ -146,6 +146,30 @@ export async function listPublicMethods(categoryRaw?: string) {
   return rows.map(toDto);
 }
 
+/** Active stores for rider checkout (store sender). */
+export async function listPublicStores() {
+  const rows = await prisma.store.findMany({
+    where: { isActive: true },
+    orderBy: [{ name: 'asc' }],
+    select: {
+      id: true,
+      name: true,
+      category: true,
+      phone: true,
+      address: true,
+      district: true,
+    },
+  });
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    category: row.category,
+    phone: row.phone,
+    address: row.address,
+    district: row.district,
+  }));
+}
+
 export async function listAdminMethods(categoryRaw?: string) {
   await ensureDefaultMethods();
   const category = parseCategory(categoryRaw);

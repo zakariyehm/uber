@@ -27,6 +27,10 @@ export type DeliveryDto = {
   recipientNumber: string;
   senderName?: string;
   senderPhone?: string;
+  senderKind?: string;
+  storeId?: string;
+  storeOrderCode?: string;
+  storeBranchLocation?: string;
   itemType: string;
   deliveryMethod: string;
   vehicleType?: string;
@@ -113,6 +117,10 @@ export function toDeliveryDto(row: DbDelivery): DeliveryDto {
     recipientNumber: row.recipientNumber,
     senderName: row.senderName ?? undefined,
     senderPhone: row.senderPhone ?? undefined,
+    senderKind: row.senderKind ?? undefined,
+    storeId: row.storeId ?? undefined,
+    storeOrderCode: row.storeOrderCode ?? undefined,
+    storeBranchLocation: row.storeBranchLocation ?? undefined,
     itemType: row.itemType,
     deliveryMethod: row.deliveryMethod,
     vehicleType: row.vehicleType,

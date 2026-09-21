@@ -33,8 +33,14 @@ export default function CheckoutScreen() {
   const pickupLocation = params.pickupLocation as string || '';
   const destinationLocation = params.destinationLocation as string || '';
   const referenceId = params.referenceId as string || '';
+  const senderKind = ((params.senderKind as string) || 'PERSONAL').toUpperCase() === 'STORE'
+    ? 'STORE'
+    : 'PERSONAL';
   const senderName = params.senderName as string || '';
   const senderNumber = params.senderNumber as string || '';
+  const storeId = (params.storeId as string) || '';
+  const storeOrderCode = (params.storeOrderCode as string) || '';
+  const storeBranchLocation = (params.storeBranchLocation as string) || '';
   const recipientName = params.recipientName as string || '';
   const recipientNumber = params.recipientNumber as string || '';
   const selectedType = params.selectedType as string || '';
@@ -134,6 +140,17 @@ export default function CheckoutScreen() {
         deliveryMethod: deliveryMethod || 'Standard',
         deliveryPrice: estimatedPrice,
         senderName: senderName || 'Sender',
+        senderKind,
+        ...(senderKind === 'STORE'
+          ? {
+              storeId,
+              storeOrderCode,
+              storeBranchLocation,
+              referenceId: storeOrderCode || referenceId || undefined,
+            }
+          : referenceId
+            ? { referenceId }
+            : {}),
         ...(payerType === 'SENDER'
           ? { senderPhone: senderNumber.trim() }
           : senderNumber.trim()
@@ -269,6 +286,16 @@ export default function CheckoutScreen() {
 
             <View style={styles.infoRow}>
               <View style={styles.infoLabelContainer}>
+                <Ionicons name="pricetag" size={scaleFont(20)} color={colors.icon} />
+                <Text style={[styles.infoLabel, { color: colors.icon }]}>Type</Text>
+              </View>
+              <Text style={[styles.infoValue, { color: colors.text }]}>
+                {senderKind === 'STORE' ? 'Store' : 'Personal'}
+              </Text>
+            </View>
+
+            <View style={styles.infoRow}>
+              <View style={styles.infoLabelContainer}>
                 <Ionicons name="person" size={scaleFont(20)} color={colors.icon} />
                 <Text style={[styles.infoLabel, { color: colors.icon }]}>Name</Text>
               </View>
@@ -282,6 +309,26 @@ export default function CheckoutScreen() {
               </View>
               <Text style={[styles.infoValue, { color: colors.text }]}>{senderNumber || '—'}</Text>
             </View>
+
+            {senderKind === 'STORE' && storeOrderCode ? (
+              <View style={styles.infoRow}>
+                <View style={styles.infoLabelContainer}>
+                  <Ionicons name="receipt" size={scaleFont(20)} color={colors.icon} />
+                  <Text style={[styles.infoLabel, { color: colors.icon }]}>Order ID</Text>
+                </View>
+                <Text style={[styles.infoValue, { color: colors.text }]}>{storeOrderCode}</Text>
+              </View>
+            ) : null}
+
+            {senderKind === 'STORE' && storeBranchLocation ? (
+              <View style={styles.infoRow}>
+                <View style={styles.infoLabelContainer}>
+                  <Ionicons name="storefront" size={scaleFont(20)} color={colors.icon} />
+                  <Text style={[styles.infoLabel, { color: colors.icon }]}>Branch</Text>
+                </View>
+                <Text style={[styles.infoValue, { color: colors.text }]}>{storeBranchLocation}</Text>
+              </View>
+            ) : null}
           </View>
 
           {/* Recipient Details */}

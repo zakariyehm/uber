@@ -14,13 +14,48 @@ export const createDeliverySchema = z
     deliveryPrice: z.string().min(1),
     senderName: z.string().optional(),
     senderPhone: z.string().min(7).optional(),
+    /** Personal name+phone, or a registered store. */
+    senderKind: z.enum(['PERSONAL', 'STORE']).optional().default('PERSONAL'),
+    storeId: z.string().uuid().optional(),
+    storeOrderCode: z.string().min(1).optional(),
+    storeBranchLocation: z.string().min(1).optional(),
     /** Who Waafi charges: sender at checkout, or recipient at dropoff. */
     payerType: z.enum(['SENDER', 'RECIPIENT']).optional().default('SENDER'),
     referenceId: z.string().optional(),
     deliveryTimeLabel: z.string().optional(),
   })
   .superRefine((data, ctx) => {
-    if (data.payerType === 'SENDER' && !data.senderPhone?.trim()) {
+    if (data.senderKind === 'STORE') {
+      if (!data.storeId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Select a store',
+          path: ['storeId'],
+        });
+      }
+      if (!data.storeOrderCode?.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Store order ID is required',
+          path: ['storeOrderCode'],
+        });
+      }
+      if (!data.storeBranchLocation?.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Store branch location is required',
+          path: ['storeBranchLocation'],
+        });
+      }
+    } else if (!data.senderName?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Sender name is required',
+        path: ['senderName'],
+      });
+    }
+
+    if (data.payerType === 'SENDER' && data.senderKind !== 'STORE' && !data.senderPhone?.trim()) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'Sender phone required for Waafi',

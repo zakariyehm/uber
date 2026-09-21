@@ -10,6 +10,15 @@ export type CatalogMethod = {
   vehicleType?: 'MOTORCYCLE' | 'BICYCLE';
 };
 
+export type CatalogStore = {
+  id: string;
+  name: string;
+  category: string;
+  phone?: string | null;
+  address?: string | null;
+  district?: string | null;
+};
+
 const FALLBACK_MOTO: CatalogMethod[] = [
   { id: 'moto-fekon', name: 'Moto Fekon', icon: 'motorbike', time: '10-15 minutes', displayPrice: '$1.00', price: '1.00', vehicleType: 'MOTORCYCLE' },
   { id: 'moto-bajaj', name: 'Moto Bajaj', icon: 'motorbike', time: '15-20 minutes', displayPrice: '$2.50', price: '2.50', vehicleType: 'MOTORCYCLE' },
@@ -38,5 +47,14 @@ export async function fetchDeliveryStateMethods(): Promise<CatalogMethod[]> {
     return result.methods?.length ? result.methods : FALLBACK_STATES;
   } catch {
     return FALLBACK_STATES;
+  }
+}
+
+export async function fetchActiveStores(): Promise<CatalogStore[]> {
+  try {
+    const result = await apiRequest<{ stores: CatalogStore[] }>('/catalog/stores');
+    return result.stores ?? [];
+  } catch {
+    return [];
   }
 }

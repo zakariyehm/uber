@@ -57,7 +57,12 @@ export const createDeliveryRequest = async (orderData: {
   deliveryPrice: string;
   senderName?: string;
   senderPhone?: string;
+  senderKind?: 'PERSONAL' | 'STORE';
+  storeId?: string;
+  storeOrderCode?: string;
+  storeBranchLocation?: string;
   payerType?: 'SENDER' | 'RECIPIENT';
+  referenceId?: string;
 }): Promise<DeliveryRequest> => {
   return apiRequest<DeliveryRequest>('/deliveries', {
     method: 'POST',

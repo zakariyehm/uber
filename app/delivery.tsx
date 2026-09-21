@@ -21,6 +21,7 @@ import {
     View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { fetchActiveStores, type CatalogStore } from '@/utils/catalog';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -56,6 +57,8 @@ const itemTypes = [
   'Others',
 ];
 
+type SenderKind = 'PERSONAL' | 'STORE';
+
 export default function DeliveryScreen() {
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
@@ -65,11 +68,16 @@ export default function DeliveryScreen() {
   const params = useLocalSearchParams();
   const [isLoading, setIsLoading] = useState(true);
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
-  
+
   // Form state
+  const [senderKind, setSenderKind] = useState<SenderKind>('PERSONAL');
   const [receiptInfoId, setReceiptInfoId] = useState('');
   const [senderName, setSenderName] = useState('');
   const [senderNumber, setSenderNumber] = useState('');
+  const [stores, setStores] = useState<CatalogStore[]>([]);
+  const [selectedStore, setSelectedStore] = useState<CatalogStore | null>(null);
+  const [storeOrderCode, setStoreOrderCode] = useState('');
+  const [storeBranchLocation, setStoreBranchLocation] = useState('');
   const [recipientName, setRecipientName] = useState('');
   const [recipientNumber, setRecipientNumber] = useState('');
   const [selectedItem, setSelectedItem] = useState('');
@@ -79,9 +87,10 @@ export default function DeliveryScreen() {
   const [deliveryTime, setDeliveryTime] = useState((params.deliveryTime as string) || '');
   const [deliveryPrice, setDeliveryPrice] = useState((params.deliveryPrice as string) || '');
   const serviceCategory = (params.serviceCategory as string) || '';
-  
+
   // Modal state
   const [showItemPicker, setShowItemPicker] = useState(false);
+  const [showStorePicker, setShowStorePicker] = useState(false);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -89,7 +98,7 @@ export default function DeliveryScreen() {
     const checkConnection = async () => {
       const netInfo = await NetInfo.fetch();
       setIsConnected(netInfo.isConnected);
-      
+
       if (netInfo.isConnected) {
         timer = setTimeout(() => {
           setIsLoading(false);
@@ -101,7 +110,7 @@ export default function DeliveryScreen() {
 
     checkConnection();
 
-    const unsubscribe = NetInfo.addEventListener(state => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
       setIsConnected(state.isConnected);
       if (state.isConnected) {
         if (timer) clearTimeout(timer);
@@ -120,6 +129,24 @@ export default function DeliveryScreen() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const list = await fetchActiveStores();
+      if (!cancelled) setStores(list);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const selectStore = (store: CatalogStore) => {
+    setSelectedStore(store);
+    setSenderName(store.name);
+    if (store.phone?.trim()) setSenderNumber(store.phone.trim());
+    setShowStorePicker(false);
+  };
+
   const handleContinue = () => {
     if (!isFormValid()) return;
     if (phonesAreSame(senderNumber, recipientNumber)) {
@@ -134,9 +161,16 @@ export default function DeliveryScreen() {
       params: {
         pickupLocation: pickupLocation,
         destinationLocation: destinationLocation,
-        referenceId: receiptInfoId || '',
-        senderName: senderName.trim(),
+        referenceId: senderKind === 'STORE' ? storeOrderCode.trim() : receiptInfoId || '',
+        senderKind,
+        senderName:
+          senderKind === 'STORE'
+            ? (selectedStore?.name || senderName).trim()
+            : senderName.trim(),
         senderNumber: senderNumber.trim(),
+        storeId: senderKind === 'STORE' ? selectedStore?.id || '' : '',
+        storeOrderCode: senderKind === 'STORE' ? storeOrderCode.trim() : '',
+        storeBranchLocation: senderKind === 'STORE' ? storeBranchLocation.trim() : '',
         recipientName: recipientName.trim(),
         recipientNumber: recipientNumber.trim(),
         selectedType: selectedItem,
@@ -151,9 +185,18 @@ export default function DeliveryScreen() {
   const numbersConflict = phonesAreSame(senderNumber, recipientNumber);
 
   const isFormValid = () => {
+    const senderOk =
+      senderKind === 'STORE'
+        ? Boolean(
+            selectedStore?.id &&
+              storeOrderCode.trim().length > 0 &&
+              storeBranchLocation.trim().length > 0 &&
+              senderNumber.trim().length > 0
+          )
+        : senderName.trim().length > 0 && senderNumber.trim().length > 0;
+
     return (
-      senderName.trim().length > 0 &&
-      senderNumber.trim().length > 0 &&
+      senderOk &&
       recipientName.trim().length > 0 &&
       recipientNumber.trim().length > 0 &&
       !numbersConflict &&
@@ -163,27 +206,31 @@ export default function DeliveryScreen() {
     );
   };
 
+  const segmentBg = isDark ? '#1A1A1A' : '#F0F0F0';
+  const segmentActive = isDark ? '#FFFFFF' : '#000000';
+  const segmentActiveText = isDark ? '#000000' : '#FFFFFF';
+  const segmentIdleText = isDark ? '#AAAAAA' : '#666666';
+
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: isDark ? '#000000' : '#FFFFFF' }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
-      
-      <ScrollView 
+
+      <ScrollView
         style={styles.content}
         contentContainerStyle={{ paddingHorizontal: scaleWidth(20), paddingBottom: scaleHeight(32) }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled">
-        
-        {/* Delivery Method Info */}
         {deliveryMethod && (
-          <View style={[
-            styles.infoCard,
-            {
-              backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
-              marginBottom: scaleHeight(20),
-            }
-          ]}>
+          <View
+            style={[
+              styles.infoCard,
+              {
+                backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
+                marginBottom: scaleHeight(20),
+              },
+            ]}>
             <View style={styles.infoRow}>
               <Ionicons name="airplane" size={scaleFont(20)} color={isDark ? '#FFFFFF' : '#000000'} />
               <Text style={[styles.infoText, { color: isDark ? '#FFFFFF' : '#000000' }]}>
@@ -193,99 +240,229 @@ export default function DeliveryScreen() {
           </View>
         )}
 
-        {/* Pickup Location */}
         <View style={styles.inputContainer}>
           <Text style={[styles.label, { color: isDark ? '#FFFFFF' : '#000000' }]}>Pickup Location</Text>
-          <View style={[
-            styles.inputWrapper,
-            {
-              backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
-              borderColor: isDark ? '#333333' : '#E0E0E0',
-            }
-          ]}>
-            <Ionicons name="location" size={scaleFont(20)} color={isDark ? '#FFFFFF' : '#000000'} style={styles.inputIcon} />
+          <View
+            style={[
+              styles.inputWrapper,
+              {
+                backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
+                borderColor: isDark ? '#333333' : '#E0E0E0',
+              },
+            ]}>
+            <Ionicons
+              name="location"
+              size={scaleFont(20)}
+              color={isDark ? '#FFFFFF' : '#000000'}
+              style={styles.inputIcon}
+            />
             <Text style={[styles.locationText, { color: isDark ? '#FFFFFF' : '#000000' }]}>
               {pickupLocation || 'Not set'}
             </Text>
           </View>
         </View>
 
-        {/* Destination Location */}
         <View style={styles.inputContainer}>
           <Text style={[styles.label, { color: isDark ? '#FFFFFF' : '#000000' }]}>Destination</Text>
-          <View style={[
-            styles.inputWrapper,
-            {
-              backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
-              borderColor: isDark ? '#333333' : '#E0E0E0',
-            }
-          ]}>
-            <Ionicons name="location" size={scaleFont(20)} color={isDark ? '#FFFFFF' : '#000000'} style={styles.inputIcon} />
+          <View
+            style={[
+              styles.inputWrapper,
+              {
+                backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
+                borderColor: isDark ? '#333333' : '#E0E0E0',
+              },
+            ]}>
+            <Ionicons
+              name="location"
+              size={scaleFont(20)}
+              color={isDark ? '#FFFFFF' : '#000000'}
+              style={styles.inputIcon}
+            />
             <Text style={[styles.locationText, { color: isDark ? '#FFFFFF' : '#000000' }]}>
               {destinationLocation || 'Not set'}
             </Text>
           </View>
         </View>
 
-        {/* Sender Section */}
         <View style={styles.sectionContainer}>
           <Text style={[styles.sectionTitle, { color: isDark ? '#FFFFFF' : '#000000' }]}>Sender</Text>
-          <Text style={[styles.helperText, { color: isDark ? '#999999' : '#666666' }]}>
-            Magaca iyo number-ka waa qasab
-          </Text>
 
-          <TextInput
-            style={[
-              styles.input,
-              {
-                backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
-                color: isDark ? '#FFFFFF' : '#000000',
-                borderColor: isDark ? '#333333' : '#E0E0E0',
-                marginBottom: scaleHeight(12),
-              },
-            ]}
-            placeholder="Enter sender name *"
-            placeholderTextColor={isDark ? '#666666' : '#999999'}
-            value={senderName}
-            onChangeText={setSenderName}
-            autoCapitalize="words"
-          />
+          <View style={[styles.segmentRow, { backgroundColor: segmentBg }]}>
+            <TouchableOpacity
+              style={[
+                styles.segmentBtn,
+                senderKind === 'PERSONAL' && { backgroundColor: segmentActive },
+              ]}
+              onPress={() => setSenderKind('PERSONAL')}
+              activeOpacity={0.85}>
+              <Text
+                style={[
+                  styles.segmentText,
+                  { color: senderKind === 'PERSONAL' ? segmentActiveText : segmentIdleText },
+                ]}>
+                Personal
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.segmentBtn,
+                senderKind === 'STORE' && { backgroundColor: segmentActive },
+              ]}
+              onPress={() => setSenderKind('STORE')}
+              activeOpacity={0.85}>
+              <Text
+                style={[
+                  styles.segmentText,
+                  { color: senderKind === 'STORE' ? segmentActiveText : segmentIdleText },
+                ]}>
+                Store
+              </Text>
+            </TouchableOpacity>
+          </View>
 
-          <TextInput
-            style={[
-              styles.input,
-              {
-                backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
-                color: isDark ? '#FFFFFF' : '#000000',
-                borderColor: isDark ? '#333333' : '#E0E0E0',
-                marginBottom: scaleHeight(12),
-              },
-            ]}
-            placeholder="Enter sender phone number *"
-            placeholderTextColor={isDark ? '#666666' : '#999999'}
-            value={senderNumber}
-            onChangeText={setSenderNumber}
-            keyboardType="phone-pad"
-          />
+          {senderKind === 'PERSONAL' ? (
+            <>
+              <Text style={[styles.helperText, { color: isDark ? '#999999' : '#666666' }]}>
+                Magaca iyo number-ka waa qasab
+              </Text>
 
-          <TextInput
-            style={[
-              styles.input,
-              {
-                backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
-                color: isDark ? '#FFFFFF' : '#000000',
-                borderColor: isDark ? '#333333' : '#E0E0E0',
-              },
-            ]}
-            placeholder="Enter receipt info ID (optional)"
-            placeholderTextColor={isDark ? '#666666' : '#999999'}
-            value={receiptInfoId}
-            onChangeText={setReceiptInfoId}
-            keyboardType="default"
-          />
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
+                    color: isDark ? '#FFFFFF' : '#000000',
+                    borderColor: isDark ? '#333333' : '#E0E0E0',
+                    marginBottom: scaleHeight(12),
+                  },
+                ]}
+                placeholder="Enter sender name *"
+                placeholderTextColor={isDark ? '#666666' : '#999999'}
+                value={senderName}
+                onChangeText={setSenderName}
+                autoCapitalize="words"
+              />
+
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
+                    color: isDark ? '#FFFFFF' : '#000000',
+                    borderColor: isDark ? '#333333' : '#E0E0E0',
+                    marginBottom: scaleHeight(12),
+                  },
+                ]}
+                placeholder="Enter sender phone number *"
+                placeholderTextColor={isDark ? '#666666' : '#999999'}
+                value={senderNumber}
+                onChangeText={setSenderNumber}
+                keyboardType="phone-pad"
+              />
+
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
+                    color: isDark ? '#FFFFFF' : '#000000',
+                    borderColor: isDark ? '#333333' : '#E0E0E0',
+                  },
+                ]}
+                placeholder="Enter receipt info ID (optional)"
+                placeholderTextColor={isDark ? '#666666' : '#999999'}
+                value={receiptInfoId}
+                onChangeText={setReceiptInfoId}
+                keyboardType="default"
+              />
+            </>
+          ) : (
+            <>
+              <Text style={[styles.helperText, { color: isDark ? '#999999' : '#666666' }]}>
+                Dooro dukan, geli order ID iyo branch location — waa qasab
+              </Text>
+
+              <TouchableOpacity
+                style={[
+                  styles.input,
+                  styles.pickerButton,
+                  {
+                    backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
+                    borderColor: isDark ? '#333333' : '#E0E0E0',
+                    marginBottom: scaleHeight(12),
+                  },
+                ]}
+                onPress={() => setShowStorePicker(true)}
+                activeOpacity={0.7}>
+                <Text
+                  style={[
+                    styles.pickerText,
+                    {
+                      color: selectedStore
+                        ? isDark
+                          ? '#FFFFFF'
+                          : '#000000'
+                        : isDark
+                          ? '#666666'
+                          : '#999999',
+                    },
+                  ]}>
+                  {selectedStore ? selectedStore.name : 'Select store *'}
+                </Text>
+                <Ionicons name="chevron-down" size={scaleFont(20)} color={isDark ? '#666666' : '#999999'} />
+              </TouchableOpacity>
+
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
+                    color: isDark ? '#FFFFFF' : '#000000',
+                    borderColor: isDark ? '#333333' : '#E0E0E0',
+                    marginBottom: scaleHeight(12),
+                  },
+                ]}
+                placeholder="Store order ID *"
+                placeholderTextColor={isDark ? '#666666' : '#999999'}
+                value={storeOrderCode}
+                onChangeText={setStoreOrderCode}
+              />
+
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
+                    color: isDark ? '#FFFFFF' : '#000000',
+                    borderColor: isDark ? '#333333' : '#E0E0E0',
+                    marginBottom: scaleHeight(12),
+                  },
+                ]}
+                placeholder="Branch location *"
+                placeholderTextColor={isDark ? '#666666' : '#999999'}
+                value={storeBranchLocation}
+                onChangeText={setStoreBranchLocation}
+              />
+
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
+                    color: isDark ? '#FFFFFF' : '#000000',
+                    borderColor: isDark ? '#333333' : '#E0E0E0',
+                  },
+                ]}
+                placeholder="Store phone number *"
+                placeholderTextColor={isDark ? '#666666' : '#999999'}
+                value={senderNumber}
+                onChangeText={setSenderNumber}
+                keyboardType="phone-pad"
+              />
+            </>
+          )}
         </View>
 
-        {/* Recipient Section */}
         <View style={styles.sectionContainer}>
           <Text style={[styles.sectionTitle, { color: isDark ? '#FFFFFF' : '#000000' }]}>Recipient</Text>
           <Text style={[styles.helperText, { color: isDark ? '#999999' : '#666666' }]}>
@@ -315,11 +492,7 @@ export default function DeliveryScreen() {
               {
                 backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
                 color: isDark ? '#FFFFFF' : '#000000',
-                borderColor: numbersConflict
-                  ? '#FF3B30'
-                  : isDark
-                    ? '#333333'
-                    : '#E0E0E0',
+                borderColor: numbersConflict ? '#FF3B30' : isDark ? '#333333' : '#E0E0E0',
                 marginBottom: scaleHeight(numbersConflict ? 6 : 12),
               },
             ]}
@@ -366,34 +539,41 @@ export default function DeliveryScreen() {
         </View>
       </ScrollView>
 
-      {/* Continue Button */}
       <View style={[styles.footer, { paddingBottom: insets.bottom + scaleHeight(16) }]}>
         <TouchableOpacity
           style={[
             styles.continueButton,
             {
-              backgroundColor: isFormValid() 
-                ? (isDark ? '#FFFFFF' : '#000000')
-                : (isDark ? '#3A3A3A' : '#E0E0E0'),
-            }
+              backgroundColor: isFormValid()
+                ? isDark
+                  ? '#FFFFFF'
+                  : '#000000'
+                : isDark
+                  ? '#3A3A3A'
+                  : '#E0E0E0',
+            },
           ]}
           onPress={handleContinue}
           disabled={!isFormValid()}
           activeOpacity={0.8}>
-          <Text style={[
-            styles.continueButtonText,
-            {
-              color: isFormValid()
-                ? (isDark ? '#000000' : '#FFFFFF')
-                : (isDark ? '#666666' : '#999999')
-            }
-          ]}>
+          <Text
+            style={[
+              styles.continueButtonText,
+              {
+                color: isFormValid()
+                  ? isDark
+                    ? '#000000'
+                    : '#FFFFFF'
+                  : isDark
+                    ? '#666666'
+                    : '#999999',
+              },
+            ]}>
             Continue
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Item Type Picker Modal */}
       <Modal
         visible={showItemPicker}
         transparent
@@ -402,12 +582,13 @@ export default function DeliveryScreen() {
         <TouchableWithoutFeedback onPress={() => setShowItemPicker(false)}>
           <View style={styles.modalOverlay}>
             <TouchableWithoutFeedback>
-              <View style={[
-                styles.modalContent,
-                {
-                  backgroundColor: isDark ? '#1A1A1A' : '#FFFFFF',
-                }
-              ]}>
+              <View
+                style={[
+                  styles.modalContent,
+                  {
+                    backgroundColor: isDark ? '#1A1A1A' : '#FFFFFF',
+                  },
+                ]}>
                 <Text style={[styles.modalTitle, { color: isDark ? '#FFFFFF' : '#000000' }]}>
                   Select Item Type
                 </Text>
@@ -420,7 +601,7 @@ export default function DeliveryScreen() {
                         index !== itemTypes.length - 1 && {
                           borderBottomColor: isDark ? '#333333' : '#E0E0E0',
                           borderBottomWidth: 1,
-                        }
+                        },
                       ]}
                       onPress={() => {
                         setSelectedItem(item);
@@ -431,7 +612,11 @@ export default function DeliveryScreen() {
                         {item}
                       </Text>
                       {selectedItem === item && (
-                        <Ionicons name="checkmark" size={scaleFont(20)} color={isDark ? '#FFFFFF' : '#000000'} />
+                        <Ionicons
+                          name="checkmark"
+                          size={scaleFont(20)}
+                          color={isDark ? '#FFFFFF' : '#000000'}
+                        />
                       )}
                     </TouchableOpacity>
                   ))}
@@ -442,7 +627,80 @@ export default function DeliveryScreen() {
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* Loading Overlay */}
+      <Modal
+        visible={showStorePicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowStorePicker(false)}>
+        <TouchableWithoutFeedback onPress={() => setShowStorePicker(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View
+                style={[
+                  styles.modalContent,
+                  { backgroundColor: isDark ? '#1A1A1A' : '#FFFFFF' },
+                ]}>
+                <Text style={[styles.modalTitle, { color: isDark ? '#FFFFFF' : '#000000' }]}>
+                  Select Store
+                </Text>
+                <ScrollView>
+                  {stores.length === 0 ? (
+                    <Text
+                      style={[
+                        styles.helperText,
+                        { color: isDark ? '#999999' : '#666666', marginBottom: 0 },
+                      ]}>
+                      No active stores yet. Ask admin to register a store.
+                    </Text>
+                  ) : (
+                    stores.map((store, index) => (
+                      <TouchableOpacity
+                        key={store.id}
+                        style={[
+                          styles.modalItem,
+                          index !== stores.length - 1 && {
+                            borderBottomColor: isDark ? '#333333' : '#E0E0E0',
+                            borderBottomWidth: 1,
+                          },
+                        ]}
+                        onPress={() => selectStore(store)}
+                        activeOpacity={0.7}>
+                        <View style={{ flex: 1, paddingRight: scaleWidth(8) }}>
+                          <Text
+                            style={[
+                              styles.modalItemText,
+                              { color: isDark ? '#FFFFFF' : '#000000' },
+                            ]}>
+                            {store.name}
+                          </Text>
+                          {(store.district || store.address) && (
+                            <Text
+                              style={{
+                                fontSize: scaleFont(12),
+                                color: isDark ? '#999999' : '#666666',
+                                marginTop: 2,
+                              }}>
+                              {[store.district, store.address].filter(Boolean).join(' · ')}
+                            </Text>
+                          )}
+                        </View>
+                        {selectedStore?.id === store.id && (
+                          <Ionicons
+                            name="checkmark"
+                            size={scaleFont(20)}
+                            color={isDark ? '#FFFFFF' : '#000000'}
+                          />
+                        )}
+                      </TouchableOpacity>
+                    ))
+                  )}
+                </ScrollView>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
       {isLoading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={isDark ? '#FFFFFF' : '#000000'} />
@@ -513,6 +771,23 @@ const styles = StyleSheet.create({
   helperText: {
     fontSize: scaleFont(13),
     marginBottom: scaleHeight(12),
+  },
+  segmentRow: {
+    flexDirection: 'row',
+    borderRadius: scaleWidth(10),
+    padding: scaleWidth(4),
+    marginBottom: scaleHeight(12),
+    gap: scaleWidth(4),
+  },
+  segmentBtn: {
+    flex: 1,
+    paddingVertical: scaleHeight(10),
+    borderRadius: scaleWidth(8),
+    alignItems: 'center',
+  },
+  segmentText: {
+    fontSize: scaleFont(14),
+    fontWeight: '600',
   },
   inputContainer: {
     marginBottom: scaleHeight(20),

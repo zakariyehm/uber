@@ -50,6 +50,11 @@ enum PaymentPayer {
   RECIPIENT
 }
 
+enum SenderKind {
+  PERSONAL
+  STORE
+}
+
 model User {
   id           String   @id @default(uuid())
   role         UserRole
@@ -132,6 +137,14 @@ model DeliveryRequest {
   recipientNumber        String
   senderName             String?
   senderPhone            String?
+  /** Personal (name+phone) or registered store. */
+  senderKind             SenderKind     @default(PERSONAL)
+  storeId                String?
+  store                  Store?         @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  /** Store's own order / BIS code (required when senderKind=STORE). */
+  storeOrderCode         String?
+  /** Store branch / pickup desk location (required when senderKind=STORE). */
+  storeBranchLocation    String?
   /** Who Waafi charges: sender at checkout hold, or recipient at dropoff. */
   payerType              PaymentPayer   @default(SENDER)
   itemType               String
@@ -186,6 +199,7 @@ model DeliveryRequest {
   @@index([driverUserId])
   @@index([offeredToDriverId, status])
   @@index([status, vehicleType])
+  @@index([storeId])
 }
 
 model DriverActiveDelivery {
@@ -300,6 +314,7 @@ model Store {
   isActive    Boolean       @default(true)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
+  deliveries  DeliveryRequest[]
 
   @@index([category, isActive])
   @@index([name])

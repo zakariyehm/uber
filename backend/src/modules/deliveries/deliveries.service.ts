@@ -462,6 +462,10 @@ export async function createDelivery(
     deliveryPrice: string;
     senderName?: string;
     senderPhone?: string;
+    senderKind?: 'PERSONAL' | 'STORE';
+    storeId?: string;
+    storeOrderCode?: string;
+    storeBranchLocation?: string;
     payerType?: 'SENDER' | 'RECIPIENT';
     referenceId?: string;
     deliveryTimeLabel?: string;
@@ -483,13 +487,57 @@ export async function createDelivery(
     pickupLocation: input.pickupLocation,
   });
 
+  const { PaymentHoldStatus, PaymentPayer, SenderKind } = await import('@prisma/client');
+
+  let senderKind = input.senderKind === 'STORE' ? SenderKind.STORE : SenderKind.PERSONAL;
+  let storeId: string | null = null;
+  let storeOrderCode: string | null = null;
+  let storeBranchLocation: string | null = null;
+  let senderName = input.senderName?.trim() || '';
+  let senderPhone = input.senderPhone?.trim() || '';
+  let referenceId = input.referenceId?.trim() || undefined;
+
+  if (senderKind === SenderKind.STORE) {
+    if (!input.storeId) {
+      const error = new Error('Select a store') as Error & { statusCode?: number };
+      error.statusCode = 400;
+      throw error;
+    }
+    const code = input.storeOrderCode?.trim() || '';
+    const branch = input.storeBranchLocation?.trim() || '';
+    if (!code) {
+      const error = new Error('Store order ID is required') as Error & { statusCode?: number };
+      error.statusCode = 400;
+      throw error;
+    }
+    if (!branch) {
+      const error = new Error('Store branch location is required') as Error & {
+        statusCode?: number;
+      };
+      error.statusCode = 400;
+      throw error;
+    }
+    const store = await prisma.store.findUnique({ where: { id: input.storeId } });
+    if (!store || !store.isActive) {
+      const error = new Error('Store not found or inactive') as Error & { statusCode?: number };
+      error.statusCode = 400;
+      throw error;
+    }
+    storeId = store.id;
+    storeOrderCode = code;
+    storeBranchLocation = branch;
+    senderName = store.name;
+    if (!senderPhone && store.phone) senderPhone = store.phone.trim();
+    if (!referenceId) referenceId = code;
+  }
+
   const normalizePhone = (phone: string) => {
     let digits = phone.replace(/\D/g, '');
     if (digits.startsWith('252')) digits = digits.slice(3);
     if (digits.startsWith('0')) digits = digits.slice(1);
     return digits;
   };
-  const senderDigits = normalizePhone(input.senderPhone || '');
+  const senderDigits = normalizePhone(senderPhone || '');
   const recipientDigits = normalizePhone(input.recipientNumber || '');
   if (
     senderDigits.length >= 7 &&
@@ -503,13 +551,22 @@ export async function createDelivery(
     throw error;
   }
 
-  const { PaymentHoldStatus, PaymentPayer } = await import('@prisma/client');
   const openFleet = await isOpenFleetMethod(input.deliveryMethod);
   // Delivery State always charges the sender — ignore recipient-pays.
   const payerType =
     openFleet || input.payerType !== 'RECIPIENT'
       ? PaymentPayer.SENDER
       : PaymentPayer.RECIPIENT;
+
+  const senderFields = {
+    senderName: senderName || null,
+    senderPhone: senderPhone || null,
+    senderKind,
+    storeId,
+    storeOrderCode,
+    storeBranchLocation,
+    referenceId,
+  };
 
   // Recipient pays at dropoff — create + offer with no Waafi hold.
   if (payerType === PaymentPayer.RECIPIENT) {
@@ -531,14 +588,12 @@ export async function createDelivery(
         destinationLocation: input.destinationLocation,
         recipientName: input.recipientName,
         recipientNumber: recipientPhone,
-        senderName: input.senderName,
-        senderPhone: input.senderPhone?.trim() || null,
+        ...senderFields,
         payerType,
         itemType: input.itemType,
         deliveryMethod: input.deliveryMethod,
         vehicleType: await resolveVehicleTypeForMethod(input.deliveryMethod),
         deliveryPrice: amount,
-        referenceId: input.referenceId,
         deliveryTimeLabel: input.deliveryTimeLabel,
         riderUserId,
         paymentHoldStatus: PaymentHoldStatus.NONE,
@@ -550,7 +605,7 @@ export async function createDelivery(
   }
 
   // Sender pays — hold Waafi at checkout (existing flow).
-  let payerPhone = input.senderPhone?.trim() || '';
+  let payerPhone = senderPhone;
   if (!payerPhone && riderUserId) {
     const rider = await prisma.user.findUnique({
       where: { id: riderUserId },
@@ -593,14 +648,13 @@ export async function createDelivery(
       destinationLocation: input.destinationLocation,
       recipientName: input.recipientName,
       recipientNumber: input.recipientNumber,
-      senderName: input.senderName,
-      senderPhone: input.senderPhone || payerPhone,
+      ...senderFields,
+      senderPhone: senderPhone || payerPhone,
       payerType,
       itemType: input.itemType,
       deliveryMethod: input.deliveryMethod,
       vehicleType: await resolveVehicleTypeForMethod(input.deliveryMethod),
       deliveryPrice: amount,
-      referenceId: input.referenceId,
       deliveryTimeLabel: input.deliveryTimeLabel,
       riderUserId,
       paymentHoldStatus: PaymentHoldStatus.HELD,
