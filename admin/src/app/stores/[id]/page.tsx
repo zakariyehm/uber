@@ -6,7 +6,6 @@ import { Shell } from "@/components/Shell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { StoreFormModal } from "@/components/StoreFormModal";
 import { Button } from "@/components/ui/Button";
-import { Modal } from "@/components/ui/Modal";
 import { EmptyRow, Panel, Table, Td, Th, THead } from "@/components/ui/PageChrome";
 import { api, errorMessage } from "@/lib/api";
 import { money, when } from "@/lib/format";
@@ -21,10 +20,6 @@ export default function StoreProfilePage() {
   const [data, setData] = useState<StoreProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
-  const [creditOpen, setCreditOpen] = useState(false);
-  const [creditAmount, setCreditAmount] = useState("");
-  const [creditNote, setCreditNote] = useState("");
-  const [crediting, setCrediting] = useState(false);
 
   const load = async () => {
     try {
@@ -41,32 +36,6 @@ export default function StoreProfilePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  const submitCredit = async () => {
-    const amount = Number(creditAmount);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setError("Enter a positive top-up amount");
-      return;
-    }
-    setCrediting(true);
-    setError(null);
-    try {
-      await api(`/admin/stores/${id}/credit`, {
-        method: "POST",
-        body: JSON.stringify({
-          amount,
-          note: creditNote.trim() || undefined,
-        }),
-      });
-      setCreditOpen(false);
-      setCreditAmount("");
-      setCreditNote("");
-      await load();
-    } catch (err) {
-      setError(errorMessage(err, "Could not top up balance"));
-    } finally {
-      setCrediting(false);
-    }
-  };
 
   const store = data?.store;
   const stats = data?.stats;
@@ -96,14 +65,16 @@ export default function StoreProfilePage() {
               <Button variant="ghost" onClick={() => setEditOpen(true)}>
                 Edit
               </Button>
-              <Button variant="primary" onClick={() => setCreditOpen(true)}>
-                Top up balance
-              </Button>
             </div>
           </div>
 
           <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <KpiCard label="Balance" value={money(store.balance || "0")} tone="green" hint="Prepaid wallet" />
+            <KpiCard
+              label="Credit balance"
+              value={money(store.balance || "0")}
+              tone={Number(store.balance || 0) < 0 ? "amber" : "green"}
+              hint="Delivery charges · debt allowed"
+            />
             <KpiCard label="Orders" value={String(stats?.ordersTotal ?? 0)} tone="blue" />
             <KpiCard label="Active" value={String(stats?.active ?? 0)} tone="amber" hint={`${stats?.pending ?? 0} pending`} />
             <KpiCard
@@ -149,8 +120,8 @@ export default function StoreProfilePage() {
 
             <Panel className="overflow-hidden xl:col-span-2">
               <div className="border-b border-line px-4 py-3">
-                <h3 className="text-sm font-semibold">Transactions</h3>
-                <p className="text-xs text-muted">Top-ups and order debits</p>
+                <h3 className="text-sm font-semibold">Credit ledger</h3>
+                <p className="text-xs text-muted">Credits added and delivery charges</p>
               </div>
               <Table>
                 <THead>
@@ -159,7 +130,7 @@ export default function StoreProfilePage() {
                     <Th>Type</Th>
                     <Th>Status</Th>
                     <Th>Amount</Th>
-                    <Th>Balance</Th>
+                    <Th>Credit</Th>
                     <Th>Note / order</Th>
                   </tr>
                 </THead>
@@ -168,7 +139,9 @@ export default function StoreProfilePage() {
                     <tr key={txn.id} className="border-t border-line/80">
                       <Td className="text-xs text-muted">{when(txn.createdAt)}</Td>
                       <Td>
-                        <span className="text-xs font-semibold uppercase tracking-wide">{txn.type}</span>
+                        <span className="text-xs font-semibold uppercase tracking-wide">
+                          {txn.type === "DEBIT" ? "Charge" : txn.type === "CREDIT" ? "Credit" : txn.type}
+                        </span>
                       </Td>
                       <Td>
                         <StatusBadge value={(txn.status || "COMPLETED").toLowerCase()} />
@@ -193,7 +166,7 @@ export default function StoreProfilePage() {
                     </tr>
                   ))}
                   {!data?.transactions.length ? (
-                    <EmptyRow colSpan={6} message="No wallet transactions yet." />
+                    <EmptyRow colSpan={6} message="No credit ledger entries yet." />
                   ) : null}
                 </tbody>
               </Table>
@@ -255,50 +228,6 @@ export default function StoreProfilePage() {
             onSaved={() => void load()}
           />
 
-          <Modal
-            open={creditOpen}
-            onClose={() => setCreditOpen(false)}
-            title="Top up store balance"
-            description="Credit this store’s prepaid wallet for sender-pay deliveries."
-            footer={
-              <>
-                <Button variant="ghost" onClick={() => setCreditOpen(false)} disabled={crediting}>
-                  Cancel
-                </Button>
-                <Button variant="primary" disabled={crediting} onClick={() => void submitCredit()}>
-                  {crediting ? "Saving…" : "Add credit"}
-                </Button>
-              </>
-            }
-          >
-            <div className="space-y-3">
-              <label className="block text-sm">
-                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted">
-                  Amount (USD)
-                </span>
-                <input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  className="h-10 w-full rounded-lg border border-line bg-panel px-3 text-sm outline-none focus:border-raac focus:ring-2 focus:ring-raac/20"
-                  value={creditAmount}
-                  onChange={(e) => setCreditAmount(e.target.value)}
-                  placeholder="50.00"
-                />
-              </label>
-              <label className="block text-sm">
-                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted">
-                  Note (optional)
-                </span>
-                <input
-                  className="h-10 w-full rounded-lg border border-line bg-panel px-3 text-sm outline-none focus:border-raac focus:ring-2 focus:ring-raac/20"
-                  value={creditNote}
-                  onChange={(e) => setCreditNote(e.target.value)}
-                  placeholder="Cash deposit / transfer"
-                />
-              </label>
-            </div>
-          </Modal>
         </>
       )}
     </Shell>

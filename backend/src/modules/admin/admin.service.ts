@@ -1172,7 +1172,7 @@ export async function creditStoreBalance(
         status: StoreWalletTxnStatus.COMPLETED,
         amount: rounded,
         balanceAfter: next.balance,
-        note: input.note?.trim() || 'Admin top-up',
+        note: input.note?.trim() || 'Admin credit',
         settledAt: new Date(),
       },
     });

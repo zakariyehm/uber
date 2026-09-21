@@ -52,13 +52,6 @@ export async function createPendingStoreDebit(input: {
     error.statusCode = 400;
     throw error;
   }
-  if (wallet.available < amount) {
-    const error = new Error(
-      `Store balance too low (available $${wallet.available.toFixed(2)})`
-    ) as Error & { statusCode?: number };
-    error.statusCode = 402;
-    throw error;
-  }
 
   return prisma.storeWalletTransaction.create({
     data: {
@@ -67,7 +60,7 @@ export async function createPendingStoreDebit(input: {
       status: StoreWalletTxnStatus.PENDING,
       amount,
       balanceAfter: wallet.balance,
-      note: `Order ${input.orderId} · pending`,
+      note: `Order ${input.orderId} · credit hold`,
       deliveryRequestId: input.deliveryRequestId,
     },
   });
@@ -99,14 +92,6 @@ export async function settlePendingStoreDebit(deliveryRequestId: string) {
     if (!store) return null;
 
     const current = Number(store.balance);
-    if (current + 1e-9 < amount) {
-      const error = new Error(
-        `Store balance too low to settle order ($${current.toFixed(2)})`
-      ) as Error & { statusCode?: number };
-      error.statusCode = 402;
-      throw error;
-    }
-
     const nextBalance = new Prisma.Decimal(roundMoney(current - amount));
     await tx.store.update({
       where: { id: store.id },
@@ -118,7 +103,7 @@ export async function settlePendingStoreDebit(deliveryRequestId: string) {
       data: {
         status: StoreWalletTxnStatus.COMPLETED,
         balanceAfter: nextBalance,
-        note: `Order ${delivery.orderId} · completed`,
+        note: `Order ${delivery.orderId} · charged`,
         settledAt: new Date(),
       },
     });
@@ -140,7 +125,7 @@ export async function cancelPendingStoreDebit(deliveryRequestId: string) {
     where: { id: pending.id },
     data: {
       status: StoreWalletTxnStatus.CANCELLED,
-      note: pending.note?.replace('pending', 'cancelled') || 'Order cancelled',
+      note: pending.note?.replace('credit hold', 'cancelled') || 'Order cancelled',
       settledAt: new Date(),
     },
   });
@@ -172,27 +157,12 @@ export async function debitStoreReturnPayout(input: {
     error.statusCode = 400;
     throw error;
   }
-  if (wallet.available < amount) {
-    const error = new Error(
-      `Store balance too low for return payout (need $${amount.toFixed(2)}, available $${wallet.available.toFixed(2)})`
-    ) as Error & { statusCode?: number };
-    error.statusCode = 402;
-    throw error;
-  }
 
   return prisma.$transaction(async (tx) => {
     const store = await tx.store.findUnique({ where: { id: input.storeId } });
     if (!store) return null;
 
     const current = Number(store.balance);
-    if (current + 1e-9 < amount) {
-      const error = new Error(
-        `Store balance too low for return payout ($${current.toFixed(2)})`
-      ) as Error & { statusCode?: number };
-      error.statusCode = 402;
-      throw error;
-    }
-
     const nextBalance = new Prisma.Decimal(roundMoney(current - amount));
     await tx.store.update({
       where: { id: store.id },
@@ -206,7 +176,7 @@ export async function debitStoreReturnPayout(input: {
         status: StoreWalletTxnStatus.COMPLETED,
         amount,
         balanceAfter: nextBalance,
-        note: `Order ${input.orderId} · return · driver payout`,
+        note: `Order ${input.orderId} · return charge · driver payout`,
         deliveryRequestId: input.deliveryRequestId,
         settledAt: new Date(),
       },

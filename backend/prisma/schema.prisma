@@ -328,7 +328,7 @@ model Store {
   address     String?
   district    String?
   description String?
-  /** Prepaid balance used when store is sender + sender pays. */
+  /** Available delivery credit. Charged when sender-pay store orders complete. */
   balance     Decimal       @default(0) @db.Decimal(12, 2)
   isActive    Boolean       @default(true)
   createdAt   DateTime      @default(now())

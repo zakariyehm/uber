@@ -573,22 +573,9 @@ export async function createDelivery(
     referenceId,
   };
 
-  // Store sender + sender pays: create order + PENDING debit (balance moves on COMPLETE).
+  // Store sender + sender pays: create order + PENDING debit (charged on COMPLETE; debt allowed).
   if (payerType === PaymentPayer.SENDER && senderKind === SenderKind.STORE && storeId) {
-    const {
-      getStoreAvailableBalance,
-      createPendingStoreDebit,
-    } = await import('../stores/store-wallet.service.ts');
-
-    const wallet = await getStoreAvailableBalance(storeId);
-    if (!wallet || wallet.available < amount) {
-      const available = wallet?.available ?? 0;
-      const error = new Error(
-        `Store balance too low (available $${available.toFixed(2)})`
-      ) as Error & { statusCode?: number };
-      error.statusCode = 402;
-      throw error;
-    }
+    const { createPendingStoreDebit } = await import('../stores/store-wallet.service.ts');
 
     const row = await prisma.deliveryRequest.create({
       data: {

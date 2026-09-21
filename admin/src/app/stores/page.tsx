@@ -133,7 +133,7 @@ export default function StoresPage() {
             <tr>
               <Th>Store</Th>
               <Th>Type</Th>
-              <Th>Balance</Th>
+              <Th>Credit</Th>
               <Th>Contact</Th>
               <Th>Location</Th>
               <Th>Status</Th>

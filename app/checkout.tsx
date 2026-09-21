@@ -362,7 +362,7 @@ export default function CheckoutScreen() {
 
         <Text style={[styles.holdHint, { color: colors.icon }]}>
           {senderKind === 'STORE'
-            ? `Confirm Order holds $${estimatedPrice} from the store balance. It is charged when the trip is completed.`
+            ? `Confirm Order places a $${estimatedPrice} charge on store credit. It is settled when the trip is completed.`
             : `When you confirm, Waafi sends a prompt to ${senderNumber || 'the sender number'}. Approve it and enter your PIN to hold $${estimatedPrice}. Funds are captured only after the trip is completed.`}
         </Text>
 
@@ -389,7 +389,7 @@ export default function CheckoutScreen() {
             </View>
           ) : (
             <Text style={styles.confirmButtonText}>
-              {senderKind === 'STORE' ? 'Confirm Order · Store balance' : 'Confirm Order · Hold payment'}
+              {senderKind === 'STORE' ? 'Confirm Order · Store credit' : 'Confirm Order · Hold payment'}
             </Text>
           )}
         </TouchableOpacity>
