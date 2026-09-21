@@ -1014,12 +1014,18 @@ export async function applyDeliveryAction(
       break;
     }
     case 'confirm_arrival': {
+      if (current.senderKind === 'STORE') {
+        fail('Store orders use package handoff confirmation');
+      }
       if (!current.driverArrived) fail('Wait until the driver marks arrived');
       data.userConfirmedArrival = true;
       data.userConfirmedArrivalAt = now;
       break;
     }
     case 'picked_up': {
+      if (current.senderKind === 'STORE') {
+        fail('Store orders: wait for the store to confirm package handoff');
+      }
       if (current.status !== DeliveryStatus.ACCEPTED) fail('Pickup only after accept');
       if (!current.userConfirmedArrival) fail('Wait for the rider to confirm you arrived');
       data.status = DeliveryStatus.PICKED_UP;
@@ -1027,9 +1033,34 @@ export async function applyDeliveryAction(
       break;
     }
     case 'confirm_pickup': {
+      if (current.senderKind === 'STORE') {
+        fail('Store orders use package handoff confirmation');
+      }
       if (current.status !== DeliveryStatus.PICKED_UP) {
         fail('Confirm pickup only after driver collects the item');
       }
+      data.userConfirmedPickup = true;
+      data.userConfirmedPickupAt = now;
+      break;
+    }
+    /** Store shortcut: one hold = handed package → ready for Start trip. */
+    case 'confirm_store_handoff': {
+      if (current.senderKind !== 'STORE') {
+        fail('Package handoff is only for store orders');
+      }
+      if (current.status !== DeliveryStatus.ACCEPTED) {
+        fail('Handoff only after the driver accepted');
+      }
+      if (!current.driverArrived) {
+        fail('Wait until the driver marks arrived at the store');
+      }
+      if (current.userConfirmedPickup && current.status === DeliveryStatus.PICKED_UP) {
+        fail('Package already handed over');
+      }
+      data.userConfirmedArrival = true;
+      data.userConfirmedArrivalAt = current.userConfirmedArrivalAt || now;
+      data.status = DeliveryStatus.PICKED_UP;
+      data.pickedUpAt = now;
       data.userConfirmedPickup = true;
       data.userConfirmedPickupAt = now;
       break;
@@ -1069,6 +1100,11 @@ export async function applyDeliveryAction(
       }
       data.status = DeliveryStatus.COMPLETED;
       data.completedAt = now;
+      // Store shortcut: no separate "received" confirm — finish on driver complete.
+      if (current.senderKind === 'STORE') {
+        data.userConfirmedDelivery = true;
+        data.userConfirmedDeliveryAt = now;
+      }
       break;
     }
     case 'confirm_received': {
@@ -1139,11 +1175,21 @@ export async function applyDeliveryAction(
 
   if (action === 'complete' && row.driverUserId) {
     const { isOpenFleetMethod } = await import('../../utils/vehicle-type.ts');
-    if (await isOpenFleetMethod(row.deliveryMethod)) {
+    const storeOrder = row.senderKind === 'STORE';
+    const openFleet = await isOpenFleetMethod(row.deliveryMethod);
+    if (storeOrder || openFleet) {
       const { settleFullTrip } = await import('../payments/payment.settlement.ts');
       await settleFullTrip(id);
+    }
+    if (storeOrder && row.userConfirmedDelivery) {
+      await prisma.driverActiveDelivery.updateMany({
+        where: { requestId: id },
+        data: { requestId: null },
+      });
+      await releaseOfferLock(row.driverUserId, id);
       return getById(id);
     }
+    if (openFleet) return getById(id);
   }
 
   if (action === 'request_payment') {

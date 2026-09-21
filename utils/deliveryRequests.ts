@@ -11,6 +11,10 @@ export interface DeliveryRequest {
   recipientNumber: string;
   senderName?: string;
   senderPhone?: string;
+  senderKind?: 'PERSONAL' | 'STORE' | string;
+  storeId?: string;
+  storeOrderCode?: string;
+  storeBranchLocation?: string;
   itemType: string;
   deliveryMethod: string;
   vehicleType?: string;
@@ -140,6 +144,9 @@ export const requestPayment = async (requestId: string) => patchDelivery(request
 export const markDriverArrived = async (requestId: string) => patchDelivery(requestId, 'mark_arrived');
 export const confirmDriverArrival = async (requestId: string) => patchDelivery(requestId, 'confirm_arrival');
 export const confirmPackagePickup = async (requestId: string) => patchDelivery(requestId, 'confirm_pickup');
+/** Store shortcut: one hold confirms package handed to the driver. */
+export const confirmStoreHandoff = async (requestId: string) =>
+  patchDelivery(requestId, 'confirm_store_handoff');
 export const confirmDeliveryReceived = async (requestId: string) =>
   patchDelivery(requestId, 'confirm_received');
 

@@ -36,6 +36,14 @@ function sheetCopy(request: DeliveryRequest): { title: string; subtitle: string 
   if (request.status === 'accepted' && !request.driverArrived) {
     return { title: 'Head to pickup', subtitle: request.pickupLocation };
   }
+  if (
+    request.senderKind === 'STORE' &&
+    request.status === 'accepted' &&
+    request.driverArrived &&
+    !request.userConfirmedPickup
+  ) {
+    return { title: 'Waiting for store handoff', subtitle: 'Store must confirm package handed over' };
+  }
   if (request.status === 'accepted' && request.driverArrived && !request.userConfirmedArrival) {
     return { title: 'Waiting for rider', subtitle: 'Ask them to confirm you arrived' };
   }
@@ -215,6 +223,7 @@ export default function DeliveryDetailsScreen() {
 
   const currentStep = (): StepAction | null => {
     if (!request) return null;
+    const isStore = request.senderKind === 'STORE';
 
     if (request.status === 'accepted' && !request.driverArrived) {
       return {
@@ -225,6 +234,14 @@ export default function DeliveryDetailsScreen() {
       };
     }
 
+    // Store shortcut: wait for store handoff, then Start trip (no driver pickup hold).
+    if (isStore && request.status === 'accepted' && request.driverArrived && !request.userConfirmedPickup) {
+      return {
+        kind: 'wait',
+        label: 'Waiting for store to hand package',
+      };
+    }
+
     if (request.status === 'accepted' && request.driverArrived && !request.userConfirmedArrival) {
       return {
         kind: 'wait',
@@ -232,7 +249,7 @@ export default function DeliveryDetailsScreen() {
       };
     }
 
-    if (request.status === 'accepted' && request.userConfirmedArrival) {
+    if (!isStore && request.status === 'accepted' && request.userConfirmedArrival) {
       return {
         kind: 'hold',
         label: 'Hold · Package picked up',
@@ -241,7 +258,7 @@ export default function DeliveryDetailsScreen() {
       };
     }
 
-    if (request.status === 'picked_up' && !request.userConfirmedPickup) {
+    if (!isStore && request.status === 'picked_up' && !request.userConfirmedPickup) {
       return {
         kind: 'wait',
         label: 'Waiting for pickup confirmation',

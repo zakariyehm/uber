@@ -80,6 +80,7 @@ export const deliveryActionSchema = z.object({
     'mark_arrived',
     'confirm_arrival',
     'confirm_pickup',
+    'confirm_store_handoff',
     'confirm_received',
     'cancel',
   ]),

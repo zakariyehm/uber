@@ -5,6 +5,7 @@ import {
   confirmDeliveryReceived,
   confirmDriverArrival,
   confirmPackagePickup,
+  confirmStoreHandoff,
   DeliveryRequest as DeliveryRequestType,
   DeliveryStatus,
   getDeliveryRequestById,
@@ -184,11 +185,15 @@ export default function OrderSuccessScreen() {
       : null;
 
   const statusMessage = (() => {
+    const isStore = deliveryRequest?.senderKind === 'STORE';
     if (deliveryStatus === 'pending') {
       if (deliveryRequest?.payerType === 'RECIPIENT') {
         return 'Waiting for a driver. The recipient will pay with Waafi when the package is delivered.';
       }
       return 'Waiting for a driver to accept your delivery request...';
+    }
+    if (isStore && deliveryStatus === 'accepted' && deliveryRequest?.driverArrived && !deliveryRequest.userConfirmedPickup) {
+      return `${driverName || 'Driver'} is at the store. Hold to confirm you handed the package.`;
     }
     if (deliveryStatus === 'accepted' && deliveryRequest?.driverArrived && !deliveryRequest.userConfirmedArrival) {
       return `${driverName || 'Your driver'} is at pickup. Hold to confirm they arrived.`;
@@ -197,6 +202,11 @@ export default function OrderSuccessScreen() {
       return driverName
         ? `Driver ${driverName} accepted and is heading to pickup.`
         : 'A driver accepted your order and is heading to pickup.';
+    }
+    if (isStore && (deliveryStatus === 'picked_up' || deliveryStatus === 'in_transit')) {
+      return deliveryStatus === 'picked_up'
+        ? 'Package handed over. Driver can start the trip.'
+        : 'Package is on the way to the destination.';
     }
     if (deliveryStatus === 'picked_up' && !deliveryRequest?.userConfirmedPickup) {
       return 'Driver says the package was collected. Hold to confirm they took it.';
@@ -221,17 +231,33 @@ export default function OrderSuccessScreen() {
     return 'Your order has been confirmed.';
   })();
 
+  const isStoreOrder = deliveryRequest?.senderKind === 'STORE';
+
+  const showStoreHandoffHold =
+    !!deliveryRequest &&
+    isStoreOrder &&
+    deliveryStatus === 'accepted' &&
+    !!deliveryRequest.driverArrived &&
+    !deliveryRequest.userConfirmedPickup;
+
   const showArrivalHold =
     !!deliveryRequest &&
+    !isStoreOrder &&
     deliveryStatus === 'accepted' &&
     !!deliveryRequest.driverArrived &&
     !deliveryRequest.userConfirmedArrival;
 
   const showPickupHold =
-    !!deliveryRequest && deliveryStatus === 'picked_up' && !deliveryRequest.userConfirmedPickup;
+    !!deliveryRequest &&
+    !isStoreOrder &&
+    deliveryStatus === 'picked_up' &&
+    !deliveryRequest.userConfirmedPickup;
 
   const showReceivedHold =
-    !!deliveryRequest && deliveryStatus === 'completed' && !deliveryRequest.userConfirmedDelivery;
+    !!deliveryRequest &&
+    !isStoreOrder &&
+    deliveryStatus === 'completed' &&
+    !deliveryRequest.userConfirmedDelivery;
 
   return (
     <View
@@ -346,6 +372,17 @@ export default function OrderSuccessScreen() {
         )}
 
         <View style={styles.buttonContainer}>
+          {deliveryStatus !== 'cancelled' && showStoreHandoffHold ? (
+            <HoldToConfirmButton
+              label="Hold · Wan dhibe dalabka"
+              color="#000"
+              onConfirm={async () => {
+                await confirmStoreHandoff(deliveryRequest!.id);
+                await refresh();
+              }}
+            />
+          ) : null}
+
           {deliveryStatus !== 'cancelled' && showArrivalHold ? (
             <HoldToConfirmButton
               label="Hold to confirm driver arrived"
@@ -358,6 +395,7 @@ export default function OrderSuccessScreen() {
           ) : null}
 
           {deliveryStatus !== 'cancelled' &&
+          !isStoreOrder &&
           deliveryRequest?.userConfirmedArrival &&
           deliveryStatus === 'accepted' ? (
             <View style={[styles.infoMessage, { backgroundColor: isDark ? '#1C1C1E' : '#E8F5E9' }]}>
@@ -385,7 +423,9 @@ export default function OrderSuccessScreen() {
             <View style={[styles.infoMessage, { backgroundColor: isDark ? '#1C1C1E' : '#E8F5E9' }]}>
               <Ionicons name="checkmark-circle" size={scaleFont(20)} color="#4CAF50" />
               <Text style={[styles.infoMessageText, { color: isDark ? '#FFFFFF' : '#2E7D32' }]}>
-                Package confirmed. Driver can start the trip.
+                {isStoreOrder
+                  ? 'Package handed over. Driver can start the trip.'
+                  : 'Package confirmed. Driver can start the trip.'}
               </Text>
             </View>
           ) : null}
