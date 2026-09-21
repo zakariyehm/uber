@@ -267,3 +267,40 @@ model PlatformSetting {
   deliveryStateBalance  Decimal  @default(0) @db.Decimal(12, 2)
   updatedAt             DateTime @updatedAt
 }
+
+enum StoreCategory {
+  GROCERY
+  MINI_MART
+  PRODUCE
+  BUTCHER
+  FISH
+  BAKERY
+  COFFEE
+  RESTAURANT
+  JUICE
+  PHARMACY
+  COSMETICS
+  ELECTRONICS
+  FASHION
+  HARDWARE
+  WATER_GAS
+  FLOWERS
+  OTHER
+}
+
+model Store {
+  id          String        @id @default(uuid())
+  name        String
+  category    StoreCategory
+  phone       String?
+  ownerName   String?
+  address     String?
+  district    String?
+  description String?
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([category, isActive])
+  @@index([name])
+}

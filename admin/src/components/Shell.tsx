@@ -13,6 +13,7 @@ const NAV: NavItem[] = [
   { href: "/trips", label: "Trips" },
   { href: "/moto", label: "Motorcycle" },
   { href: "/states", label: "Delivery State" },
+  { href: "/stores", label: "Stores" },
   { href: "/drivers", label: "Drivers" },
   { href: "/riders", label: "Riders" },
   { href: "/payments", label: "Payments" },

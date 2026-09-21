@@ -4,14 +4,18 @@ import { requireAdmin } from '../../middleware/authenticate.ts';
 import {
   cancelTrip,
   createDriver,
+  createStore,
   deleteDriver,
+  deleteStore,
   getLiveOps,
   getOverview,
   getTrip,
   listPayments,
+  listStores,
   listTrips,
   listUsers,
   listWallets,
+  patchStore,
   patchUser,
   resetUserPassword,
 } from './admin.service.ts';
@@ -54,6 +58,58 @@ const createDriverSchema = z.object({
 
 const resetPasswordSchema = z.object({
   password: z.string().min(6).max(64),
+});
+
+const STORE_CATEGORIES = [
+  'GROCERY',
+  'MINI_MART',
+  'PRODUCE',
+  'BUTCHER',
+  'FISH',
+  'BAKERY',
+  'COFFEE',
+  'RESTAURANT',
+  'JUICE',
+  'PHARMACY',
+  'COSMETICS',
+  'ELECTRONICS',
+  'FASHION',
+  'HARDWARE',
+  'WATER_GAS',
+  'FLOWERS',
+  'OTHER',
+] as const;
+
+const storeListQuery = z.object({
+  q: z.string().optional(),
+  category: z.enum(STORE_CATEGORIES).optional(),
+  isActive: z
+    .union([z.boolean(), z.enum(['true', 'false'])])
+    .optional()
+    .transform((v) => (v === undefined ? undefined : v === true || v === 'true')),
+  page: z.coerce.number().optional(),
+  limit: z.coerce.number().optional(),
+});
+
+const createStoreSchema = z.object({
+  name: z.string().min(2).max(80),
+  category: z.enum(STORE_CATEGORIES),
+  phone: z.string().min(7).max(20).optional(),
+  ownerName: z.string().min(1).max(60).optional(),
+  address: z.string().min(1).max(160).optional(),
+  district: z.string().min(1).max(60).optional(),
+  description: z.string().max(300).optional(),
+});
+
+const patchStoreSchema = z.object({
+  name: z.string().min(2).max(80).optional(),
+  category: z.enum(STORE_CATEGORIES).optional(),
+  phone: z.string().min(7).max(20).nullable().optional(),
+  ownerName: z.string().max(60).nullable().optional(),
+  address: z.string().max(160).nullable().optional(),
+  district: z.string().max(60).nullable().optional(),
+  description: z.string().max(300).nullable().optional(),
+  isActive: z.boolean().optional(),
 });
 
 const methodQuery = z.object({
@@ -272,6 +328,58 @@ export async function adminRoutes(app: FastifyInstance) {
       return await deleteServiceMethod(id);
     } catch (error: any) {
       return reply.code(error.statusCode || 400).send({ error: error.message || 'Could not delete method' });
+    }
+  });
+
+  app.get('/stores', async (request) => {
+    const query = storeListQuery.parse(request.query);
+    return listStores(query);
+  });
+
+  app.post('/stores', async (request, reply) => {
+    try {
+      const body = createStoreSchema.parse(request.body ?? {});
+      const store = await createStore(body);
+      return reply.code(201).send(store);
+    } catch (error: any) {
+      if (error?.name === 'ZodError') {
+        return reply.code(400).send({
+          error: error.issues?.[0]?.message || 'Enter store name and type',
+          details: error.issues,
+        });
+      }
+      return reply
+        .code(error.statusCode || 400)
+        .send({ error: error.message || 'Could not create store', code: error.code });
+    }
+  });
+
+  app.patch('/stores/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    try {
+      const body = patchStoreSchema.parse(request.body ?? {});
+      return await patchStore(id, body);
+    } catch (error: any) {
+      if (error?.name === 'ZodError') {
+        return reply.code(400).send({
+          error: error.issues?.[0]?.message || 'Invalid store fields',
+          details: error.issues,
+        });
+      }
+      return reply
+        .code(error.statusCode || 400)
+        .send({ error: error.message || 'Could not update store', code: error.code });
+    }
+  });
+
+  app.delete('/stores/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    try {
+      return await deleteStore(id);
+    } catch (error: any) {
+      return reply
+        .code(error.statusCode || 400)
+        .send({ error: error.message || 'Could not delete store', code: error.code });
     }
   });
 }

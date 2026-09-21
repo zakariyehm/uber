@@ -4,6 +4,7 @@ import {
   Prisma,
   ServiceCategory,
   SettlementType,
+  StoreCategory,
   UserRole,
 } from '@prisma/client';
 import bcrypt from 'bcryptjs';
@@ -795,4 +796,168 @@ export async function listWallets() {
       updatedAt: wallet.updatedAt.toISOString(),
     })),
   };
+}
+
+function toStoreDto(row: {
+  id: string;
+  name: string;
+  category: StoreCategory;
+  phone: string | null;
+  ownerName: string | null;
+  address: string | null;
+  district: string | null;
+  description: string | null;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: row.id,
+    name: row.name,
+    category: row.category,
+    phone: row.phone,
+    ownerName: row.ownerName,
+    address: row.address,
+    district: row.district,
+    description: row.description,
+    isActive: row.isActive,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+export async function listStores(input: {
+  q?: string;
+  category?: string;
+  isActive?: boolean;
+  page?: number;
+  limit?: number;
+}) {
+  const page = Math.max(1, input.page || 1);
+  const limit = Math.min(50, Math.max(1, input.limit || 20));
+  const skip = (page - 1) * limit;
+
+  const where: Prisma.StoreWhereInput = {};
+  if (input.category) {
+    const cat = String(input.category).trim().toUpperCase();
+    if ((Object.values(StoreCategory) as string[]).includes(cat)) {
+      where.category = cat as StoreCategory;
+    }
+  }
+  if (typeof input.isActive === 'boolean') where.isActive = input.isActive;
+  if (input.q?.trim()) {
+    const q = input.q.trim();
+    where.OR = [
+      { name: { contains: q, mode: 'insensitive' } },
+      { phone: { contains: q, mode: 'insensitive' } },
+      { ownerName: { contains: q, mode: 'insensitive' } },
+      { district: { contains: q, mode: 'insensitive' } },
+      { address: { contains: q, mode: 'insensitive' } },
+    ];
+  }
+
+  const [rows, total] = await Promise.all([
+    prisma.store.findMany({
+      where,
+      orderBy: [{ name: 'asc' }],
+      skip,
+      take: limit,
+    }),
+    prisma.store.count({ where }),
+  ]);
+
+  return {
+    page,
+    limit,
+    total,
+    stores: rows.map(toStoreDto),
+  };
+}
+
+export async function createStore(input: {
+  name: string;
+  category: StoreCategory;
+  phone?: string;
+  ownerName?: string;
+  address?: string;
+  district?: string;
+  description?: string;
+}) {
+  const name = input.name.trim();
+  if (name.length < 2) throw adminError('Enter a store name', 400);
+
+  const phone = input.phone?.trim() ? somaliaPhone(input.phone) : null;
+  if (phone && !/^\+252\d{8,10}$/.test(phone)) {
+    throw adminError('Enter a valid Somalia phone number', 400);
+  }
+
+  const row = await prisma.store.create({
+    data: {
+      name,
+      category: input.category,
+      phone,
+      ownerName: input.ownerName?.trim() || null,
+      address: input.address?.trim() || null,
+      district: input.district?.trim() || null,
+      description: input.description?.trim() || null,
+    },
+  });
+  return toStoreDto(row);
+}
+
+export async function patchStore(
+  id: string,
+  input: {
+    name?: string;
+    category?: StoreCategory;
+    phone?: string | null;
+    ownerName?: string | null;
+    address?: string | null;
+    district?: string | null;
+    description?: string | null;
+    isActive?: boolean;
+  }
+) {
+  const existing = await prisma.store.findUnique({ where: { id } });
+  if (!existing) throw adminError('Store not found', 404);
+
+  let phone: string | null | undefined = undefined;
+  if (input.phone !== undefined) {
+    if (input.phone == null || !String(input.phone).trim()) {
+      phone = null;
+    } else {
+      phone = somaliaPhone(String(input.phone));
+      if (!/^\+252\d{8,10}$/.test(phone)) {
+        throw adminError('Enter a valid Somalia phone number', 400);
+      }
+    }
+  }
+
+  const row = await prisma.store.update({
+    where: { id },
+    data: {
+      ...(input.name != null ? { name: input.name.trim() } : {}),
+      ...(input.category != null ? { category: input.category } : {}),
+      ...(phone !== undefined ? { phone } : {}),
+      ...(input.ownerName !== undefined
+        ? { ownerName: input.ownerName?.trim() || null }
+        : {}),
+      ...(input.address !== undefined ? { address: input.address?.trim() || null } : {}),
+      ...(input.district !== undefined
+        ? { district: input.district?.trim() || null }
+        : {}),
+      ...(input.description !== undefined
+        ? { description: input.description?.trim() || null }
+        : {}),
+      ...(typeof input.isActive === 'boolean' ? { isActive: input.isActive } : {}),
+    },
+  });
+  return toStoreDto(row);
+}
+
+export async function deleteStore(id: string) {
+  const existing = await prisma.store.findUnique({ where: { id } });
+  if (!existing) throw adminError('Store not found', 404);
+  await prisma.store.delete({ where: { id } });
+  return { ok: true, id };
 }
