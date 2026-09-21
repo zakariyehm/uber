@@ -158,6 +158,8 @@ export function toPublicUser(user: {
             name: store.name,
             category: store.category,
             phone: store.phone ?? null,
+            district: store.district ?? null,
+            address: store.address ?? null,
           }
         : null,
   };

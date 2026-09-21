@@ -9,6 +9,7 @@ import {
   markAsPickedUp,
   markDriverArrived,
   requestPayment,
+  requestReturnToStore,
   setActiveDelivery,
   startTrip,
 } from '@/utils/deliveryRequests';
@@ -24,6 +25,9 @@ import {
   View,
 } from 'react-native';
 
+/** After Start trip, wait this long before Complete is available. */
+const MIN_TRIP_AFTER_START_SEC = 120;
+
 type StepAction = {
   kind: 'hold' | 'tap' | 'wait';
   label: string;
@@ -31,6 +35,18 @@ type StepAction = {
   run?: () => Promise<unknown>;
   nextHome?: boolean;
 };
+
+function tripWaitLeftSec(startedAt: string | undefined, nowMs: number): number {
+  if (!startedAt) return 0;
+  const elapsed = Math.floor((nowMs - new Date(startedAt).getTime()) / 1000);
+  return Math.max(0, MIN_TRIP_AFTER_START_SEC - elapsed);
+}
+
+function formatMmSs(totalSec: number): string {
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
 
 function sheetCopy(request: DeliveryRequest): { title: string; subtitle: string } {
   if (request.status === 'accepted' && !request.driverArrived) {
@@ -56,6 +72,12 @@ function sheetCopy(request: DeliveryRequest): { title: string; subtitle: string 
   if (request.status === 'picked_up' && request.userConfirmedPickup) {
     return { title: 'Ready to start trip', subtitle: request.destinationLocation };
   }
+  if (request.status === 'in_transit' && request.returnRequested) {
+    return {
+      title: 'Returning to store',
+      subtitle: request.storeBranchLocation || request.pickupLocation,
+    };
+  }
   if (request.status === 'in_transit') {
     if (request.payerType === 'RECIPIENT' && request.paymentHoldStatus !== 'COMMITTED') {
       return {
@@ -64,6 +86,10 @@ function sheetCopy(request: DeliveryRequest): { title: string; subtitle: string 
       };
     }
     return { title: 'Delivering package', subtitle: request.destinationLocation };
+  }
+  if (request.status === 'cancelled' && request.cancelReason === 'return_to_store') {
+    const earned = request.driverEarnings || '0.50';
+    return { title: 'Package returned', subtitle: `$${earned} earned · Delivery State payout` };
   }
   if (request.status === 'completed' && !request.userConfirmedDelivery) {
     return { title: 'Waiting for receipt confirm', subtitle: 'Rider must confirm received' };
@@ -111,6 +137,10 @@ export default function DeliveryDetailsScreen() {
 
   const cancelAndGoHome = useCallback(() => {
     if (!request || busy || goneHomeRef.current) return;
+    if (request.status === 'in_transit' || request.startedAt) {
+      Alert.alert('Trip started', 'You cannot cancel after Start trip. Complete the delivery.');
+      return;
+    }
 
     const waitingArrival =
       request.status === 'accepted' && request.driverArrived && !request.userConfirmedArrival;
@@ -161,12 +191,18 @@ export default function DeliveryDetailsScreen() {
   }, [busy, goHome, request]);
 
   useEffect(() => {
-    if (!request?.driverArrived || request.userConfirmedArrival || request.status !== 'accepted') {
-      return;
-    }
+    const waitingArrival =
+      request?.status === 'accepted' && request.driverArrived && !request.userConfirmedArrival;
+    const waitingMinTrip = request?.status === 'in_transit' && !!request.startedAt;
+    if (!waitingArrival && !waitingMinTrip) return;
     const timer = setInterval(() => setNowTick(Date.now()), 1000);
     return () => clearInterval(timer);
-  }, [request?.driverArrived, request?.userConfirmedArrival, request?.status]);
+  }, [
+    request?.driverArrived,
+    request?.userConfirmedArrival,
+    request?.status,
+    request?.startedAt,
+  ]);
   const load = useCallback(async () => {
     if (!params.requestId || goneHomeRef.current) return;
     try {
@@ -177,6 +213,14 @@ export default function DeliveryDetailsScreen() {
         return;
       }
       if (row.status === 'cancelled') {
+        if (row.cancelReason === 'return_to_store') {
+          const earned = row.driverEarnings || '0.50';
+          await goHome(
+            'Package returned',
+            `Store confirmed return. You earned $${earned} (Delivery State payout).`
+          );
+          return;
+        }
         await goHome();
         return;
       }
@@ -275,6 +319,19 @@ export default function DeliveryDetailsScreen() {
     }
 
     if (request.status === 'in_transit') {
+      if (request.returnRequested) {
+        return {
+          kind: 'wait',
+          label: 'Returning to store · waiting for store to confirm',
+        };
+      }
+      const left = tripWaitLeftSec(request.startedAt, nowTick);
+      if (left > 0) {
+        return {
+          kind: 'wait',
+          label: `On the way · complete in ${formatMmSs(left)}`,
+        };
+      }
       if (request.payerType === 'RECIPIENT' && request.paymentHoldStatus !== 'COMMITTED') {
         return {
           kind: 'hold',
@@ -333,7 +390,7 @@ export default function DeliveryDetailsScreen() {
   const senderLine = isStoreSender
     ? [
         request.senderName,
-        request.storeOrderCode ? `BIS ${request.storeOrderCode}` : null,
+        request.storeOrderCode ? `Order ID ${request.storeOrderCode}` : null,
       ]
         .filter(Boolean)
         .join(' · ')
@@ -345,6 +402,12 @@ export default function DeliveryDetailsScreen() {
   const recipientLine = [request.recipientName, request.recipientNumber].filter(Boolean).join(' · ');
   const priceLabel = driverPayoutLabel(request);
   const isWaitingOnRider = step?.kind === 'wait';
+  const tripStarted = request.status === 'in_transit' || !!request.startedAt;
+  const canShowCancel = isWaitingOnRider && !tripStarted;
+  const canShowReturn =
+    isStoreSender &&
+    request.status === 'in_transit' &&
+    !request.returnRequested;
   const waitingArrivalConfirm =
     request.status === 'accepted' && request.driverArrived && !request.userConfirmedArrival;
 
@@ -396,7 +459,28 @@ export default function DeliveryDetailsScreen() {
                 )}
               </TouchableOpacity>
             ) : null}
-            {isWaitingOnRider ? (
+            {canShowReturn ? (
+              <TouchableOpacity
+                style={styles.secondaryBtn}
+                disabled={busy}
+                onPress={() => {
+                  Alert.alert(
+                    'Recipient not found?',
+                    'Return the package to the store. After the store confirms, you earn the Delivery State driver payout from the store balance.',
+                    [
+                      { text: 'Keep delivering', style: 'cancel' },
+                      {
+                        text: 'Return to store',
+                        style: 'destructive',
+                        onPress: () => void runAction(() => requestReturnToStore(request.id)),
+                      },
+                    ]
+                  );
+                }}>
+                <Text style={styles.secondaryText}>Recipient not found · Return to store</Text>
+              </TouchableOpacity>
+            ) : null}
+            {canShowCancel ? (
               <TouchableOpacity
                 style={[
                   styles.secondaryBtn,

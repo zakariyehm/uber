@@ -1,6 +1,7 @@
 import { BottomSheet } from '@/components/bottom-sheet';
 import { BANADIR_DISTRICTS } from '@/constants/somalia';
 import { AppColors, Colors } from '@/constants/theme';
+import { useAuth } from '@/contexts/auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { LocalImages, useCachedAsset } from '@/lib/local-images';
 import { fetchDeliveryStateMethods, type CatalogMethod } from '@/utils/catalog';
@@ -32,6 +33,8 @@ export default function HomeScreen() {
   const colors = Colors[colorScheme ?? 'light'];
   const isDark = colorScheme === 'dark';
   const router = useRouter();
+  const { user } = useAuth();
+  const isStoreAccount = user?.riderKind === 'STORE' && Boolean(user.store?.id);
   const cardHeight = height * 0.3;
   const logoSource = useCachedAsset(
     LocalImages.headerLogo.key,
@@ -40,19 +43,35 @@ export default function HomeScreen() {
   const [showDeliverySheet, setShowDeliverySheet] = useState(false);
   const [pickupDistrict, setPickupDistrict] = useState('');
   const [pickupNeighborhood, setPickupNeighborhood] = useState('');
+  const [storeBranchAddress, setStoreBranchAddress] = useState('');
+  const [storeOrderId, setStoreOrderId] = useState('');
   const [dropoffMethod, setDropoffMethod] = useState<CatalogMethod | null>(null);
   const [stateMethods, setStateMethods] = useState<CatalogMethod[]>([]);
   const [picker, setPicker] = useState<PickerKind>(null);
 
-  const canContinue = useMemo(
-    () =>
-      Boolean(
-        pickupDistrict &&
-          pickupNeighborhood.trim().length >= 2 &&
-          dropoffMethod
-      ),
-    [pickupDistrict, pickupNeighborhood, dropoffMethod]
-  );
+  const canContinue = useMemo(() => {
+    if (!dropoffMethod) return false;
+    if (isStoreAccount) {
+      return storeBranchAddress.trim().length >= 2 && storeOrderId.trim().length >= 1;
+    }
+    return Boolean(pickupDistrict && pickupNeighborhood.trim().length >= 2);
+  }, [
+    pickupDistrict,
+    pickupNeighborhood,
+    dropoffMethod,
+    isStoreAccount,
+    storeBranchAddress,
+    storeOrderId,
+  ]);
+
+  const storePickupDistrict =
+    (user?.store?.district || '').trim() || pickupDistrict || 'Banadir';
+
+  useEffect(() => {
+    if (!isStoreAccount) return;
+    const d = (user?.store?.district || '').trim();
+    if (d) setPickupDistrict(d);
+  }, [isStoreAccount, user?.store?.district]);
 
   useEffect(() => {
     if (!showDeliverySheet) return;
@@ -79,15 +98,30 @@ export default function HomeScreen() {
   const handleContinueDelivery = () => {
     if (!canContinue || !dropoffMethod) return;
     closeDeliverySheet();
+    const branch = storeBranchAddress.trim();
+    const district = isStoreAccount ? storePickupDistrict : pickupDistrict;
+    const pickup = isStoreAccount
+      ? `${district}, ${branch}`
+      : `${pickupDistrict}, ${pickupNeighborhood.trim()}`;
     router.push({
       pathname: '/delivery',
       params: {
-        pickup: `${pickupDistrict}, ${pickupNeighborhood.trim()}`,
+        pickup,
         destination: dropoffMethod.name,
         deliveryMethod: dropoffMethod.name,
         deliveryTime: dropoffMethod.time,
         deliveryPrice: dropoffMethod.displayPrice || `$${dropoffMethod.price}`,
         serviceCategory: 'DELIVERY_STATE',
+        ...(isStoreAccount
+          ? {
+              senderKind: 'STORE',
+              isStoreAccount: '1',
+              storeId: user?.store?.id || '',
+              storeName: user?.store?.name || '',
+              storeOrderCode: storeOrderId.trim(),
+              storeBranchLocation: branch,
+            }
+          : {}),
       },
     });
   };
@@ -195,6 +229,7 @@ export default function HomeScreen() {
                       if (picker === 'district') {
                         setPickupDistrict(item);
                         setPickupNeighborhood('');
+                        setStoreBranchAddress('');
                       } else if (method) {
                         setDropoffMethod(method);
                       }
@@ -219,10 +254,24 @@ export default function HomeScreen() {
             style={styles.pickerInline}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-            <Text style={[styles.sheetTitle, { color: colors.text }]}>Delivery State</Text>
-            <Text style={[styles.sheetSubtitle, { color: colors.icon }]}>
-              Dooro degmada, kadib geli xaafadda. Destination-ka waa gobol.
+            <Text style={[styles.sheetTitle, { color: colors.text }]}>
+              {isStoreAccount ? 'Store delivery' : 'Delivery State'}
             </Text>
+            <Text style={[styles.sheetSubtitle, { color: colors.icon }]}>
+              {isStoreAccount
+                ? 'Pickup degmada waa automatic. Geli branch xarunta iyo order ID, kadib dooro drop-off.'
+                : 'Dooro degmada, kadib geli xaafadda. Destination-ka waa gobol.'}
+            </Text>
+
+            {isStoreAccount && user?.store?.name ? (
+              <View style={[styles.fixedStateRow, { backgroundColor: isDark ? '#2A2A2A' : '#F3F3F3' }]}>
+                <Ionicons name="storefront" size={18} color={AppColors.header} />
+                <View style={styles.fixedStateText}>
+                  <Text style={[styles.fixedStateTitle, { color: colors.text }]}>{user.store.name}</Text>
+                  <Text style={[styles.fixedStateHint, { color: colors.icon }]}>Store account</Text>
+                </View>
+              </View>
+            ) : null}
 
             <Text style={[styles.fieldLabel, { color: colors.icon }]}>Goobta laga qaadayo</Text>
             <View style={[styles.fixedStateRow, { backgroundColor: isDark ? '#2A2A2A' : '#F3F3F3' }]}>
@@ -233,36 +282,99 @@ export default function HomeScreen() {
               </View>
             </View>
 
-            <TouchableOpacity
-              style={[styles.selectField, { backgroundColor: isDark ? '#2A2A2A' : '#F3F3F3' }]}
-              activeOpacity={0.7}
-              onPress={() => setPicker('district')}>
-              <View style={styles.selectFieldBody}>
-                <Text style={[styles.selectLabel, { color: colors.icon }]}>Degmada</Text>
-                <Text style={[styles.selectValue, { color: pickupDistrict ? colors.text : colors.icon }]}>
-                  {pickupDistrict || 'Dooro degmo'}
-                </Text>
-              </View>
-              <Ionicons name="chevron-down" size={18} color={colors.icon} />
-            </TouchableOpacity>
-
-            {pickupDistrict ? (
-              <View style={[styles.selectField, { backgroundColor: isDark ? '#2A2A2A' : '#F3F3F3', marginTop: 10 }]}>
-                <View style={styles.selectFieldBody}>
-                  <Text style={[styles.selectLabel, { color: colors.icon }]}>Xaafadda</Text>
-                  <TextInput
-                    style={[styles.neighborhoodInput, { color: colors.text }]}
-                    placeholder="Geli xaafadda (tusaale Taleex)"
-                    placeholderTextColor={colors.icon}
-                    value={pickupNeighborhood}
-                    onChangeText={setPickupNeighborhood}
-                    autoCapitalize="words"
-                    autoCorrect={false}
-                    returnKeyType="done"
-                  />
+            {isStoreAccount ? (
+              <>
+                <View style={[styles.fixedStateRow, { backgroundColor: isDark ? '#2A2A2A' : '#F3F3F3' }]}>
+                  <Ionicons name="map" size={18} color={AppColors.header} />
+                  <View style={styles.fixedStateText}>
+                    <Text style={[styles.selectLabel, { color: colors.icon }]}>Degmada</Text>
+                    <Text style={[styles.fixedStateTitle, { color: colors.text }]}>
+                      {storePickupDistrict}
+                    </Text>
+                    <Text style={[styles.fixedStateHint, { color: colors.icon }]}>
+                      Auto · store pickup
+                    </Text>
+                  </View>
                 </View>
-              </View>
-            ) : null}
+
+                <View
+                  style={[
+                    styles.selectField,
+                    { backgroundColor: isDark ? '#2A2A2A' : '#F3F3F3', marginTop: 10 },
+                  ]}>
+                  <View style={styles.selectFieldBody}>
+                    <Text style={[styles.selectLabel, { color: colors.icon }]}>Branch xarunta</Text>
+                    <TextInput
+                      style={[styles.neighborhoodInput, { color: colors.text }]}
+                      placeholder="Geli branch xarunta"
+                      placeholderTextColor={colors.icon}
+                      value={storeBranchAddress}
+                      onChangeText={setStoreBranchAddress}
+                      autoCapitalize="words"
+                      autoCorrect={false}
+                      returnKeyType="next"
+                    />
+                  </View>
+                </View>
+                <View
+                  style={[
+                    styles.selectField,
+                    { backgroundColor: isDark ? '#2A2A2A' : '#F3F3F3', marginTop: 10 },
+                  ]}>
+                  <View style={styles.selectFieldBody}>
+                    <Text style={[styles.selectLabel, { color: colors.icon }]}>Order ID</Text>
+                    <TextInput
+                      style={[styles.neighborhoodInput, { color: colors.text }]}
+                      placeholder="Geli order ID"
+                      placeholderTextColor={colors.icon}
+                      value={storeOrderId}
+                      onChangeText={setStoreOrderId}
+                      autoCapitalize="characters"
+                      autoCorrect={false}
+                      returnKeyType="done"
+                    />
+                  </View>
+                </View>
+              </>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={[styles.selectField, { backgroundColor: isDark ? '#2A2A2A' : '#F3F3F3' }]}
+                  activeOpacity={0.7}
+                  onPress={() => setPicker('district')}>
+                  <View style={styles.selectFieldBody}>
+                    <Text style={[styles.selectLabel, { color: colors.icon }]}>Degmada</Text>
+                    <Text
+                      style={[styles.selectValue, { color: pickupDistrict ? colors.text : colors.icon }]}>
+                      {pickupDistrict || 'Dooro degmo'}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-down" size={18} color={colors.icon} />
+                </TouchableOpacity>
+
+                {pickupDistrict ? (
+                  <View
+                    style={[
+                      styles.selectField,
+                      { backgroundColor: isDark ? '#2A2A2A' : '#F3F3F3', marginTop: 10 },
+                    ]}>
+                    <View style={styles.selectFieldBody}>
+                      <Text style={[styles.selectLabel, { color: colors.icon }]}>Xaafadda</Text>
+                      <TextInput
+                        style={[styles.neighborhoodInput, { color: colors.text }]}
+                        placeholder="Geli xaafadda (tusaale Taleex)"
+                        placeholderTextColor={colors.icon}
+                        value={pickupNeighborhood}
+                        onChangeText={setPickupNeighborhood}
+                        autoCapitalize="words"
+                        autoCorrect={false}
+                        returnKeyType="done"
+                      />
+                    </View>
+                  </View>
+                ) : null}
+              </>
+            )}
 
             <Text style={[styles.fieldLabel, { color: colors.icon, marginTop: 18 }]}>Goobta la geeynayo</Text>
             <TouchableOpacity

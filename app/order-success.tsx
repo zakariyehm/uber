@@ -6,6 +6,7 @@ import {
   confirmDriverArrival,
   confirmPackagePickup,
   confirmStoreHandoff,
+  confirmStoreReturn,
   DeliveryRequest as DeliveryRequestType,
   DeliveryStatus,
   getDeliveryRequestById,
@@ -53,6 +54,14 @@ function cancelReasonCopy(reason?: string, cancelledBy?: string) {
       title: 'Order cancelled',
       message: 'Your driver cancelled because confirmation was not received in time.',
       short: 'Your driver cancelled because confirmation was not received in time.',
+    };
+  }
+  if (reason === 'return_to_store') {
+    return {
+      title: 'Package returned',
+      message:
+        'Recipient was not found. You confirmed the package was returned. The Delivery State driver payout was deducted from the store balance.',
+      short: 'Package returned to store. Driver payout taken from store balance.',
     };
   }
   if (reason === 'no_show') {
@@ -204,6 +213,9 @@ export default function OrderSuccessScreen() {
         : 'A driver accepted your order and is heading to pickup.';
     }
     if (isStore && (deliveryStatus === 'picked_up' || deliveryStatus === 'in_transit')) {
+      if (deliveryStatus === 'in_transit' && deliveryRequest?.returnRequested) {
+        return `${driverName || 'Driver'} could not find the recipient and is returning the package. Hold to confirm you received it back.`;
+      }
       return deliveryStatus === 'picked_up'
         ? 'Package handed over. Driver can start the trip.'
         : 'Package is on the way to the destination.';
@@ -239,6 +251,12 @@ export default function OrderSuccessScreen() {
     deliveryStatus === 'accepted' &&
     !!deliveryRequest.driverArrived &&
     !deliveryRequest.userConfirmedPickup;
+
+  const showStoreReturnHold =
+    !!deliveryRequest &&
+    isStoreOrder &&
+    deliveryStatus === 'in_transit' &&
+    !!deliveryRequest.returnRequested;
 
   const showArrivalHold =
     !!deliveryRequest &&
@@ -366,7 +384,9 @@ export default function OrderSuccessScreen() {
             <Text style={[styles.infoText, { color: isDark ? '#FFCC80' : '#E65100' }]}>
               {deliveryRequest?.cancelReason === 'no_driver'
                 ? 'Try again in a few minutes — more drivers may be online nearby.'
-                : 'You can place a new delivery anytime from Home.'}
+                : deliveryRequest?.cancelReason === 'return_to_store'
+                  ? 'Full trip fare was not charged. Only the Delivery State driver payout left the store balance.'
+                  : 'You can place a new delivery anytime from Home.'}
             </Text>
           </View>
         )}
@@ -378,6 +398,23 @@ export default function OrderSuccessScreen() {
               color="#000"
               onConfirm={async () => {
                 await confirmStoreHandoff(deliveryRequest!.id);
+                await refresh();
+              }}
+            />
+          ) : null}
+
+          {deliveryStatus !== 'cancelled' && showStoreReturnHold ? (
+            <HoldToConfirmButton
+              label={`Hold · Dib u soo celiyay · ${
+                deliveryRequest?.storeOrderCode
+                  ? `Order ID ${deliveryRequest.storeOrderCode}`
+                  : deliveryRequest?.orderId
+                    ? `#${deliveryRequest.orderId}`
+                    : 'order'
+              }`}
+              color="#000"
+              onConfirm={async () => {
+                await confirmStoreReturn(deliveryRequest!.id);
                 await refresh();
               }}
             />
@@ -419,6 +456,7 @@ export default function OrderSuccessScreen() {
 
           {deliveryStatus !== 'cancelled' &&
           deliveryRequest?.userConfirmedPickup &&
+          !deliveryRequest?.returnRequested &&
           (deliveryStatus === 'picked_up' || deliveryStatus === 'in_transit') ? (
             <View style={[styles.infoMessage, { backgroundColor: isDark ? '#1C1C1E' : '#E8F5E9' }]}>
               <Ionicons name="checkmark-circle" size={scaleFont(20)} color="#4CAF50" />

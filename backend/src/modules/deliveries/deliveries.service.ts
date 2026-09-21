@@ -22,6 +22,8 @@ export const OFFER_CYCLE_PAUSE_SEC = 60;
 export const SEARCH_TIMEOUT_SEC = 90;
 /** When every matching driver is offline, cancel after this short grace. */
 export const OFFLINE_CANCEL_GRACE_SEC = 20;
+/** After Start trip, driver must wait this long before Complete. */
+export const MIN_TRIP_AFTER_START_SEC = 120;
 
 function parseDeclinedIds(raw: string | null | undefined): string[] {
   try {
@@ -1076,6 +1078,9 @@ export async function applyDeliveryAction(
       if (current.payerType !== 'RECIPIENT') {
         fail('Request payment is only for recipient-pays orders');
       }
+      if (current.returnRequested) {
+        fail('Package is being returned — payment is not collected');
+      }
       if (
         current.status !== DeliveryStatus.IN_TRANSIT &&
         current.status !== DeliveryStatus.COMPLETED
@@ -1091,6 +1096,16 @@ export async function applyDeliveryAction(
     }
     case 'complete': {
       if (current.status !== DeliveryStatus.IN_TRANSIT) fail('Complete only during an active trip');
+      if (current.returnRequested) fail('Package is being returned — wait for store confirmation');
+      // Minimum trip time after Start trip before Complete is allowed.
+      const minTripMs = MIN_TRIP_AFTER_START_SEC * 1000;
+      if (current.startedAt) {
+        const elapsed = now.getTime() - current.startedAt.getTime();
+        if (elapsed < minTripMs) {
+          const left = Math.ceil((minTripMs - elapsed) / 1000);
+          fail(`Wait ${left}s after starting the trip before completing`);
+        }
+      }
       // Recipient-pays: driver must collect Waafi from recipient before completing.
       if (
         current.payerType === 'RECIPIENT' &&
@@ -1107,6 +1122,38 @@ export async function applyDeliveryAction(
       }
       break;
     }
+    /** Driver: recipient not found — return package to store (STORE only). */
+    case 'request_return': {
+      if (current.senderKind !== 'STORE') {
+        fail('Return to store is only for store orders');
+      }
+      if (current.status !== DeliveryStatus.IN_TRANSIT) {
+        fail('Return only after the trip has started');
+      }
+      if (current.returnRequested) fail('Return already requested');
+      data.returnRequested = true;
+      data.returnRequestedAt = now;
+      break;
+    }
+    /** Store: hold confirm package returned → cancel + Delivery State payout from store. */
+    case 'confirm_store_return': {
+      if (current.senderKind !== 'STORE') {
+        fail('Return confirmation is only for store orders');
+      }
+      if (current.status !== DeliveryStatus.IN_TRANSIT) {
+        fail('Confirm return only while the trip is active');
+      }
+      if (!current.returnRequested) {
+        fail('Wait until the driver marks recipient not found');
+      }
+      data.status = DeliveryStatus.CANCELLED;
+      data.cancelledAt = now;
+      data.cancelledBy = 'rider';
+      data.cancelReason = 'return_to_store';
+      data.offeredToDriverId = null;
+      data.offerExpiresAt = null;
+      break;
+    }
     case 'confirm_received': {
       if (current.status !== DeliveryStatus.COMPLETED) {
         fail('Confirm received only after driver completes delivery');
@@ -1119,6 +1166,10 @@ export async function applyDeliveryAction(
     case 'cancel': {
       if (current.status === DeliveryStatus.CANCELLED) fail('Delivery already cancelled');
       if (current.status === DeliveryStatus.COMPLETED) fail('Cannot cancel a completed delivery');
+      // Once the trip has started, neither side can cancel — finish or support only.
+      if (current.status === DeliveryStatus.IN_TRANSIT || current.startedAt) {
+        fail('Cannot cancel after the trip has started');
+      }
 
       const {
         canCancelForNoShow,
@@ -1195,16 +1246,11 @@ export async function applyDeliveryAction(
   if (action === 'request_payment') {
     const { chargeRecipientAndSettle } = await import('../payments/payment.settlement.ts');
     await chargeRecipientAndSettle(id);
-    await prisma.driverActiveDelivery.updateMany({
-      where: { requestId: id },
-      data: { requestId: null },
-    });
-    const unlockId = row.driverUserId || current.offeredToDriverId || actor?.id;
-    await releaseOfferLock(unlockId, id);
+    // Stay on trip — driver still Holds Complete after recipient pays.
     return getById(id);
   }
 
-  if (action === 'confirm_received' || action === 'cancel') {
+  if (action === 'confirm_received' || action === 'cancel' || action === 'confirm_store_return') {
     await prisma.driverActiveDelivery.updateMany({
       where: { requestId: id },
       data: { requestId: null },
@@ -1216,6 +1262,12 @@ export async function applyDeliveryAction(
   if (action === 'confirm_received' && row.driverUserId) {
     const { settleFullTrip } = await import('../payments/payment.settlement.ts');
     await settleFullTrip(id);
+    return getById(id);
+  }
+
+  if (action === 'confirm_store_return') {
+    const { settleStoreReturn } = await import('../payments/payment.settlement.ts');
+    await settleStoreReturn(id);
     return getById(id);
   }
 

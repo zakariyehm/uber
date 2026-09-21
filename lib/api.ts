@@ -45,6 +45,8 @@ export type StoredAuthUser = {
     name: string;
     category: string;
     phone?: string | null;
+    district?: string | null;
+    address?: string | null;
   } | null;
 };
 

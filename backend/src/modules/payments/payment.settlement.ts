@@ -209,6 +209,63 @@ export async function settleNoShow(deliveryId: string) {
   return updated;
 }
 
+/**
+ * Store return (recipient not found):
+ * Cancel full pending store debit → charge store only live Delivery State driver payout →
+ * credit that amount to the driver. Release any Waafi hold (no full fare capture).
+ */
+export async function settleStoreReturn(deliveryId: string) {
+  const row = await prisma.deliveryRequest.findUnique({ where: { id: deliveryId } });
+  if (!row?.driverUserId) return null;
+  if (row.settlementType !== SettlementType.NONE) return row;
+  if (row.senderKind !== 'STORE' || !row.storeId) {
+    const error = new Error('Return settlement is only for store orders') as Error & {
+      statusCode?: number;
+    };
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const payout = roundMoney(await getStateDriverPayout());
+  if (payout <= 0) {
+    const error = new Error('Delivery State driver payout is not configured') as Error & {
+      statusCode?: number;
+    };
+    error.statusCode = 500;
+    throw error;
+  }
+
+  if (row.paymentHoldStatus === PaymentHoldStatus.HELD && row.waafiTransactionId) {
+    await releasePaymentHold(deliveryId);
+  }
+
+  const { debitStoreReturnPayout } = await import('../stores/store-wallet.service.ts');
+  await debitStoreReturnPayout({
+    storeId: row.storeId,
+    amount: payout,
+    deliveryRequestId: deliveryId,
+    orderId: row.orderId,
+  });
+
+  const updated = await prisma.deliveryRequest.update({
+    where: { id: deliveryId },
+    data: {
+      // COMMITTED so daily driver wallet includes this payout (same as full / no-show).
+      paymentHoldStatus: PaymentHoldStatus.COMMITTED,
+      paymentCommittedAt: new Date(),
+      settlementType: SettlementType.RETURN,
+      driverEarnings: payout,
+      platformFee: 0,
+      stateShare: 0,
+      riderRefundPending: 0,
+      settledAt: new Date(),
+    },
+  });
+
+  await refreshDriverDailyWallet(row.driverUserId);
+  return updated;
+}
+
 /** Release hold when trip cancels without capture (before no-show / before complete). */
 export async function releasePaymentHold(deliveryId: string) {
   const row = await prisma.deliveryRequest.findUnique({ where: { id: deliveryId } });
@@ -238,8 +295,8 @@ export async function releasePaymentHold(deliveryId: string) {
 }
 
 /**
- * Recipient-pays at dropoff: PreAuth + immediate Commit on recipientNumber,
- * then FULL settlement + mark trip completed/confirmed.
+ * Recipient-pays at dropoff: PreAuth + Commit on recipientNumber, then FULL settlement.
+ * Trip stays IN_TRANSIT so the driver can Hold · Complete after payment succeeds.
  */
 export async function chargeRecipientAndSettle(deliveryId: string) {
   const row = await prisma.deliveryRequest.findUnique({ where: { id: deliveryId } });
@@ -291,15 +348,10 @@ export async function chargeRecipientAndSettle(deliveryId: string) {
       waafiTransactionId: hold.waafiTransactionId,
       waafiReferenceId: hold.waafiReferenceId,
       paymentHeldAt: new Date(),
-      status: DeliveryStatus.COMPLETED,
-      completedAt: row.completedAt || new Date(),
-      userConfirmedDelivery: true,
-      userConfirmedDeliveryAt: new Date(),
     },
   });
 
-  const settled = await settleFullTrip(deliveryId);
-  return settled;
+  return settleFullTrip(deliveryId);
 }
 
 export function money(n: number | Prisma.Decimal | null | undefined) {

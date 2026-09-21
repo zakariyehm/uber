@@ -17,13 +17,15 @@ export async function getOrCreateWallet(driverUserId: string) {
   });
 }
 
-/** Daily wallet: sum of today's settled driverEarnings (full trips + no-show fees). */
+/** Daily wallet: sum of today's settled driverEarnings (full trips + no-show + store returns). */
 export async function syncDriverWallet(driverUserId: string) {
   const [settled, cancelledCount] = await Promise.all([
     prisma.deliveryRequest.findMany({
       where: {
         driverUserId,
-        settlementType: { in: [SettlementType.FULL, SettlementType.NO_SHOW] },
+        settlementType: {
+          in: [SettlementType.FULL, SettlementType.NO_SHOW, SettlementType.RETURN],
+        },
         paymentHoldStatus: PaymentHoldStatus.COMMITTED,
         driverEarnings: { not: null },
       },
@@ -39,7 +41,7 @@ export async function syncDriverWallet(driverUserId: string) {
       where: {
         driverUserId,
         status: 'CANCELLED',
-        NOT: { cancelReason: 'no_show' },
+        NOT: { cancelReason: { in: ['no_show', 'return_to_store'] } },
       },
     }),
   ]);
@@ -59,7 +61,9 @@ export async function syncDriverWallet(driverUserId: string) {
     new Prisma.Decimal(0)
   );
 
-  const tripsCompleted = settled.filter((r) => r.completedAt || r.userConfirmedDeliveryAt).length;
+  const tripsCompleted = settled.filter(
+    (r) => r.completedAt || r.userConfirmedDeliveryAt || r.cancelledAt
+  ).length;
 
   const wallet = await prisma.driverWallet.upsert({
     where: { driverUserId },

@@ -60,6 +60,8 @@ export type DeliveryDto = {
   cancelledAt?: string;
   cancelledBy?: string;
   cancelReason?: string;
+  returnRequested?: boolean;
+  returnRequestedAt?: string;
   payerType?: string;
   paymentHoldStatus?: string;
   settlementType?: string;
@@ -150,6 +152,8 @@ export function toDeliveryDto(row: DbDelivery): DeliveryDto {
     cancelledAt: toIso(row.cancelledAt),
     cancelledBy: row.cancelledBy ?? undefined,
     cancelReason: row.cancelReason ?? undefined,
+    returnRequested: row.returnRequested || undefined,
+    returnRequestedAt: toIso(row.returnRequestedAt),
     payerType: row.payerType,
     paymentHoldStatus: row.paymentHoldStatus,
     settlementType: row.settlementType,

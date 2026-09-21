@@ -44,6 +44,8 @@ export interface DeliveryRequest {
   cancelledAt?: string;
   cancelledBy?: string;
   cancelReason?: string;
+  returnRequested?: boolean;
+  returnRequestedAt?: string;
   payerType?: 'SENDER' | 'RECIPIENT' | string;
   paymentHoldStatus?: string;
   settlementType?: string;
@@ -197,6 +199,9 @@ export const confirmDriverArrival = async (requestId: string) => patchDelivery(r
 export const confirmPackagePickup = async (requestId: string) => patchDelivery(requestId, 'confirm_pickup');
 export const confirmDeliveryReceived = async (requestId: string) =>
   patchDelivery(requestId, 'confirm_received');
+/** Store trips: recipient not found — start return to store. */
+export const requestReturnToStore = async (requestId: string) =>
+  patchDelivery(requestId, 'request_return');
 export const cancelDeliveryRequest = async (
   requestId: string,
   options?: { cancelledBy?: 'driver' | 'rider' | 'system'; cancelReason?: string }

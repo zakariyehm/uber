@@ -257,7 +257,7 @@ export default function DeliveryOfferScreen() {
                 {request.senderKind === 'STORE'
                   ? [
                       request.senderName || 'Store',
-                      request.storeOrderCode ? `BIS ${request.storeOrderCode}` : null,
+                      request.storeOrderCode ? `Order ID ${request.storeOrderCode}` : null,
                       request.storeBranchLocation &&
                       request.storeBranchLocation !== request.pickupLocation
                         ? request.pickupLocation

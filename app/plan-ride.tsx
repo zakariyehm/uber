@@ -1,9 +1,10 @@
 import { DeliveryBottomSheet } from '@/components/delivery-bottom-sheet';
 import { BANADIR_DISTRICTS } from '@/constants/somalia';
 import { AppColors } from '@/constants/theme';
+import { useAuth } from '@/contexts/auth';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Dimensions,
   FlatList,
@@ -30,22 +31,43 @@ export default function PlanRideScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams<{ rideType?: string }>();
+  const { user } = useAuth();
+  const isStoreAccount = user?.riderKind === 'STORE' && Boolean(user.store?.id);
 
   const [pickupDistrict, setPickupDistrict] = useState('');
   const [pickupNeighborhood, setPickupNeighborhood] = useState('');
   const [dropoffDistrict, setDropoffDistrict] = useState('');
   const [dropoffNeighborhood, setDropoffNeighborhood] = useState('');
+  const [storeBranchAddress, setStoreBranchAddress] = useState('');
+  const [storeOrderId, setStoreOrderId] = useState('');
   const [searchTarget, setSearchTarget] = useState<SearchTarget>(null);
   const [highlighted, setHighlighted] = useState<string | null>(null);
   const [showDeliverySheet, setShowDeliverySheet] = useState(false);
 
+  const storeDistrict = useMemo(() => {
+    if (!isStoreAccount) return '';
+    return (user?.store?.district || '').trim() || 'Banadir';
+  }, [isStoreAccount, user?.store?.district]);
+
+  useEffect(() => {
+    if (!isStoreAccount) return;
+    setPickupDistrict(storeDistrict);
+  }, [isStoreAccount, storeDistrict]);
+
   const popupVisible = searchTarget !== null;
 
-  const canContinue =
-    Boolean(pickupDistrict && pickupNeighborhood.trim().length >= 2) &&
-    Boolean(dropoffDistrict && dropoffNeighborhood.trim().length >= 2);
+  const canContinue = isStoreAccount
+    ? Boolean(
+        storeBranchAddress.trim().length >= 2 &&
+          storeOrderId.trim().length >= 1 &&
+          dropoffDistrict &&
+          dropoffNeighborhood.trim().length >= 2
+      )
+    : Boolean(pickupDistrict && pickupNeighborhood.trim().length >= 2) &&
+      Boolean(dropoffDistrict && dropoffNeighborhood.trim().length >= 2);
 
   const openDistrictPopup = (target: 'pickup' | 'dropoff') => {
+    if (isStoreAccount && target === 'pickup') return;
     const current = target === 'pickup' ? pickupDistrict : dropoffDistrict;
     setSearchTarget(target);
     setHighlighted(current || null);
@@ -94,15 +116,29 @@ export default function PlanRideScreen() {
     time: string;
     price: string;
   }) => {
+    const branch = storeBranchAddress.trim();
+    const pickup = isStoreAccount
+      ? `${storeDistrict}, ${branch}`
+      : formatLocation(pickupDistrict, pickupNeighborhood);
     router.push({
       pathname: '/delivery',
       params: {
-        pickup: formatLocation(pickupDistrict, pickupNeighborhood),
+        pickup,
         destination: formatLocation(dropoffDistrict, dropoffNeighborhood),
         deliveryMethod: option.name,
         deliveryTime: option.time,
         deliveryPrice: option.price,
         rideType: params.rideType || '',
+        ...(isStoreAccount
+          ? {
+              senderKind: 'STORE',
+              isStoreAccount: '1',
+              storeId: user?.store?.id || '',
+              storeName: user?.store?.name || '',
+              storeOrderCode: storeOrderId.trim(),
+              storeBranchLocation: branch,
+            }
+          : {}),
       },
     });
   };
@@ -167,15 +203,71 @@ export default function PlanRideScreen() {
 
       <View style={[styles.content, { paddingBottom: insets.bottom + 12 }]}>
         <Text style={styles.title}>{params.rideType ? `Plan your ${params.rideType}` : 'Plan your ride'}</Text>
-        <Text style={styles.subtitle}>Dooro degmo, kadib geli xaafadda.</Text>
+        <Text style={styles.subtitle}>
+          {isStoreAccount
+            ? 'Geli branch address iyo order ID, kadib drop-off.'
+            : 'Dooro degmo, kadib geli xaafadda.'}
+        </Text>
 
         <View style={styles.card}>
-          {renderLocationRow(
-            'pickup',
-            pickupDistrict,
-            pickupNeighborhood,
-            setPickupNeighborhood,
-            'Pickup'
+          {isStoreAccount ? (
+            <View style={styles.rowBlock}>
+              <View style={styles.rowTop}>
+                <View style={styles.dot} />
+                <Text style={styles.rowLabel}>Pickup</Text>
+              </View>
+              <View style={styles.selectedBlock}>
+                <View style={styles.districtChipRow}>
+                  <View style={[styles.districtChip, { flexShrink: 1 }]}>
+                    <Ionicons name="storefront" size={14} color="#000" />
+                    <Text style={styles.districtChipText} numberOfLines={1}>
+                      {user?.store?.name || 'Store'}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.districtChipRow}>
+                  <View style={styles.districtChip}>
+                    <Ionicons name="pricetag" size={14} color="#000" />
+                    <Text style={styles.districtChipText}>
+                      Type ·{' '}
+                      {(user?.store?.category || 'OTHER')
+                        .toLowerCase()
+                        .split('_')
+                        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                        .join(' ')}
+                    </Text>
+                  </View>
+                </View>
+                <TextInput
+                  style={styles.neighborhoodInput}
+                  placeholder="Geli branch address *"
+                  placeholderTextColor="#9A9A9A"
+                  value={storeBranchAddress}
+                  onChangeText={setStoreBranchAddress}
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  returnKeyType="next"
+                />
+                <TextInput
+                  style={styles.neighborhoodInput}
+                  placeholder="Order ID *"
+                  placeholderTextColor="#9A9A9A"
+                  value={storeOrderId}
+                  onChangeText={setStoreOrderId}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  returnKeyType="done"
+                />
+              </View>
+            </View>
+          ) : (
+            renderLocationRow(
+              'pickup',
+              pickupDistrict,
+              pickupNeighborhood,
+              setPickupNeighborhood,
+              'Pickup'
+            )
           )}
           <View style={styles.divider} />
           {renderLocationRow(
@@ -334,6 +426,12 @@ const styles = StyleSheet.create({
   },
   selectedBlock: {
     gap: 10,
+  },
+  storePickupHint: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#444',
+    paddingHorizontal: 2,
   },
   districtChipRow: {
     flexDirection: 'row',

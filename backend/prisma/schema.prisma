@@ -43,6 +43,8 @@ enum SettlementType {
   NONE
   FULL
   NO_SHOW
+  /** Store return: recipient not found — driver gets Delivery State payout from store balance. */
+  RETURN
 }
 
 enum PaymentPayer {
@@ -189,6 +191,9 @@ model DeliveryRequest {
   cancelledAt            DateTime?
   cancelledBy            String?
   cancelReason           String?
+  /** Driver could not find recipient — returning package to store (STORE orders). */
+  returnRequested        Boolean        @default(false)
+  returnRequestedAt      DateTime?
   /** Waafi PreAuthorization lifecycle */
   paymentHoldStatus      PaymentHoldStatus @default(NONE)
   waafiTransactionId     String?

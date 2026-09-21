@@ -41,6 +41,8 @@ export interface DeliveryRequest {
   cancelledAt?: string;
   cancelledBy?: string;
   cancelReason?: string;
+  returnRequested?: boolean;
+  returnRequestedAt?: string;
   payerType?: 'SENDER' | 'RECIPIENT' | string;
   paymentHoldStatus?: string;
   settlementType?: string;
@@ -147,6 +149,9 @@ export const confirmPackagePickup = async (requestId: string) => patchDelivery(r
 /** Store shortcut: one hold confirms package handed to the driver. */
 export const confirmStoreHandoff = async (requestId: string) =>
   patchDelivery(requestId, 'confirm_store_handoff');
+/** Store: confirm package returned after recipient not found. */
+export const confirmStoreReturn = async (requestId: string) =>
+  patchDelivery(requestId, 'confirm_store_return');
 export const confirmDeliveryReceived = async (requestId: string) =>
   patchDelivery(requestId, 'confirm_received');
 

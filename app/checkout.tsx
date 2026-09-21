@@ -36,7 +36,6 @@ export default function CheckoutScreen() {
   const senderKind = ((params.senderKind as string) || 'PERSONAL').toUpperCase() === 'STORE'
     ? 'STORE'
     : 'PERSONAL';
-  const isStoreAccount = (params.isStoreAccount as string) === '1';
   const senderName = params.senderName as string || '';
   const senderNumber = params.senderNumber as string || '';
   const storeId = (params.storeId as string) || '';
@@ -49,7 +48,7 @@ export default function CheckoutScreen() {
   const deliveryTime = params.deliveryTime as string || '';
   const deliveryPrice = params.deliveryPrice as string || '';
   const serviceCategory = (params.serviceCategory as string) || '';
-  /** Delivery State always charges the sender — no who-pays choice (personal sender only). */
+  /** Personal Delivery State: sender pays only. Store orders use who-pays below. */
   const isDeliveryState = serviceCategory === 'DELIVERY_STATE';
 
   // Use delivery price from params, or calculate if not provided
@@ -201,19 +200,27 @@ export default function CheckoutScreen() {
   const handleConfirmOrder = () => {
     if (placingRef.current || isPlacingOrder) return;
 
-    // Admin-issued store rider: always charge store wallet (sender pays).
-    if (isStoreAccount && senderKind === 'STORE') {
-      void handlePlaceOrder('SENDER');
-      return;
-    }
-
-    // Personal rider picking a store: recipient pays only (no who-pays choice).
+    // Store orders: choose store wallet vs recipient pays on delivery.
     if (senderKind === 'STORE') {
-      void handlePlaceOrder('RECIPIENT');
+      Alert.alert(
+        'Who pays for this delivery?',
+        'Store pays from store balance now, or the recipient pays with Waafi when the package arrives.',
+        [
+          {
+            text: 'Store pays',
+            onPress: () => void handlePlaceOrder('SENDER'),
+          },
+          {
+            text: 'Recipient pays on delivery',
+            onPress: () => void handlePlaceOrder('RECIPIENT'),
+          },
+          { text: 'Cancel', style: 'cancel' },
+        ]
+      );
       return;
     }
 
-    // Delivery State: always sender pays (Waafi hold).
+    // Delivery State (personal): always sender pays (Waafi hold).
     if (isDeliveryState) {
       void handlePlaceOrder('SENDER');
       return;
@@ -397,9 +404,11 @@ export default function CheckoutScreen() {
         </View>
 
         <Text style={[styles.holdHint, { color: colors.icon }]}>
-          {isDeliveryState
-            ? `When you confirm, Waafi sends a prompt to ${senderNumber || 'the sender number'}. Approve it and enter your PIN to hold $${estimatedPrice}. Funds are captured only after the trip is completed.`
-            : 'Tap Confirm Order, then choose who pays: the sender (Waafi hold now) or the recipient (pays when the package is delivered).'}
+          {senderKind === 'STORE'
+            ? 'Tap Confirm Order, then choose who pays: the store (balance) or the recipient (Waafi when delivered).'
+            : isDeliveryState
+              ? `When you confirm, Waafi sends a prompt to ${senderNumber || 'the sender number'}. Approve it and enter your PIN to hold $${estimatedPrice}. Funds are captured only after the trip is completed.`
+              : 'Tap Confirm Order, then choose who pays: the sender (Waafi hold now) or the recipient (pays when the package is delivered).'}
         </Text>
 
         {/* Confirm Order Button */}

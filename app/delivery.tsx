@@ -79,8 +79,10 @@ export default function DeliveryScreen() {
   const [senderNumber, setSenderNumber] = useState('');
   const [stores, setStores] = useState<CatalogStore[]>([]);
   const [selectedStore, setSelectedStore] = useState<CatalogStore | null>(null);
-  const [storeOrderCode, setStoreOrderCode] = useState('');
-  const [storeBranchLocation, setStoreBranchLocation] = useState('');
+  const [storeOrderCode, setStoreOrderCode] = useState((params.storeOrderCode as string) || '');
+  const [storeBranchLocation, setStoreBranchLocation] = useState(
+    (params.storeBranchLocation as string) || ''
+  );
   const [recipientName, setRecipientName] = useState('');
   const [recipientNumber, setRecipientNumber] = useState('');
   const [selectedItem, setSelectedItem] = useState('');
@@ -90,6 +92,13 @@ export default function DeliveryScreen() {
   const [deliveryTime, setDeliveryTime] = useState((params.deliveryTime as string) || '');
   const [deliveryPrice, setDeliveryPrice] = useState((params.deliveryPrice as string) || '');
   const serviceCategory = (params.serviceCategory as string) || '';
+  const storeDetailsReady = Boolean(
+    (selectedStore?.id || user?.store?.id) &&
+      storeOrderCode.trim() &&
+      storeBranchLocation.trim()
+  );
+  /** Store Raac: branch + order ID come from Home — only recipient on this screen. */
+  const hideSenderForm = isStoreAccount && storeDetailsReady;
 
   // Modal state
   const [showItemPicker, setShowItemPicker] = useState(false);
@@ -105,7 +114,9 @@ export default function DeliveryScreen() {
       phone: user.store.phone,
     });
     setSenderName(user.store.name);
-  }, [user]);
+    if (params.storeOrderCode) setStoreOrderCode(String(params.storeOrderCode));
+    if (params.storeBranchLocation) setStoreBranchLocation(String(params.storeBranchLocation));
+  }, [user, params.storeOrderCode, params.storeBranchLocation]);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -300,6 +311,31 @@ export default function DeliveryScreen() {
         </View>
 
         <View style={styles.sectionContainer}>
+          {hideSenderForm ? (
+            <View
+              style={[
+                styles.infoCard,
+                {
+                  backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
+                  borderColor: isDark ? '#333333' : '#E0E0E0',
+                  marginBottom: scaleHeight(8),
+                },
+              ]}>
+              <Text style={[styles.helperText, { color: isDark ? '#999999' : '#666666', marginBottom: 4 }]}>
+                Store · sender details already set
+              </Text>
+              <Text style={[styles.locationText, { color: isDark ? '#FFFFFF' : '#000000' }]}>
+                {selectedStore?.name || user?.store?.name || senderName || 'Store'}
+              </Text>
+              {storeOrderCode ? (
+                <Text style={[styles.helperText, { color: isDark ? '#AAAAAA' : '#555555', marginTop: 4 }]}>
+                  Order ID {storeOrderCode}
+                  {storeBranchLocation ? ` · ${storeBranchLocation}` : ''}
+                </Text>
+              ) : null}
+            </View>
+          ) : (
+            <>
           <Text style={[styles.sectionTitle, { color: isDark ? '#FFFFFF' : '#000000' }]}>Sender</Text>
 
           {isStoreAccount ? (
@@ -333,7 +369,7 @@ export default function DeliveryScreen() {
                     marginBottom: scaleHeight(12),
                   },
                 ]}
-                placeholder="Store order ID / BIS *"
+                placeholder="Order ID *"
                 placeholderTextColor={isDark ? '#666666' : '#999999'}
                 value={storeOrderCode}
                 onChangeText={setStoreOrderCode}
@@ -491,7 +527,7 @@ export default function DeliveryScreen() {
                         marginBottom: scaleHeight(12),
                       },
                     ]}
-                    placeholder="Store order ID / BIS *"
+                    placeholder="Order ID *"
                     placeholderTextColor={isDark ? '#666666' : '#999999'}
                     value={storeOrderCode}
                     onChangeText={setStoreOrderCode}
@@ -513,6 +549,8 @@ export default function DeliveryScreen() {
                   />
                 </>
               )}
+            </>
+          )}
             </>
           )}
         </View>

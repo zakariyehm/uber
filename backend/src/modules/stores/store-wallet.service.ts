@@ -145,3 +145,71 @@ export async function cancelPendingStoreDebit(deliveryRequestId: string) {
     },
   });
 }
+
+/**
+ * Recipient not found → package returned to store.
+ * Charge store only the Delivery State driver payout (not the full trip fare).
+ */
+export async function debitStoreReturnPayout(input: {
+  storeId: string;
+  amount: number;
+  deliveryRequestId: string;
+  orderId: string;
+}) {
+  const amount = roundMoney(input.amount);
+  if (amount <= 0) {
+    const error = new Error('Invalid return payout amount') as Error & { statusCode?: number };
+    error.statusCode = 400;
+    throw error;
+  }
+
+  // Drop any pending full-fare debit first so available balance is accurate.
+  await cancelPendingStoreDebit(input.deliveryRequestId);
+
+  const wallet = await getStoreAvailableBalance(input.storeId);
+  if (!wallet) {
+    const error = new Error('Store not found') as Error & { statusCode?: number };
+    error.statusCode = 400;
+    throw error;
+  }
+  if (wallet.available < amount) {
+    const error = new Error(
+      `Store balance too low for return payout (need $${amount.toFixed(2)}, available $${wallet.available.toFixed(2)})`
+    ) as Error & { statusCode?: number };
+    error.statusCode = 402;
+    throw error;
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const store = await tx.store.findUnique({ where: { id: input.storeId } });
+    if (!store) return null;
+
+    const current = Number(store.balance);
+    if (current + 1e-9 < amount) {
+      const error = new Error(
+        `Store balance too low for return payout ($${current.toFixed(2)})`
+      ) as Error & { statusCode?: number };
+      error.statusCode = 402;
+      throw error;
+    }
+
+    const nextBalance = new Prisma.Decimal(roundMoney(current - amount));
+    await tx.store.update({
+      where: { id: store.id },
+      data: { balance: nextBalance },
+    });
+
+    return tx.storeWalletTransaction.create({
+      data: {
+        storeId: input.storeId,
+        type: StoreWalletTxnType.DEBIT,
+        status: StoreWalletTxnStatus.COMPLETED,
+        amount,
+        balanceAfter: nextBalance,
+        note: `Order ${input.orderId} · return · driver payout`,
+        deliveryRequestId: input.deliveryRequestId,
+        settledAt: new Date(),
+      },
+    });
+  });
+}
