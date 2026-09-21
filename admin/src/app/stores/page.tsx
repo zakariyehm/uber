@@ -17,11 +17,13 @@ import {
   THead,
 } from "@/components/ui/PageChrome";
 import { api, errorMessage } from "@/lib/api";
+import { money } from "@/lib/format";
 import {
   STORE_CATEGORIES,
   storeCategoryLabel,
   type StoreRow,
 } from "@/lib/stores";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 export default function StoresPage() {
@@ -131,6 +133,7 @@ export default function StoresPage() {
             <tr>
               <Th>Store</Th>
               <Th>Type</Th>
+              <Th>Balance</Th>
               <Th>Contact</Th>
               <Th>Location</Th>
               <Th>Status</Th>
@@ -141,7 +144,9 @@ export default function StoresPage() {
             {(data?.stores || []).map((store) => (
               <tr key={store.id} className="border-t border-line/80 hover:bg-panel-2/50">
                 <Td>
-                  <p className="font-medium text-ink">{store.name}</p>
+                  <Link href={`/stores/${store.id}`} className="font-medium text-ink hover:text-raac">
+                    {store.name}
+                  </Link>
                   {store.description ? (
                     <p className="max-w-[220px] truncate text-xs text-muted">{store.description}</p>
                   ) : null}
@@ -149,6 +154,7 @@ export default function StoresPage() {
                 <Td>
                   <span className="text-sm">{storeCategoryLabel(store.category)}</span>
                 </Td>
+                <Td className="tabular-nums font-medium">{money(store.balance || "0")}</Td>
                 <Td>
                   <p>{store.ownerName || "—"}</p>
                   <p className="text-xs text-muted">{store.phone || "—"}</p>
@@ -162,6 +168,11 @@ export default function StoresPage() {
                 </Td>
                 <Td className="text-right">
                   <div className="flex flex-wrap items-center justify-end gap-1">
+                    <Link href={`/stores/${store.id}`}>
+                      <Button variant="ghost" size="sm">
+                        Open
+                      </Button>
+                    </Link>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -193,7 +204,7 @@ export default function StoresPage() {
               </tr>
             ))}
             {!data?.stores.length ? (
-              <EmptyRow colSpan={6} message="No stores registered yet." />
+              <EmptyRow colSpan={7} message="No stores registered yet." />
             ) : null}
           </tbody>
         </Table>

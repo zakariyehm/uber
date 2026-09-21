@@ -54,6 +54,7 @@ export async function completeRiderProfile(input: {
     body: JSON.stringify({ ...input, role: 'RIDER' }),
   });
   await setAuthToken(result.token);
+  await setStoredUser(result.user);
   return result;
 }
 
@@ -63,6 +64,7 @@ export async function loginRider(phone: string, password: string) {
     body: JSON.stringify({ phone, password }),
   });
   await setAuthToken(result.token);
+  await setStoredUser(result.user);
   return result.user;
 }
 
@@ -77,6 +79,7 @@ export async function registerRider(input: {
     body: JSON.stringify({ ...input, role: 'RIDER' }),
   });
   await setAuthToken(result.token);
+  await setStoredUser(result.user);
   return result.user;
 }
 

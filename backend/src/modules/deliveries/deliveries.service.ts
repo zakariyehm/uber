@@ -527,7 +527,6 @@ export async function createDelivery(
     storeOrderCode = code;
     storeBranchLocation = branch;
     senderName = store.name;
-    if (!senderPhone && store.phone) senderPhone = store.phone.trim();
     if (!referenceId) referenceId = code;
   }
 
@@ -552,11 +551,15 @@ export async function createDelivery(
   }
 
   const openFleet = await isOpenFleetMethod(input.deliveryMethod);
-  // Delivery State always charges the sender — ignore recipient-pays.
-  const payerType =
+  // Delivery State normally charges the sender — except personal riders sending as a store
+  // (recipient pays). Store-account riders still use store wallet (SENDER).
+  let payerType =
     openFleet || input.payerType !== 'RECIPIENT'
       ? PaymentPayer.SENDER
       : PaymentPayer.RECIPIENT;
+  if (senderKind === SenderKind.STORE && input.payerType === 'RECIPIENT') {
+    payerType = PaymentPayer.RECIPIENT;
+  }
 
   const senderFields = {
     senderName: senderName || null,
@@ -567,6 +570,55 @@ export async function createDelivery(
     storeBranchLocation,
     referenceId,
   };
+
+  // Store sender + sender pays: create order + PENDING debit (balance moves on COMPLETE).
+  if (payerType === PaymentPayer.SENDER && senderKind === SenderKind.STORE && storeId) {
+    const {
+      getStoreAvailableBalance,
+      createPendingStoreDebit,
+    } = await import('../stores/store-wallet.service.ts');
+
+    const wallet = await getStoreAvailableBalance(storeId);
+    if (!wallet || wallet.available < amount) {
+      const available = wallet?.available ?? 0;
+      const error = new Error(
+        `Store balance too low (available $${available.toFixed(2)})`
+      ) as Error & { statusCode?: number };
+      error.statusCode = 402;
+      throw error;
+    }
+
+    const row = await prisma.deliveryRequest.create({
+      data: {
+        orderId,
+        pickupLocation: input.pickupLocation,
+        pickupLat: pickupCoords?.latitude,
+        pickupLng: pickupCoords?.longitude,
+        destinationLocation: input.destinationLocation,
+        recipientName: input.recipientName,
+        recipientNumber: input.recipientNumber,
+        ...senderFields,
+        payerType,
+        itemType: input.itemType,
+        deliveryMethod: input.deliveryMethod,
+        vehicleType: await resolveVehicleTypeForMethod(input.deliveryMethod),
+        deliveryPrice: amount,
+        deliveryTimeLabel: input.deliveryTimeLabel,
+        riderUserId,
+        paymentHoldStatus: PaymentHoldStatus.NONE,
+      },
+    });
+
+    await createPendingStoreDebit({
+      storeId,
+      amount,
+      deliveryRequestId: row.id,
+      orderId: row.orderId,
+    });
+
+    const offered = await ensureOfferAssignment(row);
+    return toDeliveryDto(offered);
+  }
 
   // Recipient pays at dropoff — create + offer with no Waafi hold.
   if (payerType === PaymentPayer.RECIPIENT) {
@@ -1080,6 +1132,11 @@ export async function applyDeliveryAction(
     data,
   });
 
+  if (action === 'complete') {
+    const { settlePendingStoreDebit } = await import('../stores/store-wallet.service.ts');
+    await settlePendingStoreDebit(id);
+  }
+
   if (action === 'complete' && row.driverUserId) {
     const { isOpenFleetMethod } = await import('../../utils/vehicle-type.ts');
     if (await isOpenFleetMethod(row.deliveryMethod)) {
@@ -1118,6 +1175,9 @@ export async function applyDeliveryAction(
 
   if (action === 'cancel') {
     const { settleNoShow, releasePaymentHold } = await import('../payments/payment.settlement.ts');
+    const { cancelPendingStoreDebit } = await import('../stores/store-wallet.service.ts');
+    await cancelPendingStoreDebit(id);
+
     if (row.cancelReason === 'no_show') {
       // Recipient-pays with no hold: cancel only — no Waafi / no $0.50 capture.
       if (row.paymentHoldStatus === 'HELD') {

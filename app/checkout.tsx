@@ -36,6 +36,7 @@ export default function CheckoutScreen() {
   const senderKind = ((params.senderKind as string) || 'PERSONAL').toUpperCase() === 'STORE'
     ? 'STORE'
     : 'PERSONAL';
+  const isStoreAccount = (params.isStoreAccount as string) === '1';
   const senderName = params.senderName as string || '';
   const senderNumber = params.senderNumber as string || '';
   const storeId = (params.storeId as string) || '';
@@ -48,7 +49,7 @@ export default function CheckoutScreen() {
   const deliveryTime = params.deliveryTime as string || '';
   const deliveryPrice = params.deliveryPrice as string || '';
   const serviceCategory = (params.serviceCategory as string) || '';
-  /** Delivery State always charges the sender — no who-pays choice. */
+  /** Delivery State always charges the sender — no who-pays choice (personal sender only). */
   const isDeliveryState = serviceCategory === 'DELIVERY_STATE';
 
   // Use delivery price from params, or calculate if not provided
@@ -103,6 +104,7 @@ export default function CheckoutScreen() {
     const senderDigits = normalize(senderNumber);
     const recipientDigits = normalize(recipientNumber);
     if (
+      senderKind === 'PERSONAL' &&
       senderDigits.length >= 7 &&
       recipientDigits.length >= 7 &&
       senderDigits === recipientDigits
@@ -114,12 +116,16 @@ export default function CheckoutScreen() {
       return;
     }
 
-    if (payerType === 'SENDER' && !senderNumber.trim()) {
+    if (payerType === 'SENDER' && senderKind !== 'STORE' && !senderNumber.trim()) {
       Alert.alert('Sender number required', 'Enter the sender Waafi phone number before confirming.');
       return;
     }
     if (payerType === 'RECIPIENT' && !recipientNumber.trim()) {
       Alert.alert('Recipient number required', 'Recipient phone is needed so they can pay on delivery.');
+      return;
+    }
+    if (senderKind === 'STORE' && (!storeId || !storeOrderCode.trim() || !storeBranchLocation.trim())) {
+      Alert.alert('Store details required', 'Select a store and enter order ID and branch location.');
       return;
     }
     if (!estimatedPrice || Number.parseFloat(estimatedPrice) <= 0) {
@@ -151,7 +157,7 @@ export default function CheckoutScreen() {
           : referenceId
             ? { referenceId }
             : {}),
-        ...(payerType === 'SENDER'
+        ...(payerType === 'SENDER' && senderKind !== 'STORE'
           ? { senderPhone: senderNumber.trim() }
           : senderNumber.trim()
             ? { senderPhone: senderNumber.trim() }
@@ -182,7 +188,11 @@ export default function CheckoutScreen() {
           ? error.message
           : 'Order could not be placed. Please try again.';
       Alert.alert(
-        payerType === 'SENDER' ? 'Payment hold failed' : 'Could not place order',
+        payerType === 'SENDER' && senderKind === 'STORE'
+          ? 'Could not place store order'
+          : payerType === 'SENDER'
+            ? 'Payment hold failed'
+            : 'Could not place order',
         message
       );
     }
@@ -191,7 +201,19 @@ export default function CheckoutScreen() {
   const handleConfirmOrder = () => {
     if (placingRef.current || isPlacingOrder) return;
 
-    // Delivery State: always sender pays (existing Waafi hold flow).
+    // Admin-issued store rider: always charge store wallet (sender pays).
+    if (isStoreAccount && senderKind === 'STORE') {
+      void handlePlaceOrder('SENDER');
+      return;
+    }
+
+    // Personal rider picking a store: recipient pays only (no who-pays choice).
+    if (senderKind === 'STORE') {
+      void handlePlaceOrder('RECIPIENT');
+      return;
+    }
+
+    // Delivery State: always sender pays (Waafi hold).
     if (isDeliveryState) {
       void handlePlaceOrder('SENDER');
       return;
@@ -302,13 +324,15 @@ export default function CheckoutScreen() {
               <Text style={[styles.infoValue, { color: colors.text }]}>{senderName || '—'}</Text>
             </View>
 
-            <View style={styles.infoRow}>
-              <View style={styles.infoLabelContainer}>
-                <Ionicons name="call" size={scaleFont(20)} color={colors.icon} />
-                <Text style={[styles.infoLabel, { color: colors.icon }]}>Phone</Text>
+            {senderKind === 'STORE' ? null : (
+              <View style={styles.infoRow}>
+                <View style={styles.infoLabelContainer}>
+                  <Ionicons name="call" size={scaleFont(20)} color={colors.icon} />
+                  <Text style={[styles.infoLabel, { color: colors.icon }]}>Phone</Text>
+                </View>
+                <Text style={[styles.infoValue, { color: colors.text }]}>{senderNumber || '—'}</Text>
               </View>
-              <Text style={[styles.infoValue, { color: colors.text }]}>{senderNumber || '—'}</Text>
-            </View>
+            )}
 
             {senderKind === 'STORE' && storeOrderCode ? (
               <View style={styles.infoRow}>

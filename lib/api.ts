@@ -38,6 +38,14 @@ export type StoredAuthUser = {
   lastName?: string | null;
   gender?: string | null;
   state?: string | null;
+  riderKind?: 'PERSONAL' | 'STORE' | string | null;
+  storeId?: string | null;
+  store?: {
+    id: string;
+    name: string;
+    category: string;
+    phone?: string | null;
+  } | null;
 };
 
 export async function getStoredUser() {

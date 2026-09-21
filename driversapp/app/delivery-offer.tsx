@@ -248,10 +248,24 @@ export default function DeliveryOfferScreen() {
             </View>
             <View style={styles.routeTextCol}>
               <Text style={styles.routePrimary} numberOfLines={1}>
-                Pickup · {request.pickupLocation}
+                Pickup ·{' '}
+                {request.senderKind === 'STORE' && request.storeBranchLocation
+                  ? request.storeBranchLocation
+                  : request.pickupLocation}
               </Text>
-              <Text style={styles.routeSecondary} numberOfLines={1}>
-                {request.senderName || 'Sender'} · {request.senderPhone || 'No phone'}
+              <Text style={styles.routeSecondary} numberOfLines={2}>
+                {request.senderKind === 'STORE'
+                  ? [
+                      request.senderName || 'Store',
+                      request.storeOrderCode ? `BIS ${request.storeOrderCode}` : null,
+                      request.storeBranchLocation &&
+                      request.storeBranchLocation !== request.pickupLocation
+                        ? request.pickupLocation
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')
+                  : `${request.senderName || 'Sender'} · ${request.senderPhone || 'No phone'}`}
               </Text>
             </View>
           </View>

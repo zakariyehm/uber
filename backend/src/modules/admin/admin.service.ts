@@ -5,7 +5,10 @@ import {
   ServiceCategory,
   SettlementType,
   StoreCategory,
+  StoreWalletTxnStatus,
+  StoreWalletTxnType,
   UserRole,
+  RiderKind,
 } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { prisma } from '../../lib/prisma.ts';
@@ -414,6 +417,33 @@ export async function getTrip(id: string) {
 
   return {
     trip: toDeliveryDto(row),
+    store: row.storeId
+      ? await prisma.store.findUnique({
+          where: { id: row.storeId },
+          select: {
+            id: true,
+            name: true,
+            category: true,
+            phone: true,
+            district: true,
+            balance: true,
+          },
+        }).then((s) =>
+          s
+            ? {
+                id: s.id,
+                name: s.name,
+                category: s.category,
+                phone: s.phone,
+                district: s.district,
+                balance: moneyStr(s.balance),
+                storeOrderCode: row.storeOrderCode,
+                storeBranchLocation: row.storeBranchLocation,
+                senderKind: row.senderKind,
+              }
+            : null
+        )
+      : null,
     rider: row.rider
       ? {
           id: row.rider.id,
@@ -478,6 +508,70 @@ export async function createDriver(input: {
   };
 }
 
+export async function createStoreRider(input: {
+  phone: string;
+  password: string;
+  firstName?: string;
+  lastName?: string;
+  storeId: string;
+}) {
+  const phone = somaliaPhone(input.phone);
+  if (!/^\+252\d{8,10}$/.test(phone)) {
+    throw adminError('Enter a valid Somalia phone number', 400);
+  }
+  if (!input.password || input.password.length < 6) {
+    throw adminError('Password must be at least 6 characters', 400);
+  }
+  if (!input.storeId?.trim()) {
+    throw adminError('Select a store for this rider', 400);
+  }
+
+  const store = await prisma.store.findUnique({ where: { id: input.storeId } });
+  if (!store || !store.isActive) {
+    throw adminError('Store not found or inactive', 400);
+  }
+
+  const existing = await prisma.user.findUnique({ where: { phone } });
+  if (existing) {
+    throw adminError('An account already exists with this phone number', 409);
+  }
+
+  const passwordHash = await bcrypt.hash(input.password, 10);
+  const display =
+    [input.firstName?.trim(), input.lastName?.trim()].filter(Boolean).join(' ') || store.name;
+
+  const user = await prisma.user.create({
+    data: {
+      phone,
+      passwordHash,
+      firstName: input.firstName?.trim() || null,
+      lastName: input.lastName?.trim() || null,
+      role: UserRole.RIDER,
+      riderProfile: {
+        create: {
+          displayName: display,
+          riderKind: RiderKind.STORE,
+          storeId: store.id,
+        },
+      },
+      riderWallet: { create: {} },
+    },
+    include: {
+      driverProfile: true,
+      riderProfile: { include: { store: true } },
+    },
+  });
+
+  return {
+    ...toPublicUser(user),
+    name: displayName(user),
+    isActive: user.isActive,
+    riderKind: 'STORE' as const,
+    storeId: store.id,
+    storeName: store.name,
+  };
+}
+
 export async function listUsers(input: {
   role?: 'RIDER' | 'DRIVER';
   q?: string;
@@ -508,7 +602,7 @@ export async function listUsers(input: {
     prisma.user.findMany({
       where,
       include: {
-        riderProfile: true,
+        riderProfile: { include: { store: true } },
         driverProfile: true,
         wallet: true,
         riderWallet: true,
@@ -548,6 +642,15 @@ export async function listUsers(input: {
         user.role === UserRole.DRIVER ? user._count.driverDeliveries : user._count.riderDeliveries,
       todayBalance: user.wallet ? moneyStr(user.wallet.balance) : null,
       pendingBalance: user.riderWallet ? moneyStr(user.riderWallet.pendingBalance) : null,
+      riderKind:
+        user.role === UserRole.RIDER
+          ? user.riderProfile?.riderKind === 'STORE'
+            ? 'STORE'
+            : 'PERSONAL'
+          : null,
+      storeId: user.role === UserRole.RIDER ? user.riderProfile?.storeId || null : null,
+      storeName:
+        user.role === UserRole.RIDER ? user.riderProfile?.store?.name || null : null,
     })),
   };
 }
@@ -617,8 +720,14 @@ export async function resetUserPassword(id: string, password: string) {
   if (user.role === UserRole.ADMIN) {
     throw adminError('Cannot reset the owner password here', 403);
   }
-  if (user.role !== UserRole.DRIVER) {
-    throw adminError('Only driver passwords can be reset', 400);
+  if (user.role !== UserRole.DRIVER && user.role !== UserRole.RIDER) {
+    throw adminError('Only driver or rider passwords can be reset', 400);
+  }
+  if (user.role === UserRole.RIDER) {
+    const profile = await prisma.riderProfile.findUnique({ where: { userId: id } });
+    if (profile?.riderKind !== 'STORE') {
+      throw adminError('Only store rider passwords can be reset here', 400);
+    }
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
@@ -807,6 +916,7 @@ function toStoreDto(row: {
   address: string | null;
   district: string | null;
   description: string | null;
+  balance?: { toString(): string } | number | string | null;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -820,6 +930,7 @@ function toStoreDto(row: {
     address: row.address,
     district: row.district,
     description: row.description,
+    balance: moneyStr(row.balance ?? 0),
     isActive: row.isActive,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -961,3 +1072,113 @@ export async function deleteStore(id: string) {
   await prisma.store.delete({ where: { id } });
   return { ok: true, id };
 }
+
+export async function getStore(id: string) {
+  const store = await prisma.store.findUnique({ where: { id } });
+  if (!store) throw adminError('Store not found', 404);
+
+  const [orderCounts, recentOrders, recentTxns] = await Promise.all([
+    prisma.deliveryRequest.groupBy({
+      by: ['status'],
+      where: { storeId: id },
+      _count: { _all: true },
+    }),
+    prisma.deliveryRequest.findMany({
+      where: { storeId: id },
+      orderBy: { createdAt: 'desc' },
+      take: 30,
+    }),
+    prisma.storeWalletTransaction.findMany({
+      where: { storeId: id },
+      orderBy: { createdAt: 'desc' },
+      take: 40,
+      include: {
+        deliveryRequest: { select: { orderId: true } },
+      },
+    }),
+  ]);
+
+  const counts: Record<string, number> = {};
+  let ordersTotal = 0;
+  for (const row of orderCounts) {
+    counts[row.status] = row._count._all;
+    ordersTotal += row._count._all;
+  }
+
+  return {
+    store: toStoreDto(store),
+    stats: {
+      ordersTotal,
+      pending: counts.PENDING || 0,
+      active:
+        (counts.ACCEPTED || 0) + (counts.PICKED_UP || 0) + (counts.IN_TRANSIT || 0),
+      completed: counts.COMPLETED || 0,
+      cancelled: counts.CANCELLED || 0,
+    },
+    orders: recentOrders.map((row) => {
+      const dto = toDeliveryDto(row);
+      return {
+        id: dto.id,
+        orderId: dto.orderId,
+        status: dto.status,
+        deliveryPrice: dto.deliveryPrice,
+        storeOrderCode: row.storeOrderCode ?? undefined,
+        storeBranchLocation: row.storeBranchLocation ?? undefined,
+        destinationLocation: dto.destinationLocation,
+        recipientName: dto.recipientName,
+        payerType: dto.payerType,
+        createdAt: dto.createdAt,
+        completedAt: dto.completedAt,
+      };
+    }),
+    transactions: recentTxns.map((txn) => ({
+      id: txn.id,
+      type: txn.type,
+      status: txn.status,
+      amount: moneyStr(txn.amount),
+      balanceAfter: moneyStr(txn.balanceAfter),
+      note: txn.note,
+      orderId: txn.deliveryRequest?.orderId ?? null,
+      deliveryRequestId: txn.deliveryRequestId,
+      createdAt: txn.createdAt.toISOString(),
+      settledAt: txn.settledAt?.toISOString() ?? null,
+    })),
+  };
+}
+
+export async function creditStoreBalance(
+  id: string,
+  input: { amount: number; note?: string }
+) {
+  const amount = Number(input.amount);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw adminError('Enter a positive amount', 400);
+  }
+  const rounded = Math.round(amount * 100) / 100;
+  if (rounded <= 0) throw adminError('Enter a positive amount', 400);
+
+  const store = await prisma.store.findUnique({ where: { id } });
+  if (!store) throw adminError('Store not found', 404);
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const next = await tx.store.update({
+      where: { id },
+      data: { balance: { increment: rounded } },
+    });
+    await tx.storeWalletTransaction.create({
+      data: {
+        storeId: id,
+        type: StoreWalletTxnType.CREDIT,
+        status: StoreWalletTxnStatus.COMPLETED,
+        amount: rounded,
+        balanceAfter: next.balance,
+        note: input.note?.trim() || 'Admin top-up',
+        settledAt: new Date(),
+      },
+    });
+    return next;
+  });
+
+  return toStoreDto(updated);
+}
+

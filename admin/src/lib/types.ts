@@ -87,6 +87,9 @@ export type AdminUserRow = {
   tripCount: number;
   todayBalance: string | null;
   pendingBalance: string | null;
+  riderKind?: string | null;
+  storeId?: string | null;
+  storeName?: string | null;
 };
 
 export type ServiceMethod = {

@@ -32,7 +32,26 @@ type Detail = {
     paymentHoldStatus?: string;
     settlementType?: string;
     openToAllVehicleTypes?: boolean;
+    itemType?: string;
+    recipientName?: string;
+    recipientNumber?: string;
+    senderName?: string;
+    senderPhone?: string;
+    senderKind?: string;
+    storeOrderCode?: string;
+    storeBranchLocation?: string;
   };
+  store?: {
+    id: string;
+    name: string;
+    category: string;
+    phone?: string | null;
+    district?: string | null;
+    balance: string;
+    storeOrderCode?: string | null;
+    storeBranchLocation?: string | null;
+    senderKind?: string;
+  } | null;
   rider: { id: string; name: string; phone: string; rating: string | null; pendingBalance: string; isActive: boolean } | null;
   driver: { id: string; name: string; phone: string; rating: string | null; isOnline: boolean; todayBalance: string; isActive: boolean; vehicleType?: string | null } | null;
 };
@@ -183,10 +202,59 @@ export default function TripDetailPage() {
                     {data?.driver?.vehicleType ? ` · ${vehicleLabel(data.driver.vehicleType)}` : ""}
                   </span>
                 </p>
+                {trip.recipientName ? (
+                  <p className="mt-3 text-sm">
+                    Recipient · {trip.recipientName}
+                    <span className="block text-xs text-muted">{trip.recipientNumber}</span>
+                  </p>
+                ) : null}
+                <p className="mt-3 text-sm">
+                  Item · {trip.itemType || "—"}
+                  <span className="block text-xs text-muted">
+                    {trip.deliveryMethod} · {vehicleLabel(trip.vehicleType)}
+                  </span>
+                </p>
                 <Link href="/trips" className="mt-4 inline-block text-xs font-semibold text-raac hover:text-raac-strong">
                   All trips
                 </Link>
               </Panel>
+              {data?.store ? (
+                <Panel className="p-5">
+                  <h3 className="text-sm font-semibold">Store sender</h3>
+                  <dl className="mt-3 space-y-2 text-sm">
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-muted">Store</dt>
+                      <dd>
+                        <Link href={`/stores/${data.store.id}`} className="font-medium text-raac hover:text-raac-strong">
+                          {data.store.name}
+                        </Link>
+                      </dd>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-muted">Order ID</dt>
+                      <dd>{data.store.storeOrderCode || trip.storeOrderCode || "—"}</dd>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-muted">Branch</dt>
+                      <dd className="text-right">{data.store.storeBranchLocation || trip.storeBranchLocation || "—"}</dd>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-muted">Balance</dt>
+                      <dd>{money(data.store.balance)}</dd>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-muted">Payer</dt>
+                      <dd>{trip.payerType || "—"}</dd>
+                    </div>
+                  </dl>
+                </Panel>
+              ) : trip.senderName ? (
+                <Panel className="p-5">
+                  <h3 className="text-sm font-semibold">Sender</h3>
+                  <p className="mt-3 text-sm">{trip.senderName}</p>
+                  <p className="text-xs text-muted">{trip.senderPhone || "—"}</p>
+                </Panel>
+              ) : null}
             </div>
           </div>
         </>

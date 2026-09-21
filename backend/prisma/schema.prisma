@@ -81,11 +81,22 @@ model User {
 }
 
 model RiderProfile {
-  userId      String   @id
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String    @id
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   displayName String?
-  rating      Decimal  @default(5.0) @db.Decimal(3, 2)
-  createdAt   DateTime @default(now())
+  /** App self-signup = PERSONAL. Admin-issued store staff = STORE. */
+  riderKind   RiderKind @default(PERSONAL)
+  storeId     String?
+  store       Store?    @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  rating      Decimal   @default(5.0) @db.Decimal(3, 2)
+  createdAt   DateTime  @default(now())
+
+  @@index([riderKind, storeId])
+}
+
+enum RiderKind {
+  PERSONAL
+  STORE
 }
 
 enum VehicleType {
@@ -194,6 +205,7 @@ model DeliveryRequest {
   updatedAt              DateTime          @updatedAt
 
   activeForDrivers DriverActiveDelivery[]
+  storeWalletTxns  StoreWalletTransaction[]
 
   @@index([status])
   @@index([driverUserId])
@@ -311,11 +323,48 @@ model Store {
   address     String?
   district    String?
   description String?
+  /** Prepaid balance used when store is sender + sender pays. */
+  balance     Decimal       @default(0) @db.Decimal(12, 2)
   isActive    Boolean       @default(true)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   deliveries  DeliveryRequest[]
+  walletTxns  StoreWalletTransaction[]
+  riders      RiderProfile[]
 
   @@index([category, isActive])
   @@index([name])
 }
+
+enum StoreWalletTxnType {
+  CREDIT
+  DEBIT
+  ADJUST
+}
+
+enum StoreWalletTxnStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+model StoreWalletTransaction {
+  id                String               @id @default(uuid())
+  storeId           String
+  store             Store                @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  type              StoreWalletTxnType
+  status            StoreWalletTxnStatus @default(COMPLETED)
+  amount            Decimal              @db.Decimal(12, 2)
+  /** Balance after this txn settles. Unchanged while PENDING. */
+  balanceAfter      Decimal              @db.Decimal(12, 2)
+  note              String?
+  deliveryRequestId String?
+  deliveryRequest   DeliveryRequest?     @relation(fields: [deliveryRequestId], references: [id], onDelete: SetNull)
+  createdAt         DateTime             @default(now())
+  settledAt         DateTime?
+
+  @@index([storeId, createdAt])
+  @@index([storeId, status])
+  @@index([deliveryRequestId])
+}
+

@@ -1,4 +1,5 @@
 import { Colors } from '@/constants/theme';
+import { useAuth } from '@/contexts/auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Ionicons } from '@expo/vector-icons';
 import NetInfo from '@react-native-community/netinfo';
@@ -66,11 +67,13 @@ export default function DeliveryScreen() {
   const isDark = colorScheme === 'dark';
   const router = useRouter();
   const params = useLocalSearchParams();
+  const { user } = useAuth();
+  const isStoreAccount = user?.riderKind === 'STORE' && Boolean(user.store?.id);
   const [isLoading, setIsLoading] = useState(true);
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
 
   // Form state
-  const [senderKind, setSenderKind] = useState<SenderKind>('PERSONAL');
+  const [senderKind, setSenderKind] = useState<SenderKind>(isStoreAccount ? 'STORE' : 'PERSONAL');
   const [receiptInfoId, setReceiptInfoId] = useState('');
   const [senderName, setSenderName] = useState('');
   const [senderNumber, setSenderNumber] = useState('');
@@ -91,6 +94,18 @@ export default function DeliveryScreen() {
   // Modal state
   const [showItemPicker, setShowItemPicker] = useState(false);
   const [showStorePicker, setShowStorePicker] = useState(false);
+
+  useEffect(() => {
+    if (!user?.store?.id || user.riderKind !== 'STORE') return;
+    setSenderKind('STORE');
+    setSelectedStore({
+      id: user.store.id,
+      name: user.store.name,
+      category: user.store.category,
+      phone: user.store.phone,
+    });
+    setSenderName(user.store.name);
+  }, [user]);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -143,13 +158,12 @@ export default function DeliveryScreen() {
   const selectStore = (store: CatalogStore) => {
     setSelectedStore(store);
     setSenderName(store.name);
-    if (store.phone?.trim()) setSenderNumber(store.phone.trim());
     setShowStorePicker(false);
   };
 
   const handleContinue = () => {
     if (!isFormValid()) return;
-    if (phonesAreSame(senderNumber, recipientNumber)) {
+    if (senderKind === 'PERSONAL' && phonesAreSame(senderNumber, recipientNumber)) {
       Alert.alert(
         'Different numbers required',
         'Sender and recipient must use two different phone numbers. Please enter another number to continue.'
@@ -163,11 +177,12 @@ export default function DeliveryScreen() {
         destinationLocation: destinationLocation,
         referenceId: senderKind === 'STORE' ? storeOrderCode.trim() : receiptInfoId || '',
         senderKind,
+        isStoreAccount: isStoreAccount ? '1' : '0',
         senderName:
           senderKind === 'STORE'
             ? (selectedStore?.name || senderName).trim()
             : senderName.trim(),
-        senderNumber: senderNumber.trim(),
+        senderNumber: senderKind === 'STORE' ? '' : senderNumber.trim(),
         storeId: senderKind === 'STORE' ? selectedStore?.id || '' : '',
         storeOrderCode: senderKind === 'STORE' ? storeOrderCode.trim() : '',
         storeBranchLocation: senderKind === 'STORE' ? storeBranchLocation.trim() : '',
@@ -182,7 +197,8 @@ export default function DeliveryScreen() {
     });
   };
 
-  const numbersConflict = phonesAreSame(senderNumber, recipientNumber);
+  const numbersConflict =
+    senderKind === 'PERSONAL' && phonesAreSame(senderNumber, recipientNumber);
 
   const isFormValid = () => {
     const senderOk =
@@ -190,8 +206,7 @@ export default function DeliveryScreen() {
         ? Boolean(
             selectedStore?.id &&
               storeOrderCode.trim().length > 0 &&
-              storeBranchLocation.trim().length > 0 &&
-              senderNumber.trim().length > 0
+              storeBranchLocation.trim().length > 0
           )
         : senderName.trim().length > 0 && senderNumber.trim().length > 0;
 
@@ -287,102 +302,12 @@ export default function DeliveryScreen() {
         <View style={styles.sectionContainer}>
           <Text style={[styles.sectionTitle, { color: isDark ? '#FFFFFF' : '#000000' }]}>Sender</Text>
 
-          <View style={[styles.segmentRow, { backgroundColor: segmentBg }]}>
-            <TouchableOpacity
-              style={[
-                styles.segmentBtn,
-                senderKind === 'PERSONAL' && { backgroundColor: segmentActive },
-              ]}
-              onPress={() => setSenderKind('PERSONAL')}
-              activeOpacity={0.85}>
-              <Text
-                style={[
-                  styles.segmentText,
-                  { color: senderKind === 'PERSONAL' ? segmentActiveText : segmentIdleText },
-                ]}>
-                Personal
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.segmentBtn,
-                senderKind === 'STORE' && { backgroundColor: segmentActive },
-              ]}
-              onPress={() => setSenderKind('STORE')}
-              activeOpacity={0.85}>
-              <Text
-                style={[
-                  styles.segmentText,
-                  { color: senderKind === 'STORE' ? segmentActiveText : segmentIdleText },
-                ]}>
-                Store
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {senderKind === 'PERSONAL' ? (
+          {isStoreAccount ? (
             <>
               <Text style={[styles.helperText, { color: isDark ? '#999999' : '#666666' }]}>
-                Magaca iyo number-ka waa qasab
+                Store account · geli order ID iyo branch location
               </Text>
-
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
-                    color: isDark ? '#FFFFFF' : '#000000',
-                    borderColor: isDark ? '#333333' : '#E0E0E0',
-                    marginBottom: scaleHeight(12),
-                  },
-                ]}
-                placeholder="Enter sender name *"
-                placeholderTextColor={isDark ? '#666666' : '#999999'}
-                value={senderName}
-                onChangeText={setSenderName}
-                autoCapitalize="words"
-              />
-
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
-                    color: isDark ? '#FFFFFF' : '#000000',
-                    borderColor: isDark ? '#333333' : '#E0E0E0',
-                    marginBottom: scaleHeight(12),
-                  },
-                ]}
-                placeholder="Enter sender phone number *"
-                placeholderTextColor={isDark ? '#666666' : '#999999'}
-                value={senderNumber}
-                onChangeText={setSenderNumber}
-                keyboardType="phone-pad"
-              />
-
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
-                    color: isDark ? '#FFFFFF' : '#000000',
-                    borderColor: isDark ? '#333333' : '#E0E0E0',
-                  },
-                ]}
-                placeholder="Enter receipt info ID (optional)"
-                placeholderTextColor={isDark ? '#666666' : '#999999'}
-                value={receiptInfoId}
-                onChangeText={setReceiptInfoId}
-                keyboardType="default"
-              />
-            </>
-          ) : (
-            <>
-              <Text style={[styles.helperText, { color: isDark ? '#999999' : '#666666' }]}>
-                Dooro dukan, geli order ID iyo branch location — waa qasab
-              </Text>
-
-              <TouchableOpacity
+              <View
                 style={[
                   styles.input,
                   styles.pickerButton,
@@ -391,26 +316,12 @@ export default function DeliveryScreen() {
                     borderColor: isDark ? '#333333' : '#E0E0E0',
                     marginBottom: scaleHeight(12),
                   },
-                ]}
-                onPress={() => setShowStorePicker(true)}
-                activeOpacity={0.7}>
-                <Text
-                  style={[
-                    styles.pickerText,
-                    {
-                      color: selectedStore
-                        ? isDark
-                          ? '#FFFFFF'
-                          : '#000000'
-                        : isDark
-                          ? '#666666'
-                          : '#999999',
-                    },
-                  ]}>
-                  {selectedStore ? selectedStore.name : 'Select store *'}
+                ]}>
+                <Text style={[styles.pickerText, { color: isDark ? '#FFFFFF' : '#000000' }]}>
+                  {selectedStore?.name || user?.store?.name || 'Store'}
                 </Text>
-                <Ionicons name="chevron-down" size={scaleFont(20)} color={isDark ? '#666666' : '#999999'} />
-              </TouchableOpacity>
+                <Ionicons name="lock-closed" size={scaleFont(16)} color={isDark ? '#666666' : '#999999'} />
+              </View>
 
               <TextInput
                 style={[
@@ -422,7 +333,7 @@ export default function DeliveryScreen() {
                     marginBottom: scaleHeight(12),
                   },
                 ]}
-                placeholder="Store order ID *"
+                placeholder="Store order ID / BIS *"
                 placeholderTextColor={isDark ? '#666666' : '#999999'}
                 value={storeOrderCode}
                 onChangeText={setStoreOrderCode}
@@ -435,7 +346,6 @@ export default function DeliveryScreen() {
                     backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
                     color: isDark ? '#FFFFFF' : '#000000',
                     borderColor: isDark ? '#333333' : '#E0E0E0',
-                    marginBottom: scaleHeight(12),
                   },
                 ]}
                 placeholder="Branch location *"
@@ -443,22 +353,166 @@ export default function DeliveryScreen() {
                 value={storeBranchLocation}
                 onChangeText={setStoreBranchLocation}
               />
+            </>
+          ) : (
+            <>
+              <View style={[styles.segmentRow, { backgroundColor: segmentBg }]}>
+                <TouchableOpacity
+                  style={[
+                    styles.segmentBtn,
+                    senderKind === 'PERSONAL' && { backgroundColor: segmentActive },
+                  ]}
+                  onPress={() => setSenderKind('PERSONAL')}
+                  activeOpacity={0.85}>
+                  <Text
+                    style={[
+                      styles.segmentText,
+                      { color: senderKind === 'PERSONAL' ? segmentActiveText : segmentIdleText },
+                    ]}>
+                    Personal
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.segmentBtn,
+                    senderKind === 'STORE' && { backgroundColor: segmentActive },
+                  ]}
+                  onPress={() => setSenderKind('STORE')}
+                  activeOpacity={0.85}>
+                  <Text
+                    style={[
+                      styles.segmentText,
+                      { color: senderKind === 'STORE' ? segmentActiveText : segmentIdleText },
+                    ]}>
+                    Store
+                  </Text>
+                </TouchableOpacity>
+              </View>
 
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
-                    color: isDark ? '#FFFFFF' : '#000000',
-                    borderColor: isDark ? '#333333' : '#E0E0E0',
-                  },
-                ]}
-                placeholder="Store phone number *"
-                placeholderTextColor={isDark ? '#666666' : '#999999'}
-                value={senderNumber}
-                onChangeText={setSenderNumber}
-                keyboardType="phone-pad"
-              />
+              {senderKind === 'PERSONAL' ? (
+                <>
+                  <Text style={[styles.helperText, { color: isDark ? '#999999' : '#666666' }]}>
+                    Magaca iyo number-ka waa qasab
+                  </Text>
+
+                  <TextInput
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
+                        color: isDark ? '#FFFFFF' : '#000000',
+                        borderColor: isDark ? '#333333' : '#E0E0E0',
+                        marginBottom: scaleHeight(12),
+                      },
+                    ]}
+                    placeholder="Enter sender name *"
+                    placeholderTextColor={isDark ? '#666666' : '#999999'}
+                    value={senderName}
+                    onChangeText={setSenderName}
+                    autoCapitalize="words"
+                  />
+
+                  <TextInput
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
+                        color: isDark ? '#FFFFFF' : '#000000',
+                        borderColor: isDark ? '#333333' : '#E0E0E0',
+                        marginBottom: scaleHeight(12),
+                      },
+                    ]}
+                    placeholder="Enter sender phone number *"
+                    placeholderTextColor={isDark ? '#666666' : '#999999'}
+                    value={senderNumber}
+                    onChangeText={setSenderNumber}
+                    keyboardType="phone-pad"
+                  />
+
+                  <TextInput
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
+                        color: isDark ? '#FFFFFF' : '#000000',
+                        borderColor: isDark ? '#333333' : '#E0E0E0',
+                      },
+                    ]}
+                    placeholder="Enter receipt info ID (optional)"
+                    placeholderTextColor={isDark ? '#666666' : '#999999'}
+                    value={receiptInfoId}
+                    onChangeText={setReceiptInfoId}
+                    keyboardType="default"
+                  />
+                </>
+              ) : (
+                <>
+                  <Text style={[styles.helperText, { color: isDark ? '#999999' : '#666666' }]}>
+                    Dooro dukan, geli order ID iyo branch — lacagta recipient ayaa bixinaya
+                  </Text>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.input,
+                      styles.pickerButton,
+                      {
+                        backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
+                        borderColor: isDark ? '#333333' : '#E0E0E0',
+                        marginBottom: scaleHeight(12),
+                      },
+                    ]}
+                    onPress={() => setShowStorePicker(true)}
+                    activeOpacity={0.7}>
+                    <Text
+                      style={[
+                        styles.pickerText,
+                        {
+                          color: selectedStore
+                            ? isDark
+                              ? '#FFFFFF'
+                              : '#000000'
+                            : isDark
+                              ? '#666666'
+                              : '#999999',
+                        },
+                      ]}>
+                      {selectedStore ? selectedStore.name : 'Select store *'}
+                    </Text>
+                    <Ionicons name="chevron-down" size={scaleFont(20)} color={isDark ? '#666666' : '#999999'} />
+                  </TouchableOpacity>
+
+                  <TextInput
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
+                        color: isDark ? '#FFFFFF' : '#000000',
+                        borderColor: isDark ? '#333333' : '#E0E0E0',
+                        marginBottom: scaleHeight(12),
+                      },
+                    ]}
+                    placeholder="Store order ID / BIS *"
+                    placeholderTextColor={isDark ? '#666666' : '#999999'}
+                    value={storeOrderCode}
+                    onChangeText={setStoreOrderCode}
+                  />
+
+                  <TextInput
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
+                        color: isDark ? '#FFFFFF' : '#000000',
+                        borderColor: isDark ? '#333333' : '#E0E0E0',
+                      },
+                    ]}
+                    placeholder="Branch location *"
+                    placeholderTextColor={isDark ? '#666666' : '#999999'}
+                    value={storeBranchLocation}
+                    onChangeText={setStoreBranchLocation}
+                  />
+                </>
+              )}
             </>
           )}
         </View>

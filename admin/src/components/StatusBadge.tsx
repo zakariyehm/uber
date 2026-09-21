@@ -17,6 +17,9 @@ const TONES: Record<string, string> = {
   offline: "bg-zinc-100 text-zinc-600 ring-zinc-200",
   active: "bg-emerald-50 text-emerald-800 ring-emerald-200",
   disabled: "bg-rose-50 text-rose-800 ring-rose-200",
+  PENDING: "bg-amber-50 text-amber-800 ring-amber-200",
+  COMPLETED: "bg-emerald-50 text-emerald-800 ring-emerald-200",
+  CANCELLED: "bg-rose-50 text-rose-800 ring-rose-200",
 };
 
 export function StatusBadge({ value }: { value: string }) {

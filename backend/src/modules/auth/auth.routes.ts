@@ -149,7 +149,10 @@ export async function authRoutes(app: FastifyInstance) {
   app.get('/me', { preHandler: authenticate }, async (request, reply) => {
     const user = await prisma.user.findUnique({
       where: { id: request.user.sub },
-      include: { driverProfile: true, riderProfile: true },
+      include: {
+        driverProfile: true,
+        riderProfile: { include: { store: true } },
+      },
     });
     if (!user) {
       return reply.code(401).send({

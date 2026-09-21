@@ -55,18 +55,29 @@ export async function registerUser(input: {
 }
 
 export async function loginUser(input: { phone?: string; email?: string; password: string }) {
-  const phone = input.phone ? normalizePhone(input.phone) : null;
+  const rawPhone = input.phone ? normalizePhone(input.phone) : null;
   const email = input.email?.trim().toLowerCase() || null;
 
-  const user = phone
-    ? await prisma.user.findUnique({
-        where: { phone },
-        include: { driverProfile: true, riderProfile: true },
-      })
+  const somaliaForm = (phone: string) => {
+    let digits = phone.replace(/\D/g, '');
+    if (digits.startsWith('252')) digits = digits.slice(3);
+    if (digits.startsWith('0')) digits = digits.slice(1);
+    return digits ? `+252${digits}` : phone;
+  };
+
+  const user = rawPhone
+    ? (await prisma.user.findUnique({
+        where: { phone: rawPhone },
+        include: { driverProfile: true, riderProfile: { include: { store: true } } },
+      })) ||
+      (await prisma.user.findUnique({
+        where: { phone: somaliaForm(rawPhone) },
+        include: { driverProfile: true, riderProfile: { include: { store: true } } },
+      }))
     : email
       ? await prisma.user.findUnique({
           where: { email },
-          include: { driverProfile: true, riderProfile: true },
+          include: { driverProfile: true, riderProfile: { include: { store: true } } },
         })
       : null;
 
@@ -113,7 +124,13 @@ export function toPublicUser(user: {
   gender?: string | null;
   state?: string | null;
   driverProfile?: { vehicleType?: VehicleType | string | null } | null;
+  riderProfile?: {
+    riderKind?: string | null;
+    storeId?: string | null;
+    store?: { id: string; name: string; category: string; phone?: string | null } | null;
+  } | null;
 }) {
+  const store = user.riderProfile?.store;
   return {
     id: user.id,
     role: user.role,
@@ -127,5 +144,21 @@ export function toPublicUser(user: {
       user.role === UserRole.DRIVER
         ? parseVehicleType(user.driverProfile?.vehicleType)
         : undefined,
+    riderKind:
+      user.role === UserRole.RIDER
+        ? user.riderProfile?.riderKind === 'STORE'
+          ? 'STORE'
+          : 'PERSONAL'
+        : undefined,
+    storeId: user.role === UserRole.RIDER ? user.riderProfile?.storeId ?? null : undefined,
+    store:
+      user.role === UserRole.RIDER && store
+        ? {
+            id: store.id,
+            name: store.name,
+            category: store.category,
+            phone: store.phone ?? null,
+          }
+        : null,
   };
 }

@@ -5,10 +5,13 @@ import {
   cancelTrip,
   createDriver,
   createStore,
+  createStoreRider,
+  creditStoreBalance,
   deleteDriver,
   deleteStore,
   getLiveOps,
   getOverview,
+  getStore,
   getTrip,
   listPayments,
   listStores,
@@ -54,6 +57,14 @@ const createDriverSchema = z.object({
   firstName: z.string().min(1).max(40).optional(),
   lastName: z.string().min(1).max(40).optional(),
   vehicleType: z.enum(['MOTORCYCLE', 'BICYCLE']),
+});
+
+const createStoreRiderSchema = z.object({
+  phone: z.string().min(7),
+  password: z.string().min(6).max(64),
+  firstName: z.string().min(1).max(40).optional(),
+  lastName: z.string().min(1).max(40).optional(),
+  storeId: z.string().uuid(),
 });
 
 const resetPasswordSchema = z.object({
@@ -110,6 +121,11 @@ const patchStoreSchema = z.object({
   district: z.string().max(60).nullable().optional(),
   description: z.string().max(300).nullable().optional(),
   isActive: z.boolean().optional(),
+});
+
+const creditStoreSchema = z.object({
+  amount: z.coerce.number().positive(),
+  note: z.string().max(160).optional(),
 });
 
 const methodQuery = z.object({
@@ -202,6 +218,24 @@ export async function adminRoutes(app: FastifyInstance) {
       return reply
         .code(error.statusCode || 400)
         .send({ error: error.message || 'Could not create driver', code: error.code });
+    }
+  });
+
+  app.post('/riders', async (request, reply) => {
+    try {
+      const body = createStoreRiderSchema.parse(request.body ?? {});
+      const rider = await createStoreRider(body);
+      return reply.code(201).send(rider);
+    } catch (error: any) {
+      if (error?.name === 'ZodError') {
+        return reply.code(400).send({
+          error: error.issues?.[0]?.message || 'Select a store and enter phone + password',
+          details: error.issues,
+        });
+      }
+      return reply
+        .code(error.statusCode || 400)
+        .send({ error: error.message || 'Could not create store rider', code: error.code });
     }
   });
 
@@ -334,6 +368,35 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get('/stores', async (request) => {
     const query = storeListQuery.parse(request.query);
     return listStores(query);
+  });
+
+  app.get('/stores/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    try {
+      return await getStore(id);
+    } catch (error: any) {
+      return reply
+        .code(error.statusCode || 404)
+        .send({ error: error.message || 'Store not found', code: error.code });
+    }
+  });
+
+  app.post('/stores/:id/credit', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    try {
+      const body = creditStoreSchema.parse(request.body ?? {});
+      return await creditStoreBalance(id, body);
+    } catch (error: any) {
+      if (error?.name === 'ZodError') {
+        return reply.code(400).send({
+          error: error.issues?.[0]?.message || 'Enter a positive amount',
+          details: error.issues,
+        });
+      }
+      return reply
+        .code(error.statusCode || 400)
+        .send({ error: error.message || 'Could not credit store', code: error.code });
+    }
   });
 
   app.post('/stores', async (request, reply) => {

@@ -33,7 +33,44 @@ export type StoreRow = {
   address?: string | null;
   district?: string | null;
   description?: string | null;
+  balance?: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+};
+
+export type StoreProfile = {
+  store: StoreRow;
+  stats: {
+    ordersTotal: number;
+    pending: number;
+    active: number;
+    completed: number;
+    cancelled: number;
+  };
+  orders: {
+    id: string;
+    orderId: string;
+    status: string;
+    deliveryPrice: string;
+    storeOrderCode?: string;
+    storeBranchLocation?: string;
+    destinationLocation: string;
+    recipientName: string;
+    payerType?: string;
+    createdAt: string;
+    completedAt?: string;
+  }[];
+  transactions: {
+    id: string;
+    type: string;
+    status?: string;
+    amount: string;
+    balanceAfter: string;
+    note?: string | null;
+    orderId?: string | null;
+    deliveryRequestId?: string | null;
+    createdAt: string;
+    settledAt?: string | null;
+  }[];
 };

@@ -11,6 +11,10 @@ export interface DeliveryRequest {
   recipientNumber: string;
   senderName?: string;
   senderPhone?: string;
+  senderKind?: 'PERSONAL' | 'STORE' | string;
+  storeId?: string;
+  storeOrderCode?: string;
+  storeBranchLocation?: string;
   itemType: string;
   deliveryMethod: string;
   vehicleType?: string;

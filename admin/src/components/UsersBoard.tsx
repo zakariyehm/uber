@@ -1,6 +1,7 @@
 "use client";
 
 import { CreateDriverModal } from "@/components/CreateDriverModal";
+import { CreateStoreRiderModal } from "@/components/CreateStoreRiderModal";
 import { ResetPasswordModal } from "@/components/ResetPasswordModal";
 import { Shell } from "@/components/Shell";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -20,6 +21,7 @@ import {
 import { api, errorMessage } from "@/lib/api";
 import { money, VEHICLE_TYPES } from "@/lib/format";
 import type { AdminUserRow } from "@/lib/types";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 export function UsersBoard({ role }: { role: "DRIVER" | "RIDER" }) {
@@ -62,7 +64,7 @@ export function UsersBoard({ role }: { role: "DRIVER" | "RIDER" }) {
   };
 
   const title = role === "DRIVER" ? "Drivers" : "Riders";
-  const colSpan = role === "DRIVER" ? 7 : 6;
+  const colSpan = 7;
 
   const removeDriver = async () => {
     if (!confirmDelete) return;
@@ -84,7 +86,9 @@ export function UsersBoard({ role }: { role: "DRIVER" | "RIDER" }) {
       <PageHeader
         title={title}
         subtitle={`${data?.total ?? 0} accounts · ${
-          role === "DRIVER" ? "Fleet logins and vehicle types" : "Rider profiles and pending credits"
+          role === "DRIVER"
+            ? "Fleet logins and vehicle types"
+            : "Personal app signups and admin-issued store riders"
         }`}
         actions={
           <>
@@ -100,7 +104,11 @@ export function UsersBoard({ role }: { role: "DRIVER" | "RIDER" }) {
               <Button variant="primary" onClick={() => setCreateOpen(true)}>
                 Create driver
               </Button>
-            ) : null}
+            ) : (
+              <Button variant="primary" onClick={() => setCreateOpen(true)}>
+                Create store rider
+              </Button>
+            )}
           </>
         }
       />
@@ -112,7 +120,7 @@ export function UsersBoard({ role }: { role: "DRIVER" | "RIDER" }) {
           <THead>
             <tr>
               <Th>Person</Th>
-              {role === "DRIVER" ? <Th>Type</Th> : null}
+              {role === "DRIVER" ? <Th>Type</Th> : <Th>Kind</Th>}
               <Th>Rating</Th>
               <Th>Trips</Th>
               <Th>{role === "DRIVER" ? "Today" : "Pending"}</Th>
@@ -145,7 +153,27 @@ export function UsersBoard({ role }: { role: "DRIVER" | "RIDER" }) {
                       ))}
                     </select>
                   </Td>
-                ) : null}
+                ) : (
+                  <Td>
+                    {user.riderKind === "STORE" ? (
+                      <div>
+                        <p className="text-sm font-medium">Store</p>
+                        {user.storeId ? (
+                          <Link
+                            href={`/stores/${user.storeId}`}
+                            className="text-xs text-raac hover:text-raac-strong"
+                          >
+                            {user.storeName || "Open store"}
+                          </Link>
+                        ) : (
+                          <p className="text-xs text-muted">—</p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-sm">Personal</p>
+                    )}
+                  </Td>
+                )}
                 <Td>{user.rating}</Td>
                 <Td>{user.tripCount}</Td>
                 <Td className="font-medium tabular-nums">
@@ -170,12 +198,8 @@ export function UsersBoard({ role }: { role: "DRIVER" | "RIDER" }) {
                         Force offline
                       </Button>
                     ) : null}
-                    {role === "DRIVER" ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setResetUser(user)}
-                      >
+                    {role === "DRIVER" || user.riderKind === "STORE" ? (
+                      <Button variant="ghost" size="sm" onClick={() => setResetUser(user)}>
                         Reset password
                       </Button>
                     ) : null}
@@ -201,7 +225,9 @@ export function UsersBoard({ role }: { role: "DRIVER" | "RIDER" }) {
                 </Td>
               </tr>
             ))}
-            {!data?.users.length ? <EmptyRow colSpan={colSpan} message={`No ${title.toLowerCase()} found.`} /> : null}
+            {!data?.users.length ? (
+              <EmptyRow colSpan={colSpan} message={`No ${title.toLowerCase()} yet.`} />
+            ) : null}
           </tbody>
         </Table>
       </Panel>
@@ -223,7 +249,16 @@ export function UsersBoard({ role }: { role: "DRIVER" | "RIDER" }) {
             void load();
           }}
         />
-      ) : null}
+      ) : (
+        <CreateStoreRiderModal
+          open={createOpen}
+          onClose={() => setCreateOpen(false)}
+          onCreated={() => {
+            setPage(1);
+            void load();
+          }}
+        />
+      )}
 
       <ResetPasswordModal
         open={Boolean(resetUser)}
@@ -235,28 +270,25 @@ export function UsersBoard({ role }: { role: "DRIVER" | "RIDER" }) {
         open={Boolean(confirmDelete)}
         onClose={() => setConfirmDelete(null)}
         title="Delete driver?"
-        description="Any live trip will be cancelled and they will lose login access. This cannot be undone."
+        description="Removes this fleet login. This cannot be undone."
         footer={
           <>
-            <Button variant="ghost" onClick={() => setConfirmDelete(null)} disabled={Boolean(deleting)}>
+            <Button
+              variant="ghost"
+              onClick={() => setConfirmDelete(null)}
+              disabled={Boolean(deleting)}
+            >
               Cancel
             </Button>
-            <Button
-              variant="danger"
-              disabled={Boolean(deleting)}
-              onClick={() => void removeDriver()}
-            >
-              {deleting ? "Deleting…" : "Delete driver"}
+            <Button variant="danger" disabled={Boolean(deleting)} onClick={() => void removeDriver()}>
+              {deleting ? "Deleting…" : "Delete"}
             </Button>
           </>
         }
       >
         {confirmDelete ? (
           <p className="text-sm text-ink">
-            <span className="font-semibold">
-              {confirmDelete.name === "—" ? "This driver" : confirmDelete.name}
-            </span>{" "}
-            · {confirmDelete.phone}
+            <span className="font-semibold">{confirmDelete.name}</span> · {confirmDelete.phone}
           </p>
         ) : null}
       </Modal>

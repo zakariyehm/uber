@@ -312,7 +312,19 @@ export default function DeliveryDetailsScreen() {
 
   const copy = sheetCopy(request);
   const step = currentStep();
-  const senderLine = [request.senderName, request.senderPhone].filter(Boolean).join(' · ');
+  const isStoreSender = request.senderKind === 'STORE';
+  const senderLine = isStoreSender
+    ? [
+        request.senderName,
+        request.storeOrderCode ? `BIS ${request.storeOrderCode}` : null,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : [request.senderName, request.senderPhone].filter(Boolean).join(' · ');
+  const pickupTitle =
+    isStoreSender && request.storeBranchLocation
+      ? request.storeBranchLocation
+      : request.pickupLocation;
   const recipientLine = [request.recipientName, request.recipientNumber].filter(Boolean).join(' · ');
   const priceLabel = driverPayoutLabel(request);
   const isWaitingOnRider = step?.kind === 'wait';
@@ -396,10 +408,10 @@ export default function DeliveryDetailsScreen() {
           <View style={styles.routeCopy}>
             <Text style={styles.routeLabel}>Pickup</Text>
             <Text style={styles.routeTitle} numberOfLines={2}>
-              {request.pickupLocation}
+              {pickupTitle}
             </Text>
             {senderLine ? (
-              <Text style={styles.routeMeta} numberOfLines={1}>
+              <Text style={styles.routeMeta} numberOfLines={2}>
                 {senderLine}
               </Text>
             ) : null}
