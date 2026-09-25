@@ -155,11 +155,11 @@ export default function CheckoutScreen() {
     }
     if (senderKind === 'STORE' && storeAvailable != null && storeAvailable < fareAmount) {
       Alert.alert(
-        'Ma haysatid haraaga',
-        `Haraaga waa $${storeAvailable.toFixed(2)}. Trip-kan waa $${fareAmount.toFixed(2)}. Lacag ku shub.`,
+        'Kuguma filna',
+        `Haraaga waa $${storeAvailable.toFixed(2)}. Trip-kan waa $${fareAmount.toFixed(2)}. Samee top up.`,
         [
           { text: 'Ka noqo', style: 'cancel' },
-          { text: 'Lacag ku shub', onPress: () => router.push('/wallet') },
+          { text: 'Samee top up', onPress: () => router.push('/wallet') },
         ]
       );
       return;
@@ -226,7 +226,7 @@ export default function CheckoutScreen() {
           /insufficient/i.test(message));
       Alert.alert(
         insufficient
-          ? 'Ma haysatid haraaga'
+          ? 'Kuguma filna'
           : payerType === 'SENDER' && senderKind === 'STORE'
             ? 'Order-ka lama sameyn karin'
             : payerType === 'SENDER'
@@ -236,7 +236,7 @@ export default function CheckoutScreen() {
         insufficient
           ? [
               { text: 'Ka noqo', style: 'cancel' },
-              { text: 'Lacag ku shub', onPress: () => router.push('/wallet') },
+              { text: 'Samee top up', onPress: () => router.push('/wallet') },
             ]
           : undefined
       );
@@ -432,8 +432,8 @@ export default function CheckoutScreen() {
         <Text style={[styles.holdHint, { color: storeShort ? '#C0392B' : colors.icon }]}>
           {senderKind === 'STORE'
             ? storeShort
-              ? `Ma haysatid haraaga. Haraaga waa $${storeAvailable?.toFixed(2)}. Lacag ku shub.`
-              : `Confirm Order waxay $${estimatedPrice} ka jari doontaa top-up balance-kaaga. Ma aha deen.`
+              ? `Kuguma filna. Haraaga waa $${storeAvailable?.toFixed(2)}. Samee top up.`
+              : `Confirm Order waxay $${estimatedPrice} ka jari doontaa wallet-kaaga (lacagtii Waafi aad ku shubatay).`
             : `When you confirm, Waafi sends a prompt to ${senderNumber || 'the sender number'}. Approve it and enter your PIN to hold $${estimatedPrice}. Funds are captured only after the trip is completed.`}
         </Text>
 
@@ -461,9 +461,9 @@ export default function CheckoutScreen() {
           ) : (
             <Text style={styles.confirmButtonText}>
               {storeShort
-                ? 'Lacag ku shub'
+                ? 'Samee top up'
                 : senderKind === 'STORE'
-                  ? 'Confirm Order · Balance'
+                  ? 'Confirm Order'
                   : 'Confirm Order · Hold payment'}
             </Text>
           )}

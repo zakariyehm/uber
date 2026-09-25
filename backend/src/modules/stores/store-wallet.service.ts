@@ -43,7 +43,7 @@ export async function assertStoreCanCover(storeId: string, amount: number) {
   }
   if (wallet.available < need) {
     const error = new Error(
-      `Ma haysatid haraaga. Haraaga waa $${wallet.available.toFixed(2)}, trip-kan waa $${need.toFixed(2)}. Lacag ku shub.`
+      `Kuguma filna. Haraaga waa $${wallet.available.toFixed(2)}, trip-kan waa $${need.toFixed(2)}. Samee top up.`
     ) as Error & { statusCode?: number; code?: string };
     error.statusCode = 402;
     error.code = 'wallet/insufficient';
@@ -161,12 +161,23 @@ export async function cancelPendingStoreDebit(deliveryRequestId: string) {
       where: { id: debit.storeId },
       data: { balance: { increment: amount } },
     });
-    return tx.storeWalletTransaction.update({
+    await tx.storeWalletTransaction.update({
       where: { id: debit.id },
       data: {
         status: StoreWalletTxnStatus.CANCELLED,
+        note: `Order cancelled · $${amount.toFixed(2)} returned to wallet`,
+        settledAt: new Date(),
+      },
+    });
+    return tx.storeWalletTransaction.create({
+      data: {
+        storeId: debit.storeId,
+        type: StoreWalletTxnType.CREDIT,
+        status: StoreWalletTxnStatus.COMPLETED,
+        amount,
         balanceAfter: store.balance,
-        note: `Order cancelled · $${amount.toFixed(2)} returned to top-up balance`,
+        note: `Cancel refund · $${amount.toFixed(2)} returned to wallet`,
+        deliveryRequestId,
         settledAt: new Date(),
       },
     });

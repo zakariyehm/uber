@@ -60,7 +60,7 @@ export default function ProfileScreen() {
       icon: 'wallet-outline',
       description:
         user?.riderKind === 'STORE'
-          ? 'Top up balance for trips'
+          ? 'Ku shub lacag Waafi, kadibna trips ka bixi'
           : 'Pending credits from no-show refunds',
       onPress: () => router.push('/wallet'),
     },

@@ -47,34 +47,68 @@ export async function getRiderWalletView(riderUserId: string) {
       riderRefundPending: { gt: 0 },
     },
   });
-  const recent = isStore
-    ? await prisma.walletTopUp.findMany({
-        where: { userId: riderUserId },
-        orderBy: { createdAt: 'desc' },
-        take: 8,
-      })
-    : [];
+  if (!isStore) {
+    return {
+      role: 'RIDER' as const,
+      kind: 'PERSONAL' as const,
+      canTopUp: false,
+      balance: '0.00',
+      pendingBalance: moneyStr(wallet.pendingBalance),
+      creditEvents,
+      updatedAt: wallet.updatedAt.toISOString(),
+    };
+  }
+
+  const [recent, refunds] = await Promise.all([
+    prisma.walletTopUp.findMany({
+      where: { userId: riderUserId },
+      orderBy: { createdAt: 'desc' },
+      take: 8,
+    }),
+    store
+      ? prisma.storeWalletTransaction.findMany({
+          where: {
+            storeId: store.id,
+            type: StoreWalletTxnType.CREDIT,
+            note: { contains: 'Cancel refund' },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 8,
+        })
+      : Promise.resolve([]),
+  ]);
 
   return {
     role: 'RIDER' as const,
-    kind: isStore ? 'STORE' : 'PERSONAL',
-    canTopUp: isStore,
+    kind: 'STORE' as const,
+    canTopUp: true,
     storeId: store?.id || null,
     storeName: store?.name || null,
     phone: user.phone,
-    balance: isStore ? moneyStr(storeAvail?.balance ?? store?.balance) : '0.00',
-    available: isStore ? moneyStr(storeAvail?.available ?? store?.balance) : '0.00',
+    balance: moneyStr(storeAvail?.balance ?? store?.balance),
+    available: moneyStr(storeAvail?.available ?? store?.balance),
     pendingDebits: moneyStr(storeAvail?.pendingDebits ?? 0),
     pendingBalance: moneyStr(wallet.pendingBalance),
     creditEvents,
     updatedAt: wallet.updatedAt.toISOString(),
-    topUps: recent.map((row) => ({
-      id: row.id,
-      amount: moneyStr(row.amount),
-      status: row.status,
-      target: row.target,
-      createdAt: row.createdAt.toISOString(),
-    })),
+    topUps: [
+      ...recent.map((row) => ({
+        id: row.id,
+        amount: moneyStr(row.amount),
+        status: row.status,
+        target: row.target,
+        createdAt: row.createdAt.toISOString(),
+      })),
+      ...refunds.map((row) => ({
+        id: row.id,
+        amount: moneyStr(row.amount),
+        status: 'REFUNDED',
+        target: 'STORE',
+        createdAt: row.createdAt.toISOString(),
+      })),
+    ]
+      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+      .slice(0, 8),
   };
 }
 

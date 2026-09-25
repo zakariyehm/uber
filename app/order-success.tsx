@@ -40,20 +40,28 @@ const scaleFont = (size: number) => {
   return Platform.OS === 'ios' ? Math.round(newSize) : Math.round(newSize);
 };
 
-function cancelReasonCopy(reason?: string, cancelledBy?: string) {
+function cancelReasonCopy(reason?: string, cancelledBy?: string, senderKind?: string) {
+  const store = senderKind === 'STORE';
   if (reason === 'no_driver') {
     return {
       title: 'No driver available',
-      message:
-        'We could not find an available driver for your delivery right now. Your order has been cancelled and the payment hold on your Waafi account has been released — you were not charged.',
-      short: 'No driver was available. Your payment hold was released; you were not charged.',
+      message: store
+        ? 'Darawal lama helin. Lacagtii order-ka ayaa wallet-kaaga ku soo noqotay.'
+        : 'We could not find an available driver for your delivery right now. Your order has been cancelled and the payment hold on your Waafi account has been released — you were not charged.',
+      short: store
+        ? 'Darawal lama helin. Lacagta ayaa wallet-ka ku soo noqotay.'
+        : 'No driver was available. Your payment hold was released; you were not charged.',
     };
   }
   if (reason === 'rider_not_responding') {
     return {
       title: 'Order cancelled',
-      message: 'Your driver cancelled because confirmation was not received in time.',
-      short: 'Your driver cancelled because confirmation was not received in time.',
+      message: store
+        ? 'Darawalku wuu cancel gareeyay. Lacagtii laga jaray ayaa wallet-kaaga ku soo noqotay.'
+        : 'Your driver cancelled because confirmation was not received in time.',
+      short: store
+        ? 'Darawal cancel · lacagta ayaa wallet-ka ku soo noqotay.'
+        : 'Your driver cancelled because confirmation was not received in time.',
     };
   }
   if (reason === 'return_to_store') {
@@ -67,21 +75,33 @@ function cancelReasonCopy(reason?: string, cancelledBy?: string) {
   if (reason === 'no_show') {
     return {
       title: 'Order cancelled',
-      message: 'The driver waited at pickup and cancelled after no confirmation.',
-      short: 'Cancelled after no-show at pickup.',
+      message: store
+        ? 'Darawalku wuu cancel gareeyay. Lacagtii laga jaray ayaa wallet-kaaga ku soo noqotay.'
+        : 'The driver waited at pickup and cancelled after no confirmation.',
+      short: store
+        ? 'Darawal cancel · lacagta ayaa wallet-ka ku soo noqotay.'
+        : 'Cancelled after no-show at pickup.',
     };
   }
   if (cancelledBy === 'driver') {
     return {
       title: 'Order cancelled',
-      message: 'Your driver cancelled this delivery. If a payment hold was placed, it has been released.',
-      short: 'Your driver cancelled this delivery.',
+      message: store
+        ? 'Darawalku wuu cancel gareeyay. Lacagtii laga jaray ayaa wallet-kaaga ku soo noqotay.'
+        : 'Your driver cancelled this delivery. If a payment hold was placed, it has been released.',
+      short: store
+        ? 'Darawal cancel · lacagta ayaa wallet-ka ku soo noqotay.'
+        : 'Your driver cancelled this delivery.',
     };
   }
   return {
     title: 'Order cancelled',
-    message: 'This delivery was cancelled. If a payment hold was placed, it has been released.',
-    short: 'This delivery was cancelled.',
+    message: store
+      ? 'Order-ka waa la cancel gareeyay. Lacagtii laga jaray ayaa wallet-kaaga ku soo noqotay.'
+      : 'This delivery was cancelled. If a payment hold was placed, it has been released.',
+    short: store
+      ? 'Lacagta ayaa wallet-ka ku soo noqotay.'
+      : 'This delivery was cancelled.',
   };
 }
 
@@ -111,7 +131,7 @@ export default function OrderSuccessScreen() {
     if (cancelAlertShown.current) return;
     if (request.status !== 'cancelled') return;
     cancelAlertShown.current = true;
-    const copy = cancelReasonCopy(request.cancelReason, request.cancelledBy);
+    const copy = cancelReasonCopy(request.cancelReason, request.cancelledBy, request.senderKind);
     Alert.alert(copy.title, copy.message, [{ text: 'OK', style: 'default' }]);
   };
 
@@ -190,7 +210,11 @@ export default function OrderSuccessScreen() {
 
   const cancelCopy =
     deliveryStatus === 'cancelled'
-      ? cancelReasonCopy(deliveryRequest?.cancelReason, deliveryRequest?.cancelledBy)
+      ? cancelReasonCopy(
+          deliveryRequest?.cancelReason,
+          deliveryRequest?.cancelledBy,
+          deliveryRequest?.senderKind
+        )
       : null;
 
   const statusMessage = (() => {
@@ -341,8 +365,13 @@ export default function OrderSuccessScreen() {
                 Reason: No driver available
               </Text>
             ) : null}
-            {deliveryRequest?.paymentHoldStatus === 'RELEASED' ||
-            deliveryRequest?.cancelReason === 'no_driver' ? (
+            {deliveryRequest?.senderKind === 'STORE' &&
+            deliveryRequest?.cancelReason !== 'return_to_store' ? (
+              <Text style={[styles.cancelReasonDetail, { color: isDark ? '#A5D6A7' : '#2E7D32' }]}>
+                Lacagta ayaa wallet-ka ku soo noqotay
+              </Text>
+            ) : deliveryRequest?.paymentHoldStatus === 'RELEASED' ||
+              deliveryRequest?.cancelReason === 'no_driver' ? (
               <Text style={[styles.cancelReasonDetail, { color: isDark ? '#A5D6A7' : '#2E7D32' }]}>
                 Payment hold released · you were not charged
               </Text>
