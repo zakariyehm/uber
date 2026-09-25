@@ -29,6 +29,8 @@ type DriverMapProps = {
   longitude?: number | null;
   /** Puck pulses while the driver is online and receiving offers. */
   online?: boolean;
+  /** Compass heading in degrees; rotates the map so the driver faces up. */
+  heading?: number | null;
   /** Fresh GPS fix from the locate button, so callers can keep their own state. */
   onLocate?: (coords: { latitude: number; longitude: number }) => void;
   style?: StyleProp<ViewStyle>;
@@ -45,12 +47,25 @@ function buildHtml(token: string, center: { latitude: number; longitude: number 
 <style>
   html, body, #map { margin: 0; padding: 0; height: 100%; width: 100%; background: #E8ECE8; }
   .mapboxgl-ctrl-bottom-left, .mapboxgl-ctrl-bottom-right { margin-bottom: 84px; }
-  .puck {
+  /* Screen-aligned puck: the map rotates under it, so the cone always points
+     at the direction of travel. */
+  .puck { position: relative; width: 26px; height: 26px; }
+  .puck .cone {
+    position: absolute; left: 50%; top: -9px; margin-left: -7px;
+    width: 0; height: 0;
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-bottom: 12px solid ${AppColors.primary};
+    filter: drop-shadow(0 -1px 1px rgba(0,0,0,0.3));
+  }
+  .puck .dot {
+    position: absolute; left: 3px; top: 3px;
     width: 20px; height: 20px; border-radius: 50%;
     background: ${AppColors.primary}; border: 3px solid #FFFFFF;
+    box-sizing: border-box;
     box-shadow: 0 1px 4px rgba(0,0,0,0.35);
   }
-  .puck.online { animation: raac-pulse 2s infinite; }
+  .puck.online .dot { animation: raac-pulse 2s infinite; }
   @keyframes raac-pulse {
     0%   { box-shadow: 0 0 0 0 rgba(2,166,228,0.45); }
     70%  { box-shadow: 0 0 0 18px rgba(2,166,228,0); }
@@ -75,7 +90,7 @@ function buildHtml(token: string, center: { latitude: number; longitude: number 
     container: 'map',
     style: ${JSON.stringify(styleUrl)},
     center: [${center.longitude}, ${center.latitude}],
-    zoom: 15,
+    zoom: 16,
     attributionControl: true,
   });
   map.on('load', function () { post({ type: 'ready' }); });
@@ -84,6 +99,7 @@ function buildHtml(token: string, center: { latitude: number; longitude: number 
   });
   var puck = document.createElement('div');
   puck.className = 'puck';
+  puck.innerHTML = '<div class="cone"></div><div class="dot"></div>';
   var marker = new mapboxgl.Marker({ element: puck })
     .setLngLat([${center.longitude}, ${center.latitude}])
     .addTo(map);
@@ -94,9 +110,15 @@ function buildHtml(token: string, center: { latitude: number; longitude: number 
     if (follow) map.easeTo({ center: [lng, lat], duration: 700 });
   };
 
+  // Turn the whole map so the driver's heading is always screen-up.
+  window.raacSetHeading = function (degrees) {
+    if (typeof degrees !== 'number' || isNaN(degrees)) return;
+    map.easeTo({ bearing: degrees, duration: 400 });
+  };
+
   // "My location" button — snap back to the driver after panning away.
   window.raacFlyTo = function (lat, lng) {
-    map.flyTo({ center: [lng, lat], zoom: 15, duration: 900 });
+    map.flyTo({ center: [lng, lat], zoom: 16, duration: 900 });
   };
 
   // Markers are DOM elements, so they survive a style swap.
@@ -116,7 +138,14 @@ function buildHtml(token: string, center: { latitude: number; longitude: number 
  * Map type comes from Settings → Map type; renders nothing without a token
  * so the caller can fall back to its own art.
  */
-export function DriverMap({ latitude, longitude, online = false, onLocate, style }: DriverMapProps) {
+export function DriverMap({
+  latitude,
+  longitude,
+  online = false,
+  heading,
+  onLocate,
+  style,
+}: DriverMapProps) {
   const webRef = useRef<WebView>(null);
   const [styleId, setStyleId] = useState<MapStyleId>(DEFAULT_MAP_STYLE);
   const [locating, setLocating] = useState(false);
@@ -142,6 +171,16 @@ export function DriverMap({ latitude, longitude, online = false, onLocate, style
   useEffect(() => {
     pushDriver();
   }, [pushDriver]);
+
+  // Round the bearing so small compass jitter doesn't keep re-animating the map.
+  const bearing = typeof heading === 'number' ? Math.round(heading / 5) * 5 : null;
+
+  useEffect(() => {
+    if (bearing === null) return;
+    webRef.current?.injectJavaScript(
+      `window.raacSetHeading && window.raacSetHeading(${bearing}); true;`
+    );
+  }, [bearing]);
 
   // Pick up a change made in Settings → Map type on the way back.
   useFocusEffect(

@@ -18,6 +18,7 @@ import {
   getDriverLocationBlockReason,
   openDeviceLocationSettings,
   readDriverCoords,
+  watchDriverHeading,
 } from '@/utils/driver-location';
 import { toUserFriendlyError } from '@/utils/errors';
 import { useFocusEffect, router } from 'expo-router';
@@ -45,6 +46,7 @@ export default function HomeScreen() {
   const [toggling, setToggling] = useState(false);
   const [walletBalance, setWalletBalance] = useState('0.00');
   const [mapCoords, setMapCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [mapHeading, setMapHeading] = useState<number | null>(null);
   const homeBgSource = useCachedAsset(LocalImages.homeBg.key, LocalImages.homeBg.moduleId);
 
   const requestListenerRef = useRef<(() => void) | null>(null);
@@ -112,6 +114,27 @@ export default function HomeScreen() {
       .catch(() => {});
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  // Compass feed so the map faces the way the driver is pointing.
+  useEffect(() => {
+    let cancelled = false;
+    let subscription: { remove: () => void } | null = null;
+
+    void watchDriverHeading((degrees) => {
+      if (!cancelled) setMapHeading(degrees);
+    }).then((sub) => {
+      if (cancelled) {
+        sub?.remove();
+        return;
+      }
+      subscription = sub;
+    });
+
+    return () => {
+      cancelled = true;
+      subscription?.remove();
     };
   }, []);
 
@@ -428,6 +451,7 @@ export default function HomeScreen() {
             latitude={mapCoords?.latitude}
             longitude={mapCoords?.longitude}
             online={driverStatus === 'online' || driverStatus === 'waiting'}
+            heading={mapHeading}
             onLocate={setMapCoords}
             style={StyleSheet.absoluteFill}
           />

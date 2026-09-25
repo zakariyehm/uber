@@ -42,6 +42,27 @@ export async function readDriverCoords(): Promise<{
   }
 }
 
+/**
+ * Compass heading in degrees (0 = north). Uses the magnetometer so the map can
+ * face the driver's direction even while stopped.
+ */
+export async function watchDriverHeading(
+  onHeading: (degrees: number) => void
+): Promise<{ remove: () => void } | null> {
+  const ok = await ensureDriverLocationPermission();
+  if (!ok) return null;
+
+  try {
+    const subscription = await Location.watchHeadingAsync((reading) => {
+      const degrees = reading.trueHeading >= 0 ? reading.trueHeading : reading.magHeading;
+      if (Number.isFinite(degrees) && degrees >= 0) onHeading(degrees);
+    });
+    return subscription;
+  } catch {
+    return null;
+  }
+}
+
 /** Why GO online cannot get a fix — for professional Android/iOS alerts. */
 export async function getDriverLocationBlockReason(): Promise<DriverLocationBlockReason> {
   const permission = await Location.getForegroundPermissionsAsync();
