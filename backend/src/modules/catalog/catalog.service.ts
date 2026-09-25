@@ -46,7 +46,7 @@ const MOTO_DEFAULTS = [
     slug: 'moto-bicycle',
     name: 'Moto Bicycle',
     icon: 'bicycle',
-    timeLabel: 'Up to 6 km · $0.30/km',
+    timeLabel: '1–3 km $0.40 · 4–7 km $0.30',
     price: 0.3,
     sortOrder: 3,
     vehicleType: VehicleType.BICYCLE,
