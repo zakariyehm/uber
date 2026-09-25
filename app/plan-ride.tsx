@@ -50,7 +50,6 @@ export default function PlanRideScreen() {
   const [highlighted, setHighlighted] = useState<string | null>(null);
   const [showDeliverySheet, setShowDeliverySheet] = useState(false);
   const [quote, setQuote] = useState<TripQuote | null>(null);
-  const [quoteLoading, setQuoteLoading] = useState(false);
 
   const storeDistrict = useMemo(() => {
     if (!isStoreAccount) return '';
@@ -128,16 +127,12 @@ export default function PlanRideScreen() {
       return;
     }
     let cancelled = false;
-    setQuoteLoading(true);
     void quoteDelivery({ pickupLocation: pickupLabel, destinationLocation: dropoffLabel })
       .then((next) => {
         if (!cancelled) setQuote(next);
       })
       .catch(() => {
         if (!cancelled) setQuote(null);
-      })
-      .finally(() => {
-        if (!cancelled) setQuoteLoading(false);
       });
     return () => {
       cancelled = true;
@@ -326,27 +321,6 @@ export default function PlanRideScreen() {
             'Drop-off'
           )}
         </View>
-
-        {canContinue ? (
-          <View style={styles.quoteCard}>
-            {quoteLoading && !quote ? (
-              <Text style={styles.quoteHint}>Estimating distance and fare…</Text>
-            ) : quote ? (
-              <>
-                <Text style={styles.quoteFare}>${quote.fareStandard || quote.fare}</Text>
-                <Text style={styles.quoteMeta}>
-                  {quote.distanceKm.toFixed(1)} km · {quote.durationLabel}
-                </Text>
-                <Text style={styles.quoteHint}>
-                  {quote.breakdown}
-                  {quote.fareExpress ? ` · Express $${quote.fareExpress}` : ''}
-                </Text>
-              </>
-            ) : (
-              <Text style={styles.quoteHint}>Same district $0.50/km · other districts $0.30/km.</Text>
-            )}
-          </View>
-        ) : null}
 
         <View style={styles.spacer} />
 
@@ -542,30 +516,6 @@ const styles = StyleSheet.create({
     height: StyleSheet.hairlineWidth,
     backgroundColor: '#E6E6E6',
     marginLeft: 18,
-  },
-  quoteCard: {
-    marginTop: 16,
-    borderRadius: 16,
-    backgroundColor: '#F6F7F8',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  quoteFare: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#11181C',
-    letterSpacing: -0.4,
-  },
-  quoteMeta: {
-    marginTop: 4,
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#11181C',
-  },
-  quoteHint: {
-    marginTop: 4,
-    fontSize: 13,
-    color: '#6B6B6B',
   },
   spacer: {
     flex: 1,
