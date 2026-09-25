@@ -90,7 +90,7 @@ function buildHtml(token: string, center: { latitude: number; longitude: number 
     container: 'map',
     style: ${JSON.stringify(styleUrl)},
     center: [${center.longitude}, ${center.latitude}],
-    zoom: 16,
+    zoom: 13,
     attributionControl: true,
   });
   map.on('load', function () { post({ type: 'ready' }); });
@@ -118,7 +118,7 @@ function buildHtml(token: string, center: { latitude: number; longitude: number 
 
   // "My location" button — snap back to the driver after panning away.
   window.raacFlyTo = function (lat, lng) {
-    map.flyTo({ center: [lng, lat], zoom: 16, duration: 900 });
+    map.flyTo({ center: [lng, lat], zoom: 13, duration: 900 });
   };
 
   // Markers are DOM elements, so they survive a style swap.
