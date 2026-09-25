@@ -331,7 +331,7 @@ export default function PlanRideScreen() {
                 <Text style={styles.quoteHint}>{quote.breakdown}</Text>
               </>
             ) : (
-              <Text style={styles.quoteHint}>Fare is $0.25 per km once the trip is estimated.</Text>
+              <Text style={styles.quoteHint}>Same district $0.50/km · other districts $0.30/km.</Text>
             )}
           </View>
         ) : null}

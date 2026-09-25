@@ -530,7 +530,7 @@ export async function createDelivery(
     pickupLng: input.pickupLng,
   });
   const openFleetPreview = await isOpenFleetMethod(input.deliveryMethod);
-  // Local Moto: server owns $0.25/km. Delivery State keeps the catalog fare.
+  // Local Moto: $0.50/km same district, $0.30/km other districts. Delivery State stays catalog.
   const clientPrice = Number.parseFloat(input.deliveryPrice.replace('$', ''));
   const amount =
     quote && !openFleetPreview

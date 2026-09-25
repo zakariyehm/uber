@@ -5,8 +5,10 @@ import {
   type LatLng,
 } from './geo.ts';
 
-/** Rider + driver fare: $0.25 per kilometre (Uber-style distance fare). */
-export const PRICE_PER_KM = 0.25;
+/** Same district (including same address): $0.50 per kilometre. */
+export const PRICE_PER_KM_SAME_DISTRICT = 0.5;
+/** Different Banadir districts (Google route or fallback): $0.30 per kilometre. */
+export const PRICE_PER_KM_CROSS_DISTRICT = 0.3;
 /** Roads are not straight — bump straight-line distance toward a real route. */
 const ROAD_FACTOR = 1.25;
 /** Typical Mogadishu moto/bike speed when Directions is unavailable. */
@@ -14,7 +16,6 @@ const AVG_SPEED_KMH = 22;
 /** Same-district different neighborhood — district-center geocode would be 0 km. */
 const SAME_DISTRICT_KM = 2;
 const MIN_TRIP_KM = 1;
-const MIN_FARE = PRICE_PER_KM;
 const MIN_MINUTES = 4;
 
 export type TripQuote = {
@@ -54,7 +55,7 @@ function fallbackKm(input: {
       input.destinationLocation.trim().toLowerCase();
     const sameDistrict =
       districtHead(input.pickupLocation) === districtHead(input.destinationLocation);
-    km = samePlace ? MIN_TRIP_KM : sameDistrict ? SAME_DISTRICT_KM : MIN_TRIP_KM;
+    km = samePlace || sameDistrict ? SAME_DISTRICT_KM : MIN_TRIP_KM;
   }
   return km;
 }
@@ -111,11 +112,21 @@ export async function quoteTrip(input: {
         destination,
       });
 
-  const distanceKm = roundKm(km);
+  const samePlace =
+    input.pickupLocation.trim().toLowerCase() ===
+    input.destinationLocation.trim().toLowerCase();
+  const sameDistrict =
+    samePlace ||
+    districtHead(input.pickupLocation) === districtHead(input.destinationLocation);
+  const pricePerKm = sameDistrict ? PRICE_PER_KM_SAME_DISTRICT : PRICE_PER_KM_CROSS_DISTRICT;
+  const distanceKm = roundKm(sameDistrict && km < SAME_DISTRICT_KM ? SAME_DISTRICT_KM : km);
   const durationMinutes = routed?.seconds
     ? Math.max(MIN_MINUTES, Math.round(routed.seconds / 60))
     : Math.max(MIN_MINUTES, Math.round((distanceKm / AVG_SPEED_KMH) * 60));
-  const fare = Math.max(MIN_FARE, roundMoney(distanceKm * PRICE_PER_KM));
+  const minFare = sameDistrict
+    ? SAME_DISTRICT_KM * PRICE_PER_KM_SAME_DISTRICT
+    : PRICE_PER_KM_CROSS_DISTRICT;
+  const fare = Math.max(minFare, roundMoney(distanceKm * pricePerKm));
 
   return {
     pickup,
@@ -125,7 +136,7 @@ export async function quoteTrip(input: {
     durationLabel: `~${durationMinutes} min`,
     fare,
     fareLabel: fare.toFixed(2),
-    pricePerKm: PRICE_PER_KM,
-    pricePerKmLabel: PRICE_PER_KM.toFixed(2),
+    pricePerKm,
+    pricePerKmLabel: pricePerKm.toFixed(2),
   };
 }

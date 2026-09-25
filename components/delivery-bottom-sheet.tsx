@@ -42,7 +42,7 @@ interface DeliveryBottomSheetProps {
   visible: boolean;
   onClose: () => void;
   onSelect: (option: DeliveryOption) => void;
-  /** Server $0.25/km quote — replaces catalog flat fees when ready. */
+  /** Server distance quote — replaces catalog flat fees when ready. */
   quotedFare?: string | null;
   quotedTime?: string | null;
   quotedStats?: string | null;
