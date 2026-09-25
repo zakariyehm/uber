@@ -25,20 +25,20 @@ const STATE_DEFAULTS = [
 
 const MOTO_DEFAULTS = [
   {
-    slug: 'moto-fekon',
-    name: 'Moto Fekon',
+    slug: 'moto-standard',
+    name: 'Standard',
     icon: 'motorbike',
-    timeLabel: '10-15 minutes',
-    price: 1,
+    timeLabel: 'Everyday trips',
+    price: 0.5,
     sortOrder: 1,
     vehicleType: VehicleType.MOTORCYCLE,
   },
   {
-    slug: 'moto-bajaj',
-    name: 'Moto Bajaj',
+    slug: 'moto-express',
+    name: 'Express',
     icon: 'motorbike',
-    timeLabel: '15-20 minutes',
-    price: 2.5,
+    timeLabel: 'Faster pickup · +$0.50',
+    price: 1,
     sortOrder: 2,
     vehicleType: VehicleType.MOTORCYCLE,
   },
@@ -91,19 +91,31 @@ function parseCategory(value?: string) {
 }
 
 async function ensureDefaultMotoMethods() {
-  const existing = await prisma.serviceMethod.count({ where: { category: ServiceCategory.MOTO } });
-  if (existing > 0) return;
-
   for (const method of MOTO_DEFAULTS) {
     await prisma.serviceMethod.upsert({
       where: { slug: method.slug },
-      update: {},
+      update: {
+        name: method.name,
+        icon: method.icon,
+        timeLabel: method.timeLabel,
+        sortOrder: method.sortOrder,
+        vehicleType: method.vehicleType,
+        isActive: true,
+      },
       create: {
         category: ServiceCategory.MOTO,
         ...method,
       },
     });
   }
+
+  await prisma.serviceMethod.updateMany({
+    where: {
+      category: ServiceCategory.MOTO,
+      slug: { in: ['moto-fekon', 'moto-bajaj'] },
+    },
+    data: { isActive: false },
+  });
 }
 
 async function ensureDefaultDeliveryStates() {

@@ -1,7 +1,13 @@
 import { DeliveryStatus, VehicleType, type DeliveryRequest as DbDelivery } from '@prisma/client';
 import { prisma } from '../../lib/prisma.ts';
 import { resolvePickupCoords } from '../../lib/geo.ts';
-import { quoteTrip } from '../../lib/pricing.ts';
+import {
+  applyMotoTier,
+  expressDurationMinutes,
+  EXPRESS_SURCHARGE,
+  isExpressMethod,
+  quoteTrip,
+} from '../../lib/pricing.ts';
 import {
   claimDriverForOffer,
   findNearbyAvailableDrivers,
@@ -487,13 +493,20 @@ export async function quoteDelivery(input: {
     error.statusCode = 400;
     throw error;
   }
+  const express = applyMotoTier(quote.fare, 'Express');
+  const expressMinutes = expressDurationMinutes(quote.durationMinutes);
   return {
     pickupLocation: input.pickupLocation,
     destinationLocation: input.destinationLocation,
     distanceKm: quote.distanceKm,
     durationMinutes: quote.durationMinutes,
     durationLabel: quote.durationLabel,
+    durationMinutesExpress: expressMinutes,
+    durationLabelExpress: `~${expressMinutes} min`,
     fare: quote.fareLabel,
+    fareStandard: quote.fareLabel,
+    fareExpress: express.fareLabel,
+    expressSurcharge: EXPRESS_SURCHARGE.toFixed(2),
     pricePerKm: quote.pricePerKmLabel,
     breakdown: `${quote.distanceKm.toFixed(1)} km × $${quote.pricePerKmLabel}/km`,
   };
@@ -534,7 +547,7 @@ export async function createDelivery(
   const clientPrice = Number.parseFloat(input.deliveryPrice.replace('$', ''));
   const amount =
     quote && !openFleetPreview
-      ? quote.fare
+      ? applyMotoTier(quote.fare, input.deliveryMethod).fare
       : Number.isFinite(clientPrice)
         ? clientPrice
         : 0;
@@ -551,12 +564,18 @@ export async function createDelivery(
       pickupLng: input.pickupLng,
       pickupLocation: input.pickupLocation,
     });
+  const expressTrip = Boolean(quote && isExpressMethod(input.deliveryMethod));
+  const tripMinutes = quote
+    ? expressTrip
+      ? expressDurationMinutes(quote.durationMinutes)
+      : quote.durationMinutes
+    : undefined;
   const tripFields = {
     destinationLat: quote?.destination.latitude,
     destinationLng: quote?.destination.longitude,
     distanceKm: quote?.distanceKm,
-    durationMinutes: quote?.durationMinutes,
-    deliveryTimeLabel: quote?.durationLabel || input.deliveryTimeLabel,
+    durationMinutes: tripMinutes,
+    deliveryTimeLabel: tripMinutes != null ? `~${tripMinutes} min` : input.deliveryTimeLabel,
   };
 
   const { PaymentHoldStatus, PaymentPayer, SenderKind } = await import('@prisma/client');

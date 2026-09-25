@@ -1,6 +1,7 @@
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { fetchMotoMethods, type CatalogMethod } from '@/utils/catalog';
+import { etaForMotoOption, fareForMotoOption, type TripQuote } from '@/utils/deliveryRequests';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -42,8 +43,8 @@ interface DeliveryBottomSheetProps {
   visible: boolean;
   onClose: () => void;
   onSelect: (option: DeliveryOption) => void;
-  /** Server distance quote — replaces catalog flat fees when ready. */
-  quotedFare?: string | null;
+  /** Server distance quote — Standard vs Express use different fares. */
+  quote?: TripQuote | null;
   quotedTime?: string | null;
   quotedStats?: string | null;
 }
@@ -52,7 +53,7 @@ export function DeliveryBottomSheet({
   visible,
   onClose,
   onSelect,
-  quotedFare,
+  quote,
   quotedTime,
   quotedStats,
 }: DeliveryBottomSheetProps) {
@@ -139,10 +140,11 @@ export function DeliveryBottomSheet({
     if (selectedOption) {
       const option = deliveryOptions.find(opt => opt.id === selectedOption);
       if (option) {
+        const quoted = fareForMotoOption(quote, option.name);
         onSelect({
           ...option,
-          time: quotedTime || option.time,
-          price: quotedFare ? `$${quotedFare}` : option.price,
+          time: etaForMotoOption(quote, option.name) || quotedTime || option.time,
+          price: quoted ? `$${quoted}` : option.price,
         });
         onClose();
       }
@@ -213,12 +215,15 @@ export function DeliveryBottomSheet({
                         {option.name}
                       </Text>
                       <Text style={[styles.optionTime, { color: colors.icon }]}>
-                        {quotedTime || option.time}
+                        {etaForMotoOption(quote, option.name) || quotedTime || option.time}
+                        {/\bexpress\b/i.test(option.name) ? ' · +$0.50' : ''}
                         {quotedStats ? ` · ${quotedStats}` : ''}
                       </Text>
                     </View>
                     <Text style={[styles.optionPrice, { color: colors.text }]}>
-                      {quotedFare ? `$${quotedFare}` : option.price}
+                      {fareForMotoOption(quote, option.name)
+                        ? `$${fareForMotoOption(quote, option.name)}`
+                        : option.price}
                     </Text>
                   </TouchableOpacity>
                 ))}

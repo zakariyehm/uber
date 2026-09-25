@@ -2,7 +2,12 @@ import { DeliveryBottomSheet } from '@/components/delivery-bottom-sheet';
 import { BANADIR_DISTRICTS } from '@/constants/somalia';
 import { AppColors } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth';
-import { quoteDelivery, type TripQuote } from '@/utils/deliveryRequests';
+import {
+  etaForMotoOption,
+  fareForMotoOption,
+  quoteDelivery,
+  type TripQuote,
+} from '@/utils/deliveryRequests';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -161,12 +166,16 @@ export default function PlanRideScreen() {
         pickup,
         destination: formatLocation(dropoffDistrict, dropoffNeighborhood),
         deliveryMethod: option.name,
-        deliveryTime: quote?.durationLabel || option.time,
-        deliveryPrice: quote ? `$${quote.fare}` : option.price,
+        deliveryTime: etaForMotoOption(quote, option.name) || option.time,
+        deliveryPrice: fareForMotoOption(quote, option.name)
+          ? `$${fareForMotoOption(quote, option.name)}`
+          : option.price,
         distanceKm: quote ? String(quote.distanceKm) : '',
         durationMinutes: quote ? String(quote.durationMinutes) : '',
-        durationLabel: quote?.durationLabel || '',
-        fareBreakdown: quote?.breakdown || '',
+        durationLabel: etaForMotoOption(quote, option.name) || '',
+        fareBreakdown: /\bexpress\b/i.test(option.name) && quote
+          ? `${quote.breakdown} + $0.50 Express`
+          : quote?.breakdown || '',
         rideType: params.rideType || '',
         ...(isStoreAccount
           ? {
@@ -324,11 +333,14 @@ export default function PlanRideScreen() {
               <Text style={styles.quoteHint}>Estimating distance and fare…</Text>
             ) : quote ? (
               <>
-                <Text style={styles.quoteFare}>${quote.fare}</Text>
+                <Text style={styles.quoteFare}>${quote.fareStandard || quote.fare}</Text>
                 <Text style={styles.quoteMeta}>
                   {quote.distanceKm.toFixed(1)} km · {quote.durationLabel}
                 </Text>
-                <Text style={styles.quoteHint}>{quote.breakdown}</Text>
+                <Text style={styles.quoteHint}>
+                  {quote.breakdown}
+                  {quote.fareExpress ? ` · Express $${quote.fareExpress}` : ''}
+                </Text>
               </>
             ) : (
               <Text style={styles.quoteHint}>Same district $0.50/km · other districts $0.30/km.</Text>
@@ -404,7 +416,7 @@ export default function PlanRideScreen() {
         visible={showDeliverySheet}
         onClose={() => setShowDeliverySheet(false)}
         onSelect={handleDeliverySelect}
-        quotedFare={quote?.fare}
+        quote={quote}
         quotedTime={quote?.durationLabel}
         quotedStats={quote ? `${quote.distanceKm.toFixed(1)} km` : null}
       />

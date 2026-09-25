@@ -20,8 +20,8 @@ export type CatalogStore = {
 };
 
 const FALLBACK_MOTO: CatalogMethod[] = [
-  { id: 'moto-fekon', name: 'Moto Fekon', icon: 'motorbike', time: '10-15 minutes', displayPrice: '$1.00', price: '1.00', vehicleType: 'MOTORCYCLE' },
-  { id: 'moto-bajaj', name: 'Moto Bajaj', icon: 'motorbike', time: '15-20 minutes', displayPrice: '$2.50', price: '2.50', vehicleType: 'MOTORCYCLE' },
+  { id: 'moto-standard', name: 'Standard', icon: 'motorbike', time: 'Everyday trips', displayPrice: '$0.50', price: '0.50', vehicleType: 'MOTORCYCLE' },
+  { id: 'moto-express', name: 'Express', icon: 'motorbike', time: 'Faster pickup · +$0.50', displayPrice: '$1.00', price: '1.00', vehicleType: 'MOTORCYCLE' },
   { id: 'moto-bicycle', name: 'Moto Bicycle', icon: 'bicycle', time: '15-25 minutes', displayPrice: '$0.80', price: '0.80', vehicleType: 'BICYCLE' },
 ];
 

@@ -9,6 +9,29 @@ import {
 export const PRICE_PER_KM_SAME_DISTRICT = 0.5;
 /** Different Banadir districts (Google route or fallback): $0.30 per kilometre. */
 export const PRICE_PER_KM_CROSS_DISTRICT = 0.3;
+/** Express Moto: faster pickup, added on top of the distance fare. */
+export const EXPRESS_SURCHARGE = 0.5;
+
+export function isExpressMethod(deliveryMethod?: string | null) {
+  return /\bexpress\b/i.test(String(deliveryMethod || ''));
+}
+
+/** Express arrives ~2 minutes sooner (5 min Standard → 3 min Express). */
+export function expressDurationMinutes(standardMinutes: number) {
+  return Math.max(2, standardMinutes - 2);
+}
+
+export function applyMotoTier(baseFare: number, deliveryMethod?: string | null) {
+  const fare = isExpressMethod(deliveryMethod)
+    ? Math.round((baseFare + EXPRESS_SURCHARGE) * 100) / 100
+    : baseFare;
+  return {
+    fare,
+    fareLabel: fare.toFixed(2),
+    express: isExpressMethod(deliveryMethod),
+    surcharge: isExpressMethod(deliveryMethod) ? EXPRESS_SURCHARGE : 0,
+  };
+}
 /** Roads are not straight — bump straight-line distance toward a real route. */
 const ROAD_FACTOR = 1.25;
 /** Typical Mogadishu moto/bike speed when Directions is unavailable. */

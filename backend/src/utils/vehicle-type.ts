@@ -36,7 +36,9 @@ export function looksLikeOpenFleetMethod(deliveryMethod: string): boolean {
   const raw = methodKey(deliveryMethod);
   if (!raw) return false;
   if (raw.includes('delivery state') || raw.startsWith('state-')) return true;
-  if (/\bmoto\b|\bbajaj\b|\bfekon\b|\bbicycle\b|\bbaaskiil\b/.test(raw)) return false;
+  if (/\bmoto\b|\bbajaj\b|\bfekon\b|\bbicycle\b|\bbaaskiil\b|\bstandard\b|\bexpress\b/.test(raw)) {
+    return false;
+  }
   return true;
 }
 

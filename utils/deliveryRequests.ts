@@ -61,10 +61,29 @@ export type TripQuote = {
   distanceKm: number;
   durationMinutes: number;
   durationLabel: string;
+  durationMinutesExpress?: number;
+  durationLabelExpress?: string;
   fare: string;
+  fareStandard?: string;
+  fareExpress?: string;
+  expressSurcharge?: string;
   pricePerKm: string;
   breakdown: string;
 };
+
+export function fareForMotoOption(quote: TripQuote | null | undefined, methodName: string) {
+  if (!quote) return null;
+  if (/\bexpress\b/i.test(methodName)) return quote.fareExpress || quote.fare;
+  return quote.fareStandard || quote.fare;
+}
+
+export function etaForMotoOption(quote: TripQuote | null | undefined, methodName: string) {
+  if (!quote) return null;
+  if (/\bexpress\b/i.test(methodName)) {
+    return quote.durationLabelExpress || quote.durationLabel;
+  }
+  return quote.durationLabel;
+}
 
 export async function quoteDelivery(input: {
   pickupLocation: string;
