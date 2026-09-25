@@ -1,11 +1,13 @@
 /**
- * WaafiPay PreAuthorization client
+ * WaafiPay client
  * Docs: https://docs.waafipay.com/preauthorization-api
+ *       https://docs.waafipay.com/purchase-api
  *
  * Actions (serviceName):
  * - API_PREAUTHORIZE        → hold funds (no deduction yet)
  * - API_PREAUTHORIZE_COMMIT → capture held funds
  * - API_PREAUTHORIZE_CANCEL → release held funds
+ * - API_PURCHASE            → charge immediately (wallet top-up)
  */
 import { randomUUID } from 'node:crypto';
 import { env } from '../../config/env.ts';
@@ -170,5 +172,34 @@ export async function waafiCancel(transactionId: string, description: string): P
   return postAsm('API_PREAUTHORIZE_CANCEL', {
     transactionId,
     description: (description || 'Order canceled').slice(0, 255),
+  });
+}
+
+/** Immediate charge — Purchase API (API_PURCHASE). */
+export async function waafiPurchase(input: {
+  accountNo: string;
+  amount: number;
+  referenceId: string;
+  invoiceId?: string;
+  description: string;
+}): Promise<WaafiResult> {
+  const accountNo = normalizeWaafiPhone(input.accountNo);
+  const referenceId = toWaafiReferenceId(input.referenceId);
+  const invoiceId = toWaafiReferenceId(input.invoiceId || referenceId);
+  const amount = Number(input.amount).toFixed(2);
+  let description = input.description.trim();
+  if (description.length < 5) description = `Raac top up ${referenceId}`;
+  description = description.slice(0, 255);
+
+  return postAsm('API_PURCHASE', {
+    paymentMethod: 'MWALLET_ACCOUNT',
+    payerInfo: { accountNo },
+    transactionInfo: {
+      referenceId,
+      invoiceId,
+      amount,
+      currency: env.WAAFI_CURRENCY || 'USD',
+      description,
+    },
   });
 }

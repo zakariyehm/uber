@@ -677,6 +677,13 @@ export async function listUsers(input: {
         user.role === UserRole.DRIVER ? user._count.driverDeliveries : user._count.riderDeliveries,
       todayBalance: user.wallet ? moneyStr(user.wallet.balance) : null,
       pendingBalance: user.riderWallet ? moneyStr(user.riderWallet.pendingBalance) : null,
+      walletBalance: user.riderWallet
+        ? moneyStr(
+            user.riderProfile?.riderKind === RiderKind.STORE
+              ? user.riderProfile.store?.balance
+              : user.riderWallet.balance
+          )
+        : null,
       riderKind:
         user.role === UserRole.RIDER
           ? user.riderProfile?.riderKind === 'STORE'
@@ -902,9 +909,9 @@ export async function listWallets() {
     }),
     prisma.riderWallet.findMany({
       include: {
-        rider: { include: { riderProfile: true } },
+        rider: { include: { riderProfile: { include: { store: true } } } },
       },
-      orderBy: { pendingBalance: 'desc' },
+      orderBy: { balance: 'desc' },
     }),
   ]);
 
@@ -931,14 +938,21 @@ export async function listWallets() {
     deliveryStateBalance: (await settledSums()).deliveryStateBalance,
     stateDriverPayout: settings.stateDriverPayout,
     drivers: driverRows,
-    riders: riders.map((wallet) => ({
-      userId: wallet.riderUserId,
-      name: displayName(wallet.rider),
-      phone: wallet.rider.phone,
-      isActive: wallet.rider.isActive,
-      pendingBalance: moneyStr(wallet.pendingBalance),
-      updatedAt: wallet.updatedAt.toISOString(),
-    })),
+    riders: riders.map((wallet) => {
+      const isStore = wallet.rider.riderProfile?.riderKind === RiderKind.STORE;
+      const store = wallet.rider.riderProfile?.store;
+      return {
+        userId: wallet.riderUserId,
+        name: displayName(wallet.rider),
+        phone: wallet.rider.phone,
+        isActive: wallet.rider.isActive,
+        kind: isStore ? 'STORE' : 'PERSONAL',
+        storeName: store?.name || null,
+        balance: moneyStr(isStore ? store?.balance : wallet.balance),
+        pendingBalance: moneyStr(wallet.pendingBalance),
+        updatedAt: wallet.updatedAt.toISOString(),
+      };
+    }),
   };
 }
 

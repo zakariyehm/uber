@@ -26,6 +26,9 @@ type WalletPayload = {
     name: string;
     phone: string;
     isActive: boolean;
+    kind?: string;
+    storeName?: string | null;
+    balance?: string;
     pendingBalance: string;
   }[];
 };
@@ -52,7 +55,7 @@ export default function WalletsPage() {
     <Shell>
       <PageHeader
         title="Wallets"
-        subtitle="Driver daily earnings and rider pending credits"
+        subtitle="Driver daily earnings, rider top-ups, and pending credits"
         actions={
           data ? (
             <div className="rounded-xl border border-line bg-panel px-4 py-3 text-right shadow-sm">
@@ -106,12 +109,13 @@ export default function WalletsPage() {
 
         <section className="overflow-hidden rounded-xl border border-line bg-panel">
           <div className="border-b border-line px-4 py-3">
-            <h3 className="text-sm font-semibold">Riders · pending credits</h3>
+            <h3 className="text-sm font-semibold">Riders · wallets</h3>
           </div>
           <table className="w-full text-left text-sm">
             <thead className="text-xs uppercase text-muted">
               <tr>
                 <th className="px-4 py-2">Rider</th>
+                <th className="px-4 py-2">Balance</th>
                 <th className="px-4 py-2">Pending</th>
               </tr>
             </thead>
@@ -121,7 +125,11 @@ export default function WalletsPage() {
                   <td className="px-4 py-3">
                     <p className="font-medium">{row.name}</p>
                     <p className="text-xs text-muted">{row.phone}</p>
+                    <p className="text-xs text-muted">
+                      {row.kind === "STORE" ? row.storeName || "Store" : "Personal"}
+                    </p>
                   </td>
+                  <td className="px-4 py-3 font-medium">{money(row.balance || "0")}</td>
                   <td className="px-4 py-3">{money(row.pendingBalance)}</td>
                 </tr>
               ))}

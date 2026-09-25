@@ -68,22 +68,26 @@ export async function setStoredUser(user: StoredAuthUser | null) {
   }
 }
 
-export async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+export async function apiRequest<T>(
+  path: string,
+  options: RequestInit & { retry?: boolean } = {}
+): Promise<T> {
+  const { retry = true, ...init } = options;
   const token = await getAuthToken();
-  const headers = new Headers(options.headers);
+  const headers = new Headers(init.headers);
   headers.set('Content-Type', 'application/json');
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
   }
 
   const url = `${getApiBaseUrl()}${path}`;
-  const maxAttempts = 3;
+  const maxAttempts = retry ? 3 : 1;
   let lastError: unknown;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       const response = await fetch(url, {
-        ...options,
+        ...init,
         headers,
       });
 

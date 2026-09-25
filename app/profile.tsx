@@ -58,7 +58,10 @@ export default function ProfileScreen() {
       id: '3',
       title: 'Wallet',
       icon: 'wallet-outline',
-      description: 'Pending credits from no-show refunds',
+      description:
+        user?.riderKind === 'STORE'
+          ? 'Top up balance for trips'
+          : 'Pending credits from no-show refunds',
       onPress: () => router.push('/wallet'),
     },
     {

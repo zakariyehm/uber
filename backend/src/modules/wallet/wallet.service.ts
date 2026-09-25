@@ -1,7 +1,8 @@
 import { PaymentHoldStatus, Prisma, SettlementType, UserRole } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../../lib/prisma.ts';
-import { authenticate, requireDriver } from '../../middleware/authenticate.ts';
+import { authenticate, requireDriver, requireRider } from '../../middleware/authenticate.ts';
+import { getRiderWalletView, topUpRiderWallet } from './wallet-topup.service.ts';
 
 function startOfToday() {
   const d = new Date();
@@ -94,27 +95,7 @@ export async function syncDriverWallet(driverUserId: string) {
 }
 
 export async function getRiderWallet(riderUserId: string) {
-  const wallet = await prisma.riderWallet.upsert({
-    where: { riderUserId },
-    update: {},
-    create: { riderUserId },
-  });
-
-  const creditEvents = await prisma.deliveryRequest.count({
-    where: {
-      riderUserId,
-      settlementType: SettlementType.NO_SHOW,
-      riderRefundPending: { gt: 0 },
-    },
-  });
-
-  return {
-    role: 'RIDER' as const,
-    balance: '0.00',
-    pendingBalance: Number(wallet.pendingBalance).toFixed(2),
-    creditEvents,
-    updatedAt: wallet.updatedAt.toISOString(),
-  };
+  return getRiderWalletView(riderUserId);
 }
 
 export async function creditDriverForDelivery(driverUserId: string, _amount?: Prisma.Decimal | number) {
@@ -127,12 +108,35 @@ export async function walletRoutes(app: FastifyInstance) {
       return syncDriverWallet(request.user.sub);
     }
     if (request.user.role === UserRole.RIDER || request.user.role === 'RIDER') {
-      return getRiderWallet(request.user.sub);
+      try {
+        return await getRiderWallet(request.user.sub);
+      } catch (err) {
+        const error = err as Error & { statusCode?: number };
+        return reply.code(error.statusCode || 400).send({
+          error: error.message || 'Could not load wallet',
+        });
+      }
     }
     return reply.code(403).send({ error: 'Unsupported account role' });
   });
 
   app.get('/driver/me', { preHandler: requireDriver }, async (request) => {
     return syncDriverWallet(request.user.sub);
+  });
+
+  app.post('/topup', { preHandler: requireRider }, async (request, reply) => {
+    const body = (request.body || {}) as { amount?: number | string; accountNo?: string };
+    try {
+      return await topUpRiderWallet({
+        riderUserId: request.user.sub,
+        amount: Number(body.amount),
+        accountNo: typeof body.accountNo === 'string' ? body.accountNo : undefined,
+      });
+    } catch (err) {
+      const error = err as Error & { statusCode?: number };
+      return reply.code(error.statusCode || 400).send({
+        error: error.message || 'Top up failed',
+      });
+    }
   });
 }

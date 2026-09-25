@@ -44,7 +44,10 @@ export async function deliveryRoutes(app: FastifyInstance) {
     } catch (error: any) {
       return reply
         .code(error.statusCode || 400)
-        .send({ error: error.message || 'Could not create delivery', code: 'delivery/create_failed' });
+        .send({
+          error: error.message || 'Could not create delivery',
+          code: error.code || 'delivery/create_failed',
+        });
     }
   });
 

@@ -95,6 +95,7 @@ export type AdminUserRow = {
   tripCount: number;
   todayBalance: string | null;
   pendingBalance: string | null;
+  walletBalance?: string | null;
   riderKind?: string | null;
   storeId?: string | null;
   storeName?: string | null;

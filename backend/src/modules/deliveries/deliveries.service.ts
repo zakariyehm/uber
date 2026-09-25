@@ -686,9 +686,12 @@ export async function createDelivery(
     referenceId,
   };
 
-  // Store sender + sender pays: create order + PENDING debit (charged on COMPLETE; debt allowed).
+  // Store sender + sender pays: take fare from top-up balance now. No credit / debt.
   if (payerType === PaymentPayer.SENDER && senderKind === SenderKind.STORE && storeId) {
-    const { createPendingStoreDebit } = await import('../stores/store-wallet.service.ts');
+    const { assertStoreCanCover, createPendingStoreDebit } = await import(
+      '../stores/store-wallet.service.ts'
+    );
+    await assertStoreCanCover(storeId, amount);
 
     const row = await prisma.deliveryRequest.create({
       data: {

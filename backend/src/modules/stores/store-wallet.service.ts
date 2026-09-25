@@ -32,7 +32,27 @@ export async function getStoreAvailableBalance(storeId: string) {
   };
 }
 
-/** Create a PENDING debit when store-sender + sender-pays order is placed. */
+export async function assertStoreCanCover(storeId: string, amount: number) {
+  const need = roundMoney(amount);
+  const wallet = await getStoreAvailableBalance(storeId);
+  if (!wallet) {
+    const error = new Error('Store not found') as Error & { statusCode?: number; code?: string };
+    error.statusCode = 400;
+    error.code = 'store/not_found';
+    throw error;
+  }
+  if (wallet.available < need) {
+    const error = new Error(
+      `Ma haysatid haraaga. Haraaga waa $${wallet.available.toFixed(2)}, trip-kan waa $${need.toFixed(2)}. Lacag ku shub.`
+    ) as Error & { statusCode?: number; code?: string };
+    error.statusCode = 402;
+    error.code = 'wallet/insufficient';
+    throw error;
+  }
+  return wallet;
+}
+
+/** Take trip fare from store top-up balance when the order is placed. */
 export async function createPendingStoreDebit(input: {
   storeId: string;
   amount: number;
@@ -46,27 +66,29 @@ export async function createPendingStoreDebit(input: {
     throw error;
   }
 
-  const wallet = await getStoreAvailableBalance(input.storeId);
-  if (!wallet) {
-    const error = new Error('Store not found') as Error & { statusCode?: number };
-    error.statusCode = 400;
-    throw error;
-  }
+  await assertStoreCanCover(input.storeId, amount);
 
-  return prisma.storeWalletTransaction.create({
-    data: {
-      storeId: input.storeId,
-      type: StoreWalletTxnType.DEBIT,
-      status: StoreWalletTxnStatus.PENDING,
-      amount,
-      balanceAfter: wallet.balance,
-      note: `Order ${input.orderId} · credit hold`,
-      deliveryRequestId: input.deliveryRequestId,
-    },
+  return prisma.$transaction(async (tx) => {
+    const store = await tx.store.update({
+      where: { id: input.storeId },
+      data: { balance: { decrement: amount } },
+    });
+    return tx.storeWalletTransaction.create({
+      data: {
+        storeId: input.storeId,
+        type: StoreWalletTxnType.DEBIT,
+        status: StoreWalletTxnStatus.COMPLETED,
+        amount,
+        balanceAfter: store.balance,
+        note: `Order ${input.orderId} · taken from top-up balance`,
+        deliveryRequestId: input.deliveryRequestId,
+        settledAt: new Date(),
+      },
+    });
   });
 }
 
-/** Deduct store balance when the delivery reaches COMPLETED. */
+/** Finish any leftover PENDING debit from older orders. New trips are already charged at place. */
 export async function settlePendingStoreDebit(deliveryRequestId: string) {
   const delivery = await prisma.deliveryRequest.findUnique({
     where: { id: deliveryRequestId },
@@ -110,24 +132,44 @@ export async function settlePendingStoreDebit(deliveryRequestId: string) {
   });
 }
 
-/** Cancel pending debit when the delivery is cancelled (no balance change). */
+/** Cancel a debit. PENDING holds are dropped; completed top-up charges are refunded. */
 export async function cancelPendingStoreDebit(deliveryRequestId: string) {
-  const pending = await prisma.storeWalletTransaction.findFirst({
+  const debit = await prisma.storeWalletTransaction.findFirst({
     where: {
       deliveryRequestId,
       type: StoreWalletTxnType.DEBIT,
-      status: StoreWalletTxnStatus.PENDING,
+      status: { in: [StoreWalletTxnStatus.PENDING, StoreWalletTxnStatus.COMPLETED] },
     },
+    orderBy: { createdAt: 'desc' },
   });
-  if (!pending) return null;
+  if (!debit) return null;
 
-  return prisma.storeWalletTransaction.update({
-    where: { id: pending.id },
-    data: {
-      status: StoreWalletTxnStatus.CANCELLED,
-      note: pending.note?.replace('credit hold', 'cancelled') || 'Order cancelled',
-      settledAt: new Date(),
-    },
+  if (debit.status === StoreWalletTxnStatus.PENDING) {
+    return prisma.storeWalletTransaction.update({
+      where: { id: debit.id },
+      data: {
+        status: StoreWalletTxnStatus.CANCELLED,
+        note: debit.note?.replace('credit hold', 'cancelled') || 'Order cancelled',
+        settledAt: new Date(),
+      },
+    });
+  }
+
+  const amount = Number(debit.amount);
+  return prisma.$transaction(async (tx) => {
+    const store = await tx.store.update({
+      where: { id: debit.storeId },
+      data: { balance: { increment: amount } },
+    });
+    return tx.storeWalletTransaction.update({
+      where: { id: debit.id },
+      data: {
+        status: StoreWalletTxnStatus.CANCELLED,
+        balanceAfter: store.balance,
+        note: `Order cancelled · $${amount.toFixed(2)} returned to top-up balance`,
+        settledAt: new Date(),
+      },
+    });
   });
 }
 

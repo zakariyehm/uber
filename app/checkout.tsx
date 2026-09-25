@@ -5,6 +5,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Dimensions, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { apiRequest } from '@/lib/api';
 import { createDeliveryRequest } from '@/utils/deliveryRequests';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -28,6 +29,7 @@ export default function CheckoutScreen() {
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const placingRef = useRef(false);
+  const [storeAvailable, setStoreAvailable] = useState<number | null>(null);
 
   // Extract order details from params
   const pickupLocation = params.pickupLocation as string || '';
@@ -53,6 +55,9 @@ export default function CheckoutScreen() {
 
   // Use delivery price from params, or calculate if not provided
   const estimatedPrice = deliveryPrice ? deliveryPrice.replace('$', '') : '10.00';
+  const fareAmount = Number.parseFloat(estimatedPrice) || 0;
+  const storeShort =
+    senderKind === 'STORE' && storeAvailable != null && storeAvailable < fareAmount;
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -91,6 +96,23 @@ export default function CheckoutScreen() {
     };
   }, []);
 
+  useEffect(() => {
+    if (senderKind !== 'STORE') return;
+    let cancelled = false;
+    void apiRequest<{ available?: string; balance?: string }>('/wallet/me')
+      .then((wallet) => {
+        if (cancelled) return;
+        const value = Number.parseFloat(wallet.available ?? wallet.balance ?? '0');
+        setStoreAvailable(Number.isFinite(value) ? value : 0);
+      })
+      .catch(() => {
+        if (!cancelled) setStoreAvailable(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [senderKind]);
+
   const handlePlaceOrder = async (payerType: 'SENDER' | 'RECIPIENT') => {
     if (placingRef.current || isPlacingOrder) return;
 
@@ -127,8 +149,19 @@ export default function CheckoutScreen() {
       Alert.alert('Store details required', 'Select a store and enter order ID and branch location.');
       return;
     }
-    if (!estimatedPrice || Number.parseFloat(estimatedPrice) <= 0) {
+    if (!estimatedPrice || fareAmount <= 0) {
       Alert.alert('Invalid amount', 'Delivery price is missing.');
+      return;
+    }
+    if (senderKind === 'STORE' && storeAvailable != null && storeAvailable < fareAmount) {
+      Alert.alert(
+        'Ma haysatid haraaga',
+        `Haraaga waa $${storeAvailable.toFixed(2)}. Trip-kan waa $${fareAmount.toFixed(2)}. Lacag ku shub.`,
+        [
+          { text: 'Ka noqo', style: 'cancel' },
+          { text: 'Lacag ku shub', onPress: () => router.push('/wallet') },
+        ]
+      );
       return;
     }
 
@@ -186,13 +219,26 @@ export default function CheckoutScreen() {
         error instanceof Error && error.message
           ? error.message
           : 'Order could not be placed. Please try again.';
+      const insufficient =
+        senderKind === 'STORE' &&
+        ((error as { code?: string; status?: number }).code === 'wallet/insufficient' ||
+          (error as { status?: number }).status === 402 ||
+          /insufficient/i.test(message));
       Alert.alert(
-        payerType === 'SENDER' && senderKind === 'STORE'
-          ? 'Could not place store order'
-          : payerType === 'SENDER'
-            ? 'Payment hold failed'
-            : 'Could not place order',
-        message
+        insufficient
+          ? 'Ma haysatid haraaga'
+          : payerType === 'SENDER' && senderKind === 'STORE'
+            ? 'Order-ka lama sameyn karin'
+            : payerType === 'SENDER'
+              ? 'Payment hold failed'
+              : 'Could not place order',
+        insufficient ? message : message,
+        insufficient
+          ? [
+              { text: 'Ka noqo', style: 'cancel' },
+              { text: 'Lacag ku shub', onPress: () => router.push('/wallet') },
+            ]
+          : undefined
       );
     }
   };
@@ -371,11 +417,23 @@ export default function CheckoutScreen() {
             <Text style={[styles.totalLabel, { color: colors.text }]}>Total</Text>
             <Text style={[styles.totalValue, { color: colors.text }]}>${estimatedPrice}</Text>
           </View>
+          {senderKind === 'STORE' ? (
+            <View style={styles.priceRow}>
+              <Text style={[styles.priceLabel, { color: storeShort ? '#C0392B' : colors.icon }]}>
+                Haraaga
+              </Text>
+              <Text style={[styles.priceValue, { color: storeShort ? '#C0392B' : colors.text }]}>
+                {storeAvailable == null ? '—' : `$${storeAvailable.toFixed(2)}`}
+              </Text>
+            </View>
+          ) : null}
         </View>
 
-        <Text style={[styles.holdHint, { color: colors.icon }]}>
+        <Text style={[styles.holdHint, { color: storeShort ? '#C0392B' : colors.icon }]}>
           {senderKind === 'STORE'
-            ? `Confirm Order places a $${estimatedPrice} charge on store credit. It is settled when the trip is completed.`
+            ? storeShort
+              ? `Ma haysatid haraaga. Haraaga waa $${storeAvailable?.toFixed(2)}. Lacag ku shub.`
+              : `Confirm Order waxay $${estimatedPrice} ka jari doontaa top-up balance-kaaga. Ma aha deen.`
             : `When you confirm, Waafi sends a prompt to ${senderNumber || 'the sender number'}. Approve it and enter your PIN to hold $${estimatedPrice}. Funds are captured only after the trip is completed.`}
         </Text>
 
@@ -390,7 +448,7 @@ export default function CheckoutScreen() {
           ]}
           activeOpacity={0.8}
           disabled={isPlacingOrder}
-          onPress={handleConfirmOrder}>
+          onPress={storeShort ? () => router.push('/wallet') : handleConfirmOrder}>
           {isPlacingOrder ? (
             <View style={styles.confirmBusy}>
               <ActivityIndicator size="small" color="#FFF" />
@@ -402,7 +460,11 @@ export default function CheckoutScreen() {
             </View>
           ) : (
             <Text style={styles.confirmButtonText}>
-              {senderKind === 'STORE' ? 'Confirm Order · Store credit' : 'Confirm Order · Hold payment'}
+              {storeShort
+                ? 'Lacag ku shub'
+                : senderKind === 'STORE'
+                  ? 'Confirm Order · Balance'
+                  : 'Confirm Order · Hold payment'}
             </Text>
           )}
         </TouchableOpacity>

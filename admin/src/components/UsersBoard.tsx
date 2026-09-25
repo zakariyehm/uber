@@ -156,7 +156,7 @@ export function UsersBoard({
               {role === "DRIVER" ? <Th>Type</Th> : <Th>Kind</Th>}
               <Th>Rating</Th>
               <Th>Trips</Th>
-              <Th>{role === "DRIVER" ? "Today" : "Pending"}</Th>
+              <Th>{role === "DRIVER" ? "Today" : "Wallet"}</Th>
               <Th>Status</Th>
               <Th className="text-right">Actions</Th>
             </tr>
@@ -202,7 +202,9 @@ export function UsersBoard({
                 <Td>{user.rating}</Td>
                 <Td>{user.tripCount}</Td>
                 <Td className="font-medium tabular-nums">
-                  {role === "DRIVER" ? money(user.todayBalance) : money(user.pendingBalance)}
+                  {role === "DRIVER"
+                    ? money(user.todayBalance)
+                    : money(user.walletBalance || user.pendingBalance)}
                 </Td>
                 <Td>
                   <div className="flex flex-wrap gap-1">
