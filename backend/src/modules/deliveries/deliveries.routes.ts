@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { DeliveryStatus } from '@prisma/client';
 import { prisma } from '../../lib/prisma.ts';
 import { authenticate, requireDriver } from '../../middleware/authenticate.ts';
 import {
@@ -11,6 +12,7 @@ import {
   applyDeliveryAction,
   createDelivery,
   declineDeliveryForDriver,
+  getBusyActiveRequestId,
   getById,
   getByOrderId,
   listForDriver,
@@ -224,20 +226,39 @@ export async function deliveryRoutes(app: FastifyInstance) {
     };
   });
 
-  app.put('/drivers/me/active', { preHandler: authenticate }, async (request) => {
+  app.put('/drivers/me/active', { preHandler: authenticate }, async (request, reply) => {
     const body = (request.body as { requestId?: string | null }) ?? {};
+    const requestId = body.requestId || null;
+
+    if (requestId) {
+      const delivery = await prisma.deliveryRequest.findUnique({
+        where: { id: requestId },
+        select: { id: true, driverUserId: true, status: true },
+      });
+      if (!delivery) {
+        return reply.code(404).send({ error: 'Delivery not found' });
+      }
+      if (delivery.driverUserId && delivery.driverUserId !== request.user.sub) {
+        return reply.code(403).send({ error: 'This trip belongs to another driver' });
+      }
+      if (
+        delivery.status === DeliveryStatus.CANCELLED ||
+        delivery.status === DeliveryStatus.COMPLETED
+      ) {
+        return reply.code(409).send({ error: 'Cannot set finished trip as active' });
+      }
+    }
+
     const row = await prisma.driverActiveDelivery.upsert({
       where: { driverUserId: request.user.sub },
-      update: { requestId: body.requestId || null },
-      create: { driverUserId: request.user.sub, requestId: body.requestId || null },
+      update: { requestId },
+      create: { driverUserId: request.user.sub, requestId },
     });
     return { requestId: row.requestId };
   });
 
   app.get('/drivers/me/active', { preHandler: authenticate }, async (request) => {
-    const row = await prisma.driverActiveDelivery.findUnique({
-      where: { driverUserId: request.user.sub },
-    });
-    return { requestId: row?.requestId ?? null };
+    const requestId = await getBusyActiveRequestId(request.user.sub);
+    return { requestId };
   });
 }

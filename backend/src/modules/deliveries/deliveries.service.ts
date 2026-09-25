@@ -55,6 +55,15 @@ export async function getBusyActiveRequestId(driverUserId: string): Promise<stri
     return null;
   }
 
+  // Stale / stolen active pointer — another driver owns this trip.
+  if (delivery.driverUserId && delivery.driverUserId !== driverUserId) {
+    await prisma.driverActiveDelivery.update({
+      where: { driverUserId },
+      data: { requestId: null },
+    });
+    return null;
+  }
+
   if (delivery.status === DeliveryStatus.CANCELLED) {
     await prisma.driverActiveDelivery.update({
       where: { driverUserId },
@@ -74,12 +83,23 @@ export async function getBusyActiveRequestId(driverUserId: string): Promise<stri
   return delivery.id;
 }
 
-async function listOnlineAvailableDrivers(vehicleType?: VehicleType | null): Promise<string[]> {
+function isOpenFleetVehicle(vt: VehicleType | string | null | undefined) {
+  return vt === VehicleType.MOTORCYCLE || vt === VehicleType.BICYCLE;
+}
+
+async function listOnlineAvailableDrivers(
+  vehicleType?: VehicleType | null,
+  openFleet = false
+): Promise<string[]> {
   const profiles = await prisma.driverProfile.findMany({
     where: {
       isOnline: true,
       user: { isActive: true },
-      ...(vehicleType ? { vehicleType } : {}),
+      ...(openFleet
+        ? { vehicleType: { in: [VehicleType.MOTORCYCLE, VehicleType.BICYCLE] } }
+        : vehicleType
+          ? { vehicleType }
+          : {}),
     },
     select: { userId: true },
     orderBy: { updatedAt: 'asc' },
@@ -102,6 +122,7 @@ async function listRankedAvailableDrivers(
   delivery: DbDelivery,
   declinedIds: string[] = []
 ): Promise<string[]> {
+  const openFleet = await isOpenFleetMethod(delivery.deliveryMethod);
   const pickup = resolvePickupCoords({
     pickupLat: (delivery as DbDelivery & { pickupLat?: number | null }).pickupLat,
     pickupLng: (delivery as DbDelivery & { pickupLng?: number | null }).pickupLng,
@@ -111,16 +132,21 @@ async function listRankedAvailableDrivers(
   const exclude = new Set(declinedIds);
   const busyFiltered: string[] = [];
 
+  const vehicleMatches = (vt: VehicleType | string | null | undefined) =>
+    openFleet ? isOpenFleetVehicle(vt) : vt === delivery.vehicleType;
+
   if (pickup) {
+    // Open fleet: no single vehicle filter — accept moto + bike nearby.
     const nearby = await findNearbyAvailableDrivers({
       pickup,
-      vehicleType: delivery.vehicleType,
+      vehicleType: openFleet ? null : delivery.vehicleType,
       excludeIds: [...exclude],
       maxResults: 30,
     });
 
     for (const row of nearby) {
       if (exclude.has(row.driverUserId)) continue;
+      if (openFleet && !isOpenFleetVehicle(row.vehicleType)) continue;
       const busy = await getBusyActiveRequestId(row.driverUserId);
       if (busy) continue;
       busyFiltered.push(row.driverUserId);
@@ -129,7 +155,7 @@ async function listRankedAvailableDrivers(
     if (busyFiltered.length === 0) {
       const postgis = await nearbyDriversPostgis({
         pickup,
-        vehicleType: delivery.vehicleType,
+        vehicleType: openFleet ? null : delivery.vehicleType,
         radiusMeters: 8000,
         limit: 30,
       });
@@ -140,7 +166,7 @@ async function listRankedAvailableDrivers(
           select: { isOnline: true, vehicleType: true },
         });
         if (!profile?.isOnline) continue;
-        if (profile.vehicleType !== delivery.vehicleType) continue;
+        if (!vehicleMatches(profile.vehicleType)) continue;
         const busy = await getBusyActiveRequestId(row.driverUserId);
         if (busy) continue;
         busyFiltered.push(row.driverUserId);
@@ -153,7 +179,7 @@ async function listRankedAvailableDrivers(
   }
 
   // No GPS pool → legacy online FIFO (still skip declined/busy/inactive).
-  const legacy = await listOnlineAvailableDrivers(delivery.vehicleType);
+  const legacy = await listOnlineAvailableDrivers(delivery.vehicleType, openFleet);
   return legacy.filter((id) => !exclude.has(id));
 }
 
@@ -359,9 +385,6 @@ export async function ensureOfferAssignment(delivery: DbDelivery): Promise<DbDel
     return cancelForNoDriver(delivery.id);
   }
 
-  // Delivery State: every online motorcycle and bicycle driver can see the same offer.
-  if (openFleet) return delivery;
-
   const now = Date.now();
   const expiresAt = delivery.offerExpiresAt?.getTime() ?? 0;
 
@@ -375,11 +398,10 @@ export async function ensureOfferAssignment(delivery: DbDelivery): Promise<DbDel
         user: { select: { isActive: true } },
       },
     });
-    if (
-      offered?.isOnline &&
-      offered.user.isActive &&
-      offered.vehicleType === delivery.vehicleType
-    ) {
+    const vehicleOk = openFleet
+      ? isOpenFleetVehicle(offered?.vehicleType)
+      : offered?.vehicleType === delivery.vehicleType;
+    if (offered?.isOnline && offered.user.isActive && vehicleOk) {
       return delivery;
     }
   }
@@ -743,12 +765,9 @@ export async function listPendingForDriver(driverUserId: string) {
     const declinedIds = parseDeclinedIds(row.offerDeclinedIds);
     if (declinedIds.includes(driverUserId)) continue;
 
-    if (await isOpenFleetMethod(row.deliveryMethod)) {
-      mine.push(toDeliveryDto(row));
-      continue;
-    }
-
-    if (row.vehicleType !== profile.vehicleType) continue;
+    const openFleet = await isOpenFleetMethod(row.deliveryMethod);
+    if (!openFleet && profile.vehicleType !== row.vehicleType) continue;
+    if (openFleet && !isOpenFleetVehicle(profile.vehicleType)) continue;
 
     const assigned = await ensureOfferAssignment(row);
     if (
@@ -770,8 +789,7 @@ export async function declineDeliveryForDriver(deliveryId: string, driverUserId:
     throw error;
   }
 
-  const openFleet = await isOpenFleetMethod(row.deliveryMethod);
-  if (!openFleet && row.offeredToDriverId && row.offeredToDriverId !== driverUserId) {
+  if (row.offeredToDriverId && row.offeredToDriverId !== driverUserId) {
     const error = new Error('This offer is assigned to another driver') as Error & {
       statusCode?: number;
     };
@@ -782,23 +800,6 @@ export async function declineDeliveryForDriver(deliveryId: string, driverUserId:
   const declinedIds = parseDeclinedIds(row.offerDeclinedIds);
   declinedIds.push(driverUserId);
   await releaseOfferLock(driverUserId, deliveryId);
-
-  if (openFleet) {
-    await prisma.deliveryRequest.update({
-      where: { id: deliveryId },
-      data: {
-        offeredToDriverId: null,
-        offerExpiresAt: null,
-        offerDeclinedIds: serializeDeclinedIds(declinedIds),
-      },
-    });
-    return {
-      ok: true,
-      rotatedTo: null,
-      offerSeconds: OFFER_TTL_SEC,
-      cyclePaused: false,
-    };
-  }
 
   const nextDeclined = [...new Set(declinedIds)];
   const candidates = await listRankedAvailableDrivers(row, nextDeclined);
@@ -922,18 +923,14 @@ export async function applyDeliveryAction(
     }
 
     const openFleet = await isOpenFleetMethod(current.deliveryMethod);
-    if (!openFleet && current.offeredToDriverId && current.offeredToDriverId !== actor.id) {
+    if (current.offeredToDriverId && current.offeredToDriverId !== actor.id) {
       const error = new Error('This offer is assigned to another driver') as Error & {
         statusCode?: number;
       };
       error.statusCode = 409;
       throw error;
     }
-    if (
-      !openFleet &&
-      current.offerExpiresAt &&
-      current.offerExpiresAt.getTime() < Date.now() - 2000
-    ) {
+    if (current.offerExpiresAt && current.offerExpiresAt.getTime() < Date.now() - 2000) {
       const error = new Error('Offer timed out') as Error & { statusCode?: number };
       error.statusCode = 409;
       throw error;
@@ -943,9 +940,18 @@ export async function applyDeliveryAction(
       where: { userId: actor.id },
       select: { vehicleType: true },
     });
-    if (!profile || (!openFleet && profile.vehicleType !== current.vehicleType)) {
-      const needed = current.vehicleType === VehicleType.BICYCLE ? 'bicycle' : 'motorcycle';
-      const error = new Error(`This trip is for a ${needed} driver`) as Error & { statusCode?: number };
+    const vehicleOk = openFleet
+      ? isOpenFleetVehicle(profile?.vehicleType)
+      : profile?.vehicleType === current.vehicleType;
+    if (!profile || !vehicleOk) {
+      const needed = openFleet
+        ? 'motorcycle or bicycle'
+        : current.vehicleType === VehicleType.BICYCLE
+          ? 'bicycle'
+          : 'motorcycle';
+      const error = new Error(`This trip is for a ${needed} driver`) as Error & {
+        statusCode?: number;
+      };
       error.statusCode = 409;
       throw error;
     }
@@ -968,6 +974,12 @@ export async function applyDeliveryAction(
       error.statusCode = 409;
       throw error;
     }
+
+    // Clear any stale/stolen active pointers so only this driver owns the trip UI.
+    await prisma.driverActiveDelivery.updateMany({
+      where: { requestId: id, NOT: { driverUserId: actor.id } },
+      data: { requestId: null },
+    });
 
     await prisma.driverActiveDelivery.upsert({
       where: { driverUserId: actor.id },
@@ -992,6 +1004,27 @@ export async function applyDeliveryAction(
     error.statusCode = statusCode;
     throw error;
   };
+
+  // Uber-style: only the assigned driver can run trip actions (incl. request payment).
+  const driverOnlyActions = new Set([
+    'mark_arrived',
+    'picked_up',
+    'start',
+    'request_payment',
+    'complete',
+    'request_return',
+  ]);
+  if (driverOnlyActions.has(action)) {
+    if (!actor?.id) fail('Driver required', 401);
+    if (!current.driverUserId || current.driverUserId !== actor.id) {
+      fail('This trip belongs to another driver', 403);
+    }
+  }
+  if (action === 'cancel' && meta?.cancelledBy === 'driver') {
+    if (actor?.id && current.driverUserId && current.driverUserId !== actor.id) {
+      fail('This trip belongs to another driver', 403);
+    }
+  }
 
   const data: Record<string, unknown> = {};
 
