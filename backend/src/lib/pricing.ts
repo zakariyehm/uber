@@ -11,6 +11,12 @@ export const PRICE_PER_KM_STANDARD = 0.5;
 export const EXPRESS_SURCHARGE = 0.5;
 /** Bicycle trips: flat $0.30 per kilometre (cheaper than Standard moto). */
 export const PRICE_PER_KM_BICYCLE = 0.3;
+/** Bicycle only appears for short trips. */
+export const BICYCLE_MAX_KM = 6;
+
+export function bicycleAvailableForKm(distanceKm: number) {
+  return Number.isFinite(distanceKm) && distanceKm > 0 && distanceKm <= BICYCLE_MAX_KM;
+}
 
 export function isExpressMethod(deliveryMethod?: string | null) {
   return /\bexpress\b/i.test(String(deliveryMethod || ''));

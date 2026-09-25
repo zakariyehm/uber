@@ -3,9 +3,12 @@ import { prisma } from '../../lib/prisma.ts';
 import { resolvePickupCoords } from '../../lib/geo.ts';
 import {
   applyQuotedFare,
+  BICYCLE_MAX_KM,
+  bicycleAvailableForKm,
   bicycleFareFromKm,
   expressDurationMinutes,
   EXPRESS_SURCHARGE,
+  isBicycleMethod,
   isExpressMethod,
   PRICE_PER_KM_BICYCLE,
   quoteTrip,
@@ -510,6 +513,8 @@ export async function quoteDelivery(input: {
     fareStandard: quote.fareLabel,
     fareExpress: express.fareLabel,
     fareBicycle: bicycleFare.toFixed(2),
+    bicycleAvailable: bicycleAvailableForKm(quote.distanceKm),
+    bicycleMaxKm: BICYCLE_MAX_KM,
     expressSurcharge: EXPRESS_SURCHARGE.toFixed(2),
     pricePerKm: quote.pricePerKmLabel,
     pricePerKmBicycle: PRICE_PER_KM_BICYCLE.toFixed(2),
@@ -549,7 +554,14 @@ export async function createDelivery(
     pickupLng: input.pickupLng,
   });
   const openFleetPreview = await isOpenFleetMethod(input.deliveryMethod);
-  // Standard km × $0.50, Express = Standard + $0.50, Bicycle km × $0.30. Delivery State stays catalog.
+  // Standard km × $0.50, Express = Standard + $0.50, Bicycle km × $0.30 up to 6 km.
+  if (quote && !openFleetPreview && isBicycleMethod(input.deliveryMethod) && !bicycleAvailableForKm(quote.distanceKm)) {
+    const error = new Error(`Bicycle is only available for trips up to ${BICYCLE_MAX_KM} km.`) as Error & {
+      statusCode?: number;
+    };
+    error.statusCode = 400;
+    throw error;
+  }
   const clientPrice = Number.parseFloat(input.deliveryPrice.replace('$', ''));
   const amount =
     quote && !openFleetPreview

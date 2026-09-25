@@ -1,7 +1,12 @@
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { fetchMotoMethods, type CatalogMethod } from '@/utils/catalog';
-import { etaForMotoOption, fareForMotoOption, type TripQuote } from '@/utils/deliveryRequests';
+import {
+  bicycleOptionVisible,
+  etaForMotoOption,
+  fareForMotoOption,
+  type TripQuote,
+} from '@/utils/deliveryRequests';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -37,6 +42,10 @@ function toOption(method: CatalogMethod): DeliveryOption {
     time: method.time,
     price: method.displayPrice || `$${method.price}`,
   };
+}
+
+function isBicycleChoice(option: DeliveryOption) {
+  return option.icon === 'bicycle' || (/\bbicycle\b|\bbaaskiil\b/i.test(option.name) && !/motorbike|motorcycle/i.test(option.name));
 }
 
 interface DeliveryBottomSheetProps {
@@ -132,13 +141,17 @@ export function DeliveryBottomSheet({
     })
   ).current;
 
+  const visibleOptions = deliveryOptions.filter(
+    (option) => !isBicycleChoice(option) || bicycleOptionVisible(quote)
+  );
+
   const handleSelect = (option: DeliveryOption) => {
     setSelectedOption(option.id);
   };
 
   const handleConfirm = () => {
     if (selectedOption) {
-      const option = deliveryOptions.find(opt => opt.id === selectedOption);
+      const option = visibleOptions.find(opt => opt.id === selectedOption);
       if (option) {
         const quoted = fareForMotoOption(quote, option.name);
         onSelect({
@@ -188,7 +201,7 @@ export function DeliveryBottomSheet({
                 style={styles.optionsList}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.optionsContent}>
-                {deliveryOptions.map((option) => (
+                {visibleOptions.map((option) => (
                   <TouchableOpacity
                     key={option.id}
                     style={[

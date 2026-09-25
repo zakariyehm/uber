@@ -67,6 +67,8 @@ export type TripQuote = {
   fareStandard?: string;
   fareExpress?: string;
   fareBicycle?: string;
+  bicycleAvailable?: boolean;
+  bicycleMaxKm?: number;
   expressSurcharge?: string;
   pricePerKm: string;
   pricePerKmBicycle?: string;
@@ -77,6 +79,12 @@ export type TripQuote = {
 function isBicycleOption(methodName: string) {
   const raw = methodName.toLowerCase();
   return /\bbicycle\b|\bbaaskiil\b/.test(raw) && !/motorbike|motorcycle/.test(raw);
+}
+
+export function bicycleOptionVisible(quote: TripQuote | null | undefined) {
+  if (!quote) return false;
+  if (typeof quote.bicycleAvailable === 'boolean') return quote.bicycleAvailable;
+  return quote.distanceKm > 0 && quote.distanceKm <= (quote.bicycleMaxKm || 6);
 }
 
 export function fareForMotoOption(quote: TripQuote | null | undefined, methodName: string) {
