@@ -549,7 +549,7 @@ export async function createDelivery(
     pickupLng: input.pickupLng,
   });
   const openFleetPreview = await isOpenFleetMethod(input.deliveryMethod);
-  // Local Moto: $0.50/km same district, $0.30/km other districts. Delivery State stays catalog.
+  // Standard km × $0.50, Express = Standard + $0.50, Bicycle km × $0.30. Delivery State stays catalog.
   const clientPrice = Number.parseFloat(input.deliveryPrice.replace('$', ''));
   const amount =
     quote && !openFleetPreview

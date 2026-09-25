@@ -5,10 +5,8 @@ import {
   type LatLng,
 } from './geo.ts';
 
-/** Same district (including same address): $0.50 per kilometre. */
-export const PRICE_PER_KM_SAME_DISTRICT = 0.5;
-/** Different Banadir districts (Google route or fallback): $0.30 per kilometre. */
-export const PRICE_PER_KM_CROSS_DISTRICT = 0.3;
+/** Standard Moto: $0.50 per kilometre on every local trip. */
+export const PRICE_PER_KM_STANDARD = 0.5;
 /** Express Moto: faster pickup, added on top of the distance fare. */
 export const EXPRESS_SURCHARGE = 0.5;
 /** Bicycle trips: flat $0.30 per kilometre (cheaper than Standard moto). */
@@ -169,15 +167,15 @@ export async function quoteTrip(input: {
   const sameDistrict =
     samePlace ||
     districtHead(input.pickupLocation) === districtHead(input.destinationLocation);
-  const pricePerKm = sameDistrict ? PRICE_PER_KM_SAME_DISTRICT : PRICE_PER_KM_CROSS_DISTRICT;
+  const pricePerKm = PRICE_PER_KM_STANDARD;
   const distanceKm = roundKm(sameDistrict && km < SAME_DISTRICT_KM ? SAME_DISTRICT_KM : km);
   const durationMinutes = routed?.seconds
     ? Math.max(MIN_MINUTES, Math.round(routed.seconds / 60))
     : Math.max(MIN_MINUTES, Math.round((distanceKm / AVG_SPEED_KMH) * 60));
-  const minFare = sameDistrict
-    ? SAME_DISTRICT_KM * PRICE_PER_KM_SAME_DISTRICT
-    : PRICE_PER_KM_CROSS_DISTRICT;
-  const fare = Math.max(minFare, roundMoney(distanceKm * pricePerKm));
+  const fare = Math.max(
+    SAME_DISTRICT_KM * PRICE_PER_KM_STANDARD,
+    roundMoney(distanceKm * pricePerKm)
+  );
 
   return {
     pickup,
