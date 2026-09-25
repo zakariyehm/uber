@@ -188,3 +188,29 @@ export async function nearbyDriversPostgis(input: {
     }
   }
 }
+
+export async function listDriverLastLocations() {
+  try {
+    const rows = await prisma.$queryRawUnsafe<
+      Array<{
+        driver_user_id: string;
+        latitude: number;
+        longitude: number;
+        status: string;
+      }>
+    >(
+      `
+      SELECT driver_user_id, latitude, longitude, status
+      FROM driver_locations
+      `
+    );
+    return rows.map((row) => ({
+      driverUserId: row.driver_user_id,
+      latitude: Number(row.latitude),
+      longitude: Number(row.longitude),
+      status: row.status,
+    }));
+  } catch {
+    return [];
+  }
+}

@@ -9,14 +9,18 @@ import {
   creditStoreBalance,
   deleteDriver,
   deleteStore,
+  getAnalytics,
   getLiveOps,
   getOverview,
   getStore,
+  getVehicle,
   getTrip,
   listPayments,
   listStores,
   listTrips,
   listUsers,
+  listVehicles,
+  patchVehicle,
   listWallets,
   patchStore,
   patchUser,
@@ -37,6 +41,7 @@ const listQuery = z.object({
   category: z.enum(['LOCAL', 'STATE', 'MOTO', 'DELIVERY_STATE']).optional(),
   vehicleType: z.enum(['MOTORCYCLE', 'BICYCLE']).optional(),
   role: z.enum(['RIDER', 'DRIVER']).optional(),
+  riderKind: z.enum(['PERSONAL', 'STORE']).optional(),
   page: z.coerce.number().optional(),
   limit: z.coerce.number().optional(),
 });
@@ -57,6 +62,11 @@ const createDriverSchema = z.object({
   firstName: z.string().min(1).max(40).optional(),
   lastName: z.string().min(1).max(40).optional(),
   vehicleType: z.enum(['MOTORCYCLE', 'BICYCLE']),
+  vehiclePlate: z.string().max(20).optional(),
+  vehicleMake: z.string().max(40).optional(),
+  vehicleModel: z.string().max(40).optional(),
+  licenseNumber: z.string().max(40).optional(),
+  address: z.string().max(160).optional(),
 });
 
 const createStoreRiderSchema = z.object({
@@ -173,6 +183,82 @@ export async function adminRoutes(app: FastifyInstance) {
 
   app.get('/overview', async () => getOverview());
   app.get('/live', async () => getLiveOps());
+  app.get('/analytics', async (request) => {
+    const query = z
+      .object({
+        range: z.enum(['today', 'week', 'month']).optional(),
+        category: z.enum(['LOCAL', 'STATE', 'MOTO', 'DELIVERY_STATE']).optional(),
+      })
+      .parse(request.query);
+    return getAnalytics(query);
+  });
+
+  app.get('/vehicles', async (request) => {
+    const query = z
+      .object({
+        q: z.string().optional(),
+        vehicleType: z.enum(['MOTORCYCLE', 'BICYCLE']).optional(),
+        unplated: z
+          .union([z.boolean(), z.enum(['true', 'false'])])
+          .optional()
+          .transform((v) => (v === undefined ? undefined : v === true || v === 'true')),
+        page: z.coerce.number().optional(),
+        limit: z.coerce.number().optional(),
+      })
+      .parse(request.query);
+    return listVehicles(query);
+  });
+
+  app.get('/vehicles/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    try {
+      return await getVehicle(id);
+    } catch (error: any) {
+      return reply.code(error.statusCode || 404).send({ error: error.message || 'Vehicle not found' });
+    }
+  });
+
+  app.post('/vehicles', async (request, reply) => {
+    try {
+      const body = createDriverSchema.parse(request.body ?? {});
+      const driver = await createDriver(body);
+      return reply.code(201).send(driver);
+    } catch (error: any) {
+      if (error?.name === 'ZodError') {
+        return reply.code(400).send({
+          error: error.issues?.[0]?.message || 'Enter driver and vehicle details',
+          details: error.issues,
+        });
+      }
+      return reply
+        .code(error.statusCode || 400)
+        .send({ error: error.message || 'Could not add vehicle', code: error.code });
+    }
+  });
+
+  app.patch('/vehicles/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    try {
+      const body = z
+        .object({
+          vehicleType: z.enum(['MOTORCYCLE', 'BICYCLE']).optional(),
+          vehiclePlate: z.string().max(20).nullable().optional(),
+          vehicleMake: z.string().max(40).nullable().optional(),
+          vehicleModel: z.string().max(40).nullable().optional(),
+          licenseNumber: z.string().max(40).nullable().optional(),
+        })
+        .parse(request.body ?? {});
+      return await patchVehicle(id, body);
+    } catch (error: any) {
+      if (error?.name === 'ZodError') {
+        return reply.code(400).send({
+          error: error.issues?.[0]?.message || 'Invalid vehicle fields',
+          details: error.issues,
+        });
+      }
+      return reply.code(error.statusCode || 400).send({ error: error.message || 'Could not update vehicle' });
+    }
+  });
 
   app.get('/trips', async (request) => {
     const query = listQuery.parse(request.query);

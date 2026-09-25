@@ -74,7 +74,14 @@ export default function CommandPage() {
       <PageHeader
         title="Command center"
         subtitle="Live snapshot of the Raac network"
-        actions={<p className="text-xs font-medium text-muted">Refreshes every 20s</p>}
+        actions={
+          <div className="flex items-center gap-3">
+            <Link href="/dispatch" className="text-xs font-semibold text-raac hover:text-raac-strong">
+              Open dispatch
+            </Link>
+            <p className="text-xs font-medium text-muted">Refreshes every 20s</p>
+          </div>
+        }
       />
 
       {error ? <p className="mb-4 text-sm text-danger">{error}</p> : null}

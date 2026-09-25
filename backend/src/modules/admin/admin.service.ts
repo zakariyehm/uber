@@ -19,6 +19,8 @@ import { applyDeliveryAction } from '../deliveries/deliveries.service.ts';
 import { syncDriverWallet } from '../wallet/wallet.service.ts';
 import { getPlatformSettings } from './settings.service.ts';
 import { forceDriverFullyOffline } from '../../lib/driver-session.ts';
+import { listDriverLastLocations } from '../../lib/driver-locations.ts';
+import { isBicycleMethod, isExpressMethod } from '../../lib/pricing.ts';
 
 const ACTIVE_TRIP_STATUSES: DeliveryStatus[] = [
   DeliveryStatus.PENDING,
@@ -208,7 +210,7 @@ export async function getOverview() {
 }
 
 export async function getLiveOps() {
-  const [trips, drivers] = await Promise.all([
+  const [trips, drivers, locations] = await Promise.all([
     prisma.deliveryRequest.findMany({
       where: { status: { in: ACTIVE_TRIP_STATUSES } },
       include: {
@@ -230,7 +232,10 @@ export async function getLiveOps() {
       },
       orderBy: { updatedAt: 'desc' },
     }),
+    listDriverLastLocations(),
   ]);
+
+  const locationByDriver = new Map(locations.map((row) => [row.driverUserId, row]));
 
   return {
     generatedAt: new Date().toISOString(),
@@ -239,18 +244,27 @@ export async function getLiveOps() {
       riderName: row.rider ? displayName(row.rider) : row.senderName || '—',
       riderPhone: row.rider?.phone || row.senderPhone || null,
       driverPhone: row.driver?.phone || null,
+      pickupLat: row.pickupLat ?? null,
+      pickupLng: row.pickupLng ?? null,
+      destinationLat: row.destinationLat ?? null,
+      destinationLng: row.destinationLng ?? null,
     })),
-    onlineDrivers: drivers.map((profile) => ({
-      id: profile.userId,
-      name: profile.displayName || displayName(profile.user),
-      phone: profile.user.phone,
-      rating: Number(profile.rating).toFixed(2),
-      isOnline: profile.isOnline,
-      isActive: profile.user.isActive,
-      vehicleType: profile.vehicleType,
-      activeTripId: profile.user.activeDelivery?.requestId || null,
-      todayBalance: moneyStr(profile.user.wallet?.balance),
-    })),
+    onlineDrivers: drivers.map((profile) => {
+      const loc = locationByDriver.get(profile.userId);
+      return {
+        id: profile.userId,
+        name: profile.displayName || displayName(profile.user),
+        phone: profile.user.phone,
+        rating: Number(profile.rating).toFixed(2),
+        isOnline: profile.isOnline,
+        isActive: profile.user.isActive,
+        vehicleType: profile.vehicleType,
+        activeTripId: profile.user.activeDelivery?.requestId || null,
+        todayBalance: moneyStr(profile.user.wallet?.balance),
+        latitude: loc?.latitude ?? null,
+        longitude: loc?.longitude ?? null,
+      };
+    }),
   };
 }
 
@@ -482,6 +496,11 @@ export async function createDriver(input: {
   firstName?: string;
   lastName?: string;
   vehicleType: 'MOTORCYCLE' | 'BICYCLE';
+  vehiclePlate?: string;
+  vehicleMake?: string;
+  vehicleModel?: string;
+  licenseNumber?: string;
+  address?: string;
 }) {
   const phone = somaliaPhone(input.phone);
   if (!/^\+252\d{8,10}$/.test(phone)) {
@@ -500,11 +519,23 @@ export async function createDriver(input: {
     vehicleType: input.vehicleType,
   });
 
+  await prisma.driverProfile.update({
+    where: { userId: user.id },
+    data: {
+      vehiclePlate: input.vehiclePlate?.trim() || null,
+      vehicleMake: input.vehicleMake?.trim() || null,
+      vehicleModel: input.vehicleModel?.trim() || null,
+      licenseNumber: input.licenseNumber?.trim() || null,
+      address: input.address?.trim() || null,
+    },
+  });
+
   return {
     ...toPublicUser(user),
     name: displayName(user),
     isActive: user.isActive,
     vehicleType: user.driverProfile?.vehicleType || input.vehicleType,
+    vehiclePlate: input.vehiclePlate?.trim() || '',
   };
 }
 
@@ -574,6 +605,7 @@ export async function createStoreRider(input: {
 
 export async function listUsers(input: {
   role?: 'RIDER' | 'DRIVER';
+  riderKind?: 'PERSONAL' | 'STORE';
   q?: string;
   page?: number;
   limit?: number;
@@ -587,6 +619,9 @@ export async function listUsers(input: {
   };
   if (!input.role) {
     where.role = { in: [UserRole.RIDER, UserRole.DRIVER] };
+  }
+  if (input.role === 'RIDER' && (input.riderKind === 'PERSONAL' || input.riderKind === 'STORE')) {
+    where.riderProfile = { riderKind: input.riderKind };
   }
   if (input.q) {
     const q = input.q.trim();
@@ -1180,5 +1215,295 @@ export async function creditStoreBalance(
   });
 
   return toStoreDto(updated);
+}
+
+function methodBucket(name: string) {
+  if (looksLikeOpenFleetMethod(name)) return 'state';
+  if (isBicycleMethod(name)) return 'bicycle';
+  if (isExpressMethod(name)) return 'express';
+  return 'standard';
+}
+
+function rangeStart(range?: string) {
+  const from = startOfToday();
+  const raw = String(range || 'today').toLowerCase();
+  if (raw === 'week') from.setDate(from.getDate() - 6);
+  if (raw === 'month') from.setDate(from.getDate() - 29);
+  return from;
+}
+
+function dayKey(value: Date) {
+  const d = new Date(value);
+  d.setHours(0, 0, 0, 0);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function toVehicleDto(row: {
+  userId: string;
+  displayName: string | null;
+  rating: Prisma.Decimal | number;
+  isOnline: boolean;
+  vehicleType: 'MOTORCYCLE' | 'BICYCLE';
+  vehiclePlate: string | null;
+  vehicleMake: string | null;
+  vehicleModel: string | null;
+  licenseNumber: string | null;
+  address: string | null;
+  createdAt: Date;
+  user: {
+    firstName: string | null;
+    lastName: string | null;
+    phone: string;
+    email: string | null;
+    isActive: boolean;
+    createdAt: Date;
+    wallet?: { balance: Prisma.Decimal | number | null } | null;
+    _count?: { driverDeliveries: number };
+  };
+}) {
+  return {
+    id: row.userId,
+    driverId: row.userId,
+    driverName: row.displayName || displayName(row.user),
+    firstName: row.user.firstName || '',
+    lastName: row.user.lastName || '',
+    phone: row.user.phone,
+    email: row.user.email || '',
+    address: row.address || '',
+    rating: Number(row.rating).toFixed(2),
+    tripCount: row.user._count?.driverDeliveries ?? 0,
+    todayBalance: row.user.wallet ? moneyStr(row.user.wallet.balance) : '0.00',
+    createdAt: row.user.createdAt.toISOString(),
+    isOnline: row.isOnline,
+    isActive: row.user.isActive,
+    vehicleType: row.vehicleType,
+    vehiclePlate: row.vehiclePlate || '',
+    vehicleMake: row.vehicleMake || '',
+    vehicleModel: row.vehicleModel || '',
+    licenseNumber: row.licenseNumber || '',
+  };
+}
+
+export async function listVehicles(input: {
+  q?: string;
+  vehicleType?: 'MOTORCYCLE' | 'BICYCLE';
+  unplated?: boolean;
+  page?: number;
+  limit?: number;
+}) {
+  const page = Math.max(1, input.page || 1);
+  const limit = Math.min(50, Math.max(1, input.limit || 20));
+  const skip = (page - 1) * limit;
+  const where: Prisma.DriverProfileWhereInput = {};
+  const and: Prisma.DriverProfileWhereInput[] = [];
+  if (input.vehicleType === 'MOTORCYCLE' || input.vehicleType === 'BICYCLE') {
+    where.vehicleType = input.vehicleType;
+  }
+  if (input.unplated) {
+    and.push({ OR: [{ vehiclePlate: null }, { vehiclePlate: '' }] });
+  }
+  if (input.q) {
+    const q = input.q.trim();
+    and.push({
+      OR: [
+        { vehiclePlate: { contains: q, mode: 'insensitive' } },
+        { vehicleMake: { contains: q, mode: 'insensitive' } },
+        { vehicleModel: { contains: q, mode: 'insensitive' } },
+        { licenseNumber: { contains: q, mode: 'insensitive' } },
+        { displayName: { contains: q, mode: 'insensitive' } },
+        { user: { phone: { contains: q, mode: 'insensitive' } } },
+        { user: { firstName: { contains: q, mode: 'insensitive' } } },
+        { user: { lastName: { contains: q, mode: 'insensitive' } } },
+      ],
+    });
+  }
+  if (and.length) where.AND = and;
+
+  const [rows, total] = await Promise.all([
+    prisma.driverProfile.findMany({
+      where,
+      include: {
+        user: {
+          include: {
+            wallet: true,
+            _count: { select: { driverDeliveries: true } },
+          },
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+      skip,
+      take: limit,
+    }),
+    prisma.driverProfile.count({ where }),
+  ]);
+
+  return {
+    page,
+    limit,
+    total,
+    vehicles: rows.map((row) => toVehicleDto(row)),
+  };
+}
+
+export async function getVehicle(id: string) {
+  const row = await prisma.driverProfile.findUnique({
+    where: { userId: id },
+    include: {
+      user: {
+        include: {
+          wallet: true,
+          _count: { select: { driverDeliveries: true } },
+        },
+      },
+    },
+  });
+  if (!row) throw adminError('Vehicle not found', 404);
+  return toVehicleDto(row);
+}
+
+export async function patchVehicle(
+  id: string,
+  input: {
+    vehicleType?: 'MOTORCYCLE' | 'BICYCLE';
+    vehiclePlate?: string | null;
+    vehicleMake?: string | null;
+    vehicleModel?: string | null;
+    licenseNumber?: string | null;
+  }
+) {
+  const profile = await prisma.driverProfile.findUnique({
+    where: { userId: id },
+    include: { user: true },
+  });
+  if (!profile) {
+    throw adminError('Vehicle not found', 404);
+  }
+  const updated = await prisma.driverProfile.update({
+    where: { userId: id },
+    data: {
+      ...(input.vehicleType ? { vehicleType: input.vehicleType } : {}),
+      ...(input.vehiclePlate !== undefined ? { vehiclePlate: input.vehiclePlate?.trim() || null } : {}),
+      ...(input.vehicleMake !== undefined ? { vehicleMake: input.vehicleMake?.trim() || null } : {}),
+      ...(input.vehicleModel !== undefined ? { vehicleModel: input.vehicleModel?.trim() || null } : {}),
+      ...(input.licenseNumber !== undefined
+        ? { licenseNumber: input.licenseNumber?.trim() || null }
+        : {}),
+    },
+    include: {
+      user: {
+        include: {
+          wallet: true,
+          _count: { select: { driverDeliveries: true } },
+        },
+      },
+    },
+  });
+  return toVehicleDto(updated);
+}
+
+export async function getAnalytics(input: { range?: string; category?: string }) {
+  const range = ['today', 'week', 'month'].includes(String(input.range || ''))
+    ? String(input.range)
+    : 'today';
+  const from = rangeStart(range);
+  const kindWhere = await tripKindWhere(input.category);
+
+  const createdWhere: Prisma.DeliveryRequestWhereInput = {
+    createdAt: { gte: from },
+    ...(kindWhere || {}),
+  };
+  const settledWhere: Prisma.DeliveryRequestWhereInput = {
+    paymentHoldStatus: PaymentHoldStatus.COMMITTED,
+    settlementType: { in: [SettlementType.FULL, SettlementType.NO_SHOW] },
+    settledAt: { gte: from },
+    ...(kindWhere || {}),
+  };
+
+  const [totals, created, cancelled, newCustomers, onlineDrivers, settledRows] = await Promise.all([
+    settledSums(from),
+    prisma.deliveryRequest.groupBy({
+      by: ['status'],
+      where: createdWhere,
+      _count: { _all: true },
+    }),
+    prisma.deliveryRequest.count({
+      where: { ...createdWhere, status: DeliveryStatus.CANCELLED },
+    }),
+    prisma.user.count({ where: { role: UserRole.RIDER, createdAt: { gte: from } } }),
+    prisma.driverProfile.count({ where: { isOnline: true } }),
+    prisma.deliveryRequest.findMany({
+      where: settledWhere,
+      include: {
+        rider: { include: { riderProfile: true } },
+        driver: { include: { driverProfile: true } },
+      },
+      orderBy: { settledAt: 'desc' },
+      take: 200,
+    }),
+  ]);
+
+  const createdCount = created.reduce((sum, row) => sum + row._count._all, 0);
+  const mixTrips = { standard: 0, express: 0, bicycle: 0, state: 0 };
+  const mixGmv = { standard: 0, express: 0, bicycle: 0, state: 0 };
+  const daily = new Map<string, { trips: number; gmv: number }>();
+  for (let cursor = new Date(from); cursor <= startOfToday(); cursor.setDate(cursor.getDate() + 1)) {
+    daily.set(dayKey(cursor), { trips: 0, gmv: 0 });
+  }
+
+  for (const row of settledRows) {
+    const bucket = methodBucket(row.deliveryMethod);
+    mixTrips[bucket] += 1;
+    mixGmv[bucket] += money(row.deliveryPrice);
+    const key = dayKey(row.settledAt || row.createdAt);
+    const slot = daily.get(key) || { trips: 0, gmv: 0 };
+    slot.trips += 1;
+    slot.gmv += money(row.deliveryPrice);
+    daily.set(key, slot);
+  }
+
+  return {
+    range,
+    from: from.toISOString(),
+    generatedAt: new Date().toISOString(),
+    kpis: {
+      ...totals,
+      tripsCreated: createdCount,
+      cancelled,
+      newCustomers,
+      onlineDrivers,
+    },
+    methods: [
+      { id: 'standard', label: 'Standard', trips: mixTrips.standard, gmv: moneyStr(mixGmv.standard) },
+      { id: 'express', label: 'Express', trips: mixTrips.express, gmv: moneyStr(mixGmv.express) },
+      { id: 'bicycle', label: 'Bicycle', trips: mixTrips.bicycle, gmv: moneyStr(mixGmv.bicycle) },
+      { id: 'state', label: 'Delivery State', trips: mixTrips.state, gmv: moneyStr(mixGmv.state) },
+    ],
+    series: [...daily.entries()].map(([date, row]) => ({
+      date,
+      trips: row.trips,
+      gmv: moneyStr(row.gmv),
+    })),
+    trips: settledRows.map((row) => ({
+      id: row.id,
+      orderId: row.orderId,
+      pickupLocation: row.pickupLocation,
+      destinationLocation: row.destinationLocation,
+      deliveryMethod: row.deliveryMethod,
+      vehicleType: row.vehicleType,
+      distanceKm: row.distanceKm != null ? Number(row.distanceKm).toFixed(1) : '',
+      deliveryPrice: moneyStr(row.deliveryPrice),
+      platformFee: moneyStr(row.platformFee),
+      driverEarnings: moneyStr(row.driverEarnings),
+      settlementType: row.settlementType,
+      status: row.status,
+      createdAt: row.createdAt.toISOString(),
+      settledAt: row.settledAt?.toISOString() || null,
+      riderName: row.rider ? displayName(row.rider) : row.senderName || '—',
+      driverName: row.driver ? displayName(row.driver) : row.driverName || 'Unassigned',
+    })),
+  };
 }
 

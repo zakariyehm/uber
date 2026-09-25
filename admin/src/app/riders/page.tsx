@@ -1,7 +1,5 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { UsersBoard } from "@/components/UsersBoard";
-
-export default function RidersPage() {
-  return <UsersBoard role="RIDER" />;
+export default function RidersRedirect() {
+  redirect("/customers");
 }

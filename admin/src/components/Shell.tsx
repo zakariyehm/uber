@@ -9,19 +9,27 @@ import { useEffect, useMemo, useState } from "react";
 type NavItem = { href?: string; label: string; section?: boolean };
 
 const NAV: NavItem[] = [
+  { section: true, label: "Operations" },
+  { href: "/dispatch", label: "Dispatch" },
   { href: "/", label: "Command" },
   { href: "/trips", label: "Trips" },
-  { href: "/moto", label: "Motorcycle" },
-  { href: "/states", label: "Delivery State" },
-  { href: "/stores", label: "Stores" },
+  { section: true, label: "People" },
+  { href: "/customers", label: "Customers" },
   { href: "/drivers", label: "Drivers" },
-  { href: "/riders", label: "Riders" },
+  { href: "/stores", label: "Stores" },
+  { section: true, label: "Fleet" },
+  { href: "/vehicles", label: "Vehicles" },
+  { href: "/states", label: "Delivery State" },
+  { section: true, label: "Money" },
   { href: "/payments", label: "Payments" },
-  { href: "/fees", label: "Fees" },
   { href: "/wallets", label: "Wallets" },
+  { href: "/fees", label: "Fees" },
+  { section: true, label: "Insights" },
+  { href: "/analytics", label: "Analytics" },
+  { href: "/reports", label: "Reports" },
 ];
 
-export function Shell({ children }: { children: React.ReactNode }) {
+export function Shell({ children, flush }: { children: React.ReactNode; flush?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const [ready, setReady] = useState(false);
@@ -139,7 +147,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
             </button>
           </div>
         </header>
-        <main className="min-h-[calc(100vh-57px)] p-6">{children}</main>
+        <main className={flush ? "h-[calc(100vh-57px)] overflow-hidden" : "min-h-[calc(100vh-57px)] p-6"}>
+          {children}
+        </main>
       </div>
     </div>
   );

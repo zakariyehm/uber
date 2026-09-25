@@ -51,10 +51,16 @@ export type TripRow = {
   riderName?: string;
   riderPhone?: string | null;
   driverPhone?: string | null;
+  pickupLat?: number | null;
+  pickupLng?: number | null;
+  destinationLat?: number | null;
+  destinationLng?: number | null;
+  distanceKm?: string;
+  durationLabel?: string;
+  offerExpiresAt?: string;
+  offeredToDriverId?: string;
   paymentHoldStatus?: string;
   settlementType?: string;
-  offeredToDriverId?: string;
-  offerExpiresAt?: string;
   /** LOCAL | STATE when returned from admin listTrips */
   tripKind?: string | null;
 };
@@ -66,6 +72,8 @@ export type LiveDriver = {
   rating: string;
   vehicleType?: string | null;
   activeTripId: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
 };
 
 export type LiveOps = {
@@ -90,6 +98,67 @@ export type AdminUserRow = {
   riderKind?: string | null;
   storeId?: string | null;
   storeName?: string | null;
+};
+
+export type VehicleRow = {
+  id: string;
+  driverId: string;
+  driverName: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  email: string;
+  address: string;
+  rating: string;
+  tripCount: number;
+  todayBalance: string;
+  createdAt: string;
+  isOnline: boolean;
+  isActive: boolean;
+  vehicleType: string;
+  vehiclePlate: string;
+  vehicleMake: string;
+  vehicleModel: string;
+  licenseNumber: string;
+};
+
+export type AnalyticsPayload = {
+  range: string;
+  from: string;
+  generatedAt: string;
+  kpis: {
+    gmv: string;
+    platformFee: string;
+    driverEarnings: string;
+    deliveryStateBalance: string;
+    settledCount: number;
+    fullTrips: number;
+    noShows: number;
+    tripsCreated: number;
+    cancelled: number;
+    newCustomers: number;
+    onlineDrivers: number;
+  };
+  methods: Array<{ id: string; label: string; trips: number; gmv: string }>;
+  series: Array<{ date: string; trips: number; gmv: string }>;
+  trips: Array<{
+    id: string;
+    orderId: string;
+    pickupLocation: string;
+    destinationLocation: string;
+    deliveryMethod: string;
+    vehicleType?: string | null;
+    distanceKm: string;
+    deliveryPrice: string;
+    platformFee: string;
+    driverEarnings: string;
+    settlementType?: string | null;
+    status: string;
+    createdAt: string;
+    settledAt?: string | null;
+    riderName: string;
+    driverName: string;
+  }>;
 };
 
 export type ServiceMethod = {

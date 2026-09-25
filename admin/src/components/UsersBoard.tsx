@@ -24,8 +24,15 @@ import type { AdminUserRow } from "@/lib/types";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-export function UsersBoard({ role }: { role: "DRIVER" | "RIDER" }) {
+export function UsersBoard({
+  role,
+  title: titleProp,
+}: {
+  role: "DRIVER" | "RIDER";
+  title?: string;
+}) {
   const [q, setQ] = useState("");
+  const [riderKind, setRiderKind] = useState<"" | "PERSONAL" | "STORE">("");
   const [page, setPage] = useState(1);
   const [data, setData] = useState<{ users: AdminUserRow[]; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -38,6 +45,7 @@ export function UsersBoard({ role }: { role: "DRIVER" | "RIDER" }) {
     try {
       const params = new URLSearchParams({ role, page: String(page), limit: "20" });
       if (q) params.set("q", q);
+      if (role === "RIDER" && riderKind) params.set("riderKind", riderKind);
       const result = await api<{ users: AdminUserRow[]; total: number }>(`/admin/users?${params}`);
       setData(result);
       setError(null);
@@ -49,7 +57,7 @@ export function UsersBoard({ role }: { role: "DRIVER" | "RIDER" }) {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [role, q, page]);
+  }, [role, q, page, riderKind]);
 
   const patch = async (
     id: string,
@@ -63,7 +71,7 @@ export function UsersBoard({ role }: { role: "DRIVER" | "RIDER" }) {
     }
   };
 
-  const title = role === "DRIVER" ? "Drivers" : "Riders";
+  const title = titleProp || (role === "DRIVER" ? "Drivers" : "Customers");
   const colSpan = 7;
 
   const removeDriver = async () => {
@@ -87,11 +95,36 @@ export function UsersBoard({ role }: { role: "DRIVER" | "RIDER" }) {
         title={title}
         subtitle={`${data?.total ?? 0} accounts · ${
           role === "DRIVER"
-            ? "Fleet logins and vehicle types"
-            : "Personal app signups and admin-issued store riders"
+            ? "People who log in as drivers — vehicles live under Fleet"
+            : "Personal riders and store staff accounts"
         }`}
         actions={
           <>
+            {role === "RIDER" ? (
+              <div className="flex rounded-lg border border-line bg-panel-2 p-0.5 text-xs font-semibold">
+                {(
+                  [
+                    ["", "All"],
+                    ["PERSONAL", "Personal"],
+                    ["STORE", "Store"],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id || "all"}
+                    type="button"
+                    className={`rounded-md px-2.5 py-1.5 ${
+                      riderKind === id ? "bg-panel text-ink shadow-sm" : "text-muted"
+                    }`}
+                    onClick={() => {
+                      setPage(1);
+                      setRiderKind(id);
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <SearchInput
               placeholder={`Search ${title.toLowerCase()}`}
               value={q}
@@ -137,21 +170,13 @@ export function UsersBoard({ role }: { role: "DRIVER" | "RIDER" }) {
                 </Td>
                 {role === "DRIVER" ? (
                   <Td>
-                    <select
-                      className="rounded-lg border border-line bg-panel-2 px-2 py-1.5 text-xs outline-none focus:border-raac focus:ring-2 focus:ring-raac/20"
-                      value={user.vehicleType || "MOTORCYCLE"}
-                      onChange={(e) =>
-                        void patch(user.id, {
-                          vehicleType: e.target.value as "MOTORCYCLE" | "BICYCLE",
-                        })
-                      }
+                    <Link
+                      href={`/vehicles?q=${encodeURIComponent(user.phone)}`}
+                      className="text-sm font-semibold text-raac hover:text-raac-strong"
                     >
-                      {VEHICLE_TYPES.map((type) => (
-                        <option key={type.id} value={type.id}>
-                          {type.label}
-                        </option>
-                      ))}
-                    </select>
+                      {VEHICLE_TYPES.find((type) => type.id === user.vehicleType)?.label ||
+                        "Motorcycle"}
+                    </Link>
                   </Td>
                 ) : (
                   <Td>
