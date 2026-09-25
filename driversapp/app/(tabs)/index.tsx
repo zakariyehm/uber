@@ -422,21 +422,18 @@ export default function HomeScreen() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" translucent />
-      {MAPBOX_TOKEN ? (
-        <View style={styles.mapBackground}>
+      <ImageBackground source={homeBgSource} style={styles.mapBackground} resizeMode="cover">
+        {MAPBOX_TOKEN ? (
           <DriverMap
             latitude={mapCoords?.latitude}
             longitude={mapCoords?.longitude}
             online={driverStatus === 'online' || driverStatus === 'waiting'}
+            onLocate={setMapCoords}
             style={StyleSheet.absoluteFill}
           />
-          {overlay}
-        </View>
-      ) : (
-        <ImageBackground source={homeBgSource} style={styles.mapBackground} resizeMode="cover">
-          {overlay}
-        </ImageBackground>
-      )}
+        ) : null}
+        {overlay}
+      </ImageBackground>
 
       <View style={styles.divider} />
       <BottomNav

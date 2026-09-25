@@ -1,10 +1,17 @@
 import { AppColors } from '@/constants/theme';
+import {
+  getDriverLocationBlockReason,
+  openDeviceLocationSettings,
+  readDriverCoords,
+} from '@/utils/driver-location';
+import { DEFAULT_MAP_STYLE, MAP_STYLES, readMapStyle, type MapStyleId } from '@/utils/map-style';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   StyleSheet,
-  Text,
   TouchableOpacity,
   View,
   type StyleProp,
@@ -16,25 +23,14 @@ export const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? '';
 
 /** Mogadishu — shown until the first GPS fix arrives. */
 const FALLBACK_CENTER = { latitude: 2.0469, longitude: 45.3182 };
-const STYLE_STORAGE_KEY = 'uber.driver.mapStyle';
-
-export type MapStyleId = 'standard' | 'satellite' | 'night';
-
-const MAP_STYLES: Record<MapStyleId, { label: string; url: string }> = {
-  standard: { label: 'Standard', url: 'mapbox://styles/mapbox/streets-v12' },
-  satellite: { label: 'Satellite', url: 'mapbox://styles/mapbox/satellite-streets-v12' },
-  night: { label: 'Night', url: 'mapbox://styles/mapbox/navigation-night-v1' },
-};
-
-const STYLE_ORDER: MapStyleId[] = ['standard', 'satellite', 'night'];
 
 type DriverMapProps = {
   latitude?: number | null;
   longitude?: number | null;
   /** Puck pulses while the driver is online and receiving offers. */
   online?: boolean;
-  /** Hide the layer switcher on screens that should stay fixed. */
-  showStyleSwitcher?: boolean;
+  /** Fresh GPS fix from the locate button, so callers can keep their own state. */
+  onLocate?: (coords: { latitude: number; longitude: number }) => void;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -65,6 +61,15 @@ function buildHtml(token: string, center: { latitude: number; longitude: number 
 <body>
 <div id="map"></div>
 <script>
+  function post(payload) {
+    try { window.ReactNativeWebView.postMessage(JSON.stringify(payload)); } catch (e) {}
+  }
+  window.onerror = function (message) {
+    post({ type: 'error', message: String(message) });
+  };
+  if (typeof mapboxgl === 'undefined') {
+    post({ type: 'error', message: 'mapbox-gl failed to load from CDN' });
+  }
   mapboxgl.accessToken = ${JSON.stringify(token)};
   var map = new mapboxgl.Map({
     container: 'map',
@@ -72,6 +77,10 @@ function buildHtml(token: string, center: { latitude: number; longitude: number 
     center: [${center.longitude}, ${center.latitude}],
     zoom: 15,
     attributionControl: true,
+  });
+  map.on('load', function () { post({ type: 'ready' }); });
+  map.on('error', function (e) {
+    post({ type: 'error', message: (e && e.error && e.error.message) || 'map error' });
   });
   var puck = document.createElement('div');
   puck.className = 'puck';
@@ -83,6 +92,11 @@ function buildHtml(token: string, center: { latitude: number; longitude: number 
     marker.setLngLat([lng, lat]);
     puck.className = online ? 'puck online' : 'puck';
     if (follow) map.easeTo({ center: [lng, lat], duration: 700 });
+  };
+
+  // "My location" button — snap back to the driver after panning away.
+  window.raacFlyTo = function (lat, lng) {
+    map.flyTo({ center: [lng, lat], zoom: 16, duration: 900 });
   };
 
   // Markers are DOM elements, so they survive a style swap.
@@ -99,18 +113,14 @@ function buildHtml(token: string, center: { latitude: number; longitude: number 
 
 /**
  * Live driver map (Mapbox GL JS in a WebView so it runs in Expo Go).
- * Renders nothing without a token so the caller can fall back to its own art.
+ * Map type comes from Settings → Map type; renders nothing without a token
+ * so the caller can fall back to its own art.
  */
-export function DriverMap({
-  latitude,
-  longitude,
-  online = false,
-  showStyleSwitcher = true,
-  style,
-}: DriverMapProps) {
+export function DriverMap({ latitude, longitude, online = false, onLocate, style }: DriverMapProps) {
   const webRef = useRef<WebView>(null);
-  const [styleId, setStyleId] = useState<MapStyleId>('standard');
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [styleId, setStyleId] = useState<MapStyleId>(DEFAULT_MAP_STYLE);
+  const [locating, setLocating] = useState(false);
+  const [ready, setReady] = useState(false);
 
   const hasFix = typeof latitude === 'number' && typeof longitude === 'number';
   const center = hasFix
@@ -118,7 +128,10 @@ export function DriverMap({
     : FALLBACK_CENTER;
 
   // Keep the HTML stable — camera, puck and style move through injected JS instead.
-  const html = useMemo(() => buildHtml(MAPBOX_TOKEN, center, MAP_STYLES.standard.url), []);
+  const html = useMemo(
+    () => buildHtml(MAPBOX_TOKEN, center, MAP_STYLES[DEFAULT_MAP_STYLE].url),
+    []
+  );
 
   const pushDriver = useCallback(() => {
     webRef.current?.injectJavaScript(
@@ -130,19 +143,18 @@ export function DriverMap({
     pushDriver();
   }, [pushDriver]);
 
-  // Restore the driver's last chosen map type.
-  useEffect(() => {
-    let cancelled = false;
-    void AsyncStorage.getItem(STYLE_STORAGE_KEY)
-      .then((saved) => {
-        if (cancelled) return;
-        if (saved && saved in MAP_STYLES) setStyleId(saved as MapStyleId);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  // Pick up a change made in Settings → Map type on the way back.
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      void readMapStyle().then((saved) => {
+        if (!cancelled) setStyleId(saved);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, [])
+  );
 
   useEffect(() => {
     webRef.current?.injectJavaScript(
@@ -150,64 +162,90 @@ export function DriverMap({
     );
   }, [styleId]);
 
-  const chooseStyle = (next: MapStyleId) => {
-    setStyleId(next);
-    setPickerOpen(false);
-    void AsyncStorage.setItem(STYLE_STORAGE_KEY, next).catch(() => {});
+  const handleLocate = async () => {
+    if (locating) return;
+    setLocating(true);
+    try {
+      const coords = await readDriverCoords();
+      if (!coords) {
+        const reason = await getDriverLocationBlockReason();
+        Alert.alert(
+          'Location unavailable',
+          reason === 'services'
+            ? 'Turn on Location / GPS in system settings to centre the map on you.'
+            : 'Allow location access for Raac Drivers to centre the map on you.',
+          [
+            { text: 'Not now', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => void openDeviceLocationSettings() },
+          ]
+        );
+        return;
+      }
+      onLocate?.(coords);
+      webRef.current?.injectJavaScript(
+        `window.raacFlyTo && window.raacFlyTo(${coords.latitude}, ${coords.longitude}); true;`
+      );
+    } finally {
+      setLocating(false);
+    }
   };
 
   if (!MAPBOX_TOKEN) return null;
 
   return (
-    <View style={[styles.wrap, style]}>
-      <WebView
-        ref={webRef}
-        originWhitelist={['*']}
-        source={{ html, baseUrl: 'https://api.mapbox.com' }}
-        javaScriptEnabled
-        domStorageEnabled
-        scrollEnabled={false}
-        bounces={false}
-        overScrollMode="never"
-        setSupportMultipleWindows={false}
-        onLoadEnd={() => {
-          pushDriver();
-          webRef.current?.injectJavaScript(
-            `window.raacSetStyle && window.raacSetStyle(${JSON.stringify(
-              MAP_STYLES[styleId].url
-            )}); true;`
-          );
-        }}
-        style={styles.web}
-      />
+    <View style={[styles.wrap, style]} pointerEvents="box-none">
+      {/* Stay invisible until Mapbox reports a loaded style so the caller's
+          fallback art shows instead of a blank white page. */}
+      <View style={[StyleSheet.absoluteFill, { opacity: ready ? 1 : 0 }]}>
+        <WebView
+          ref={webRef}
+          originWhitelist={['*']}
+          source={{ html, baseUrl: 'https://api.mapbox.com' }}
+          javaScriptEnabled
+          domStorageEnabled
+          scrollEnabled={false}
+          bounces={false}
+          overScrollMode="never"
+          setSupportMultipleWindows={false}
+          onMessage={(event) => {
+            try {
+              const data = JSON.parse(event.nativeEvent.data) as {
+                type: string;
+                message?: string;
+              };
+              if (data.type === 'ready') setReady(true);
+              if (data.type === 'error') console.warn('[DriverMap]', data.message);
+            } catch {
+              // ignore malformed bridge payloads
+            }
+          }}
+          onError={({ nativeEvent }) => console.warn('[DriverMap] webview', nativeEvent.description)}
+          onHttpError={({ nativeEvent }) =>
+            console.warn('[DriverMap] http', nativeEvent.statusCode, nativeEvent.url)
+          }
+          onLoadEnd={() => {
+            pushDriver();
+            webRef.current?.injectJavaScript(
+              `window.raacSetStyle && window.raacSetStyle(${JSON.stringify(
+                MAP_STYLES[styleId].url
+              )}); true;`
+            );
+          }}
+          style={styles.web}
+        />
+      </View>
 
-      {showStyleSwitcher ? (
-        <View style={styles.switcher} pointerEvents="box-none">
-          {pickerOpen
-            ? STYLE_ORDER.map((id) => (
-                <TouchableOpacity
-                  key={id}
-                  style={[styles.chip, id === styleId && styles.chipActive]}
-                  onPress={() => chooseStyle(id)}
-                  activeOpacity={0.85}>
-                  <Text style={[styles.chipText, id === styleId && styles.chipTextActive]}>
-                    {MAP_STYLES[id].label}
-                  </Text>
-                </TouchableOpacity>
-              ))
-            : null}
-          <TouchableOpacity
-            style={styles.layersButton}
-            onPress={() => setPickerOpen((open) => !open)}
-            activeOpacity={0.85}>
-            <Ionicons
-              name={pickerOpen ? 'close' : 'layers-outline'}
-              size={20}
-              color={AppColors.text}
-            />
-          </TouchableOpacity>
-        </View>
-      ) : null}
+      <TouchableOpacity
+        style={styles.locateButton}
+        onPress={() => void handleLocate()}
+        disabled={locating}
+        activeOpacity={0.85}>
+        {locating ? (
+          <ActivityIndicator size="small" color={AppColors.primary} />
+        ) : (
+          <Ionicons name="locate" size={20} color={AppColors.primary} />
+        )}
+      </TouchableOpacity>
     </View>
   );
 }
@@ -221,14 +259,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'transparent',
   },
-  switcher: {
+  locateButton: {
     position: 'absolute',
     right: 12,
-    top: '38%',
-    alignItems: 'flex-end',
-    gap: 8,
-  },
-  layersButton: {
+    top: '22%',
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -240,27 +274,5 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 5,
-  },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.18,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  chipActive: {
-    backgroundColor: AppColors.primary,
-  },
-  chipText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: AppColors.text,
-  },
-  chipTextActive: {
-    color: '#FFFFFF',
   },
 });

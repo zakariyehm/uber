@@ -57,6 +57,15 @@ function RootNavigator() {
           }}
         />
         <Stack.Screen
+          name="map-style"
+          options={{
+            headerShown: false,
+            animation: 'slide_from_right',
+            gestureEnabled: true,
+            contentStyle: { backgroundColor: '#FFFFFF' },
+          }}
+        />
+        <Stack.Screen
           name="wallet"
           options={{
             headerShown: false,

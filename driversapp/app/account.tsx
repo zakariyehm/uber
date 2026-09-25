@@ -1,8 +1,9 @@
 import { useAuth } from '@/contexts/auth';
 import { driverDisplayName } from '@/utils/driverAuth';
+import { DEFAULT_MAP_STYLE, MAP_STYLES, readMapStyle } from '@/utils/map-style';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   Dimensions,
@@ -41,14 +42,29 @@ export default function AccountScreen() {
   const { user, signOut } = useAuth();
   const [username, setUsername] = useState('Driver');
   const [rating] = useState('5.0');
+  const [mapStyleLabel, setMapStyleLabel] = useState(MAP_STYLES[DEFAULT_MAP_STYLE].label);
 
   useEffect(() => {
     setUsername(driverDisplayName(user));
   }, [user]);
 
+  // Keep the Map type row showing the current choice after coming back.
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      void readMapStyle().then((saved) => {
+        if (!cancelled) setMapStyleLabel(MAP_STYLES[saved].label);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, [])
+  );
+
   const accountOptions: AccountOption[] = [
     { id: 'history', title: 'Trip History', subtitle: 'Past and active deliveries', icon: 'time-outline' },
     { id: 'wallet', title: 'Wallet', icon: 'wallet-outline' },
+    { id: 'mapStyle', title: 'Map type', subtitle: mapStyleLabel, icon: 'map-outline' },
     { id: 'payment', title: 'Payment', icon: 'card-outline' },
     { id: 'uber', title: 'Manage Raac account', icon: 'person-outline' },
     { id: 'privacy', title: 'Privacy', icon: 'lock-closed-outline' },
@@ -61,6 +77,9 @@ export default function AccountScreen() {
     }
     if (option.id === 'history') {
       router.push('/history');
+    }
+    if (option.id === 'mapStyle') {
+      router.push('/map-style');
     }
     if (option.id === 'logout') {
       handleLogout();
@@ -162,7 +181,15 @@ export default function AccountScreen() {
                     <Text style={[styles.menuItemText, { color, fontSize: scaleFont(16) }]}>
                       {option.title}
                     </Text>
+                    {option.subtitle ? (
+                      <Text style={[styles.menuItemSubtitle, { fontSize: scaleFont(13) }]}>
+                        {option.subtitle}
+                      </Text>
+                    ) : null}
                   </View>
+                  {isLogout ? null : (
+                    <Ionicons name="chevron-forward" size={scaleFont(18)} color="#B0B0B0" />
+                  )}
                 </View>
               </TouchableOpacity>
             );
@@ -252,5 +279,9 @@ const styles = StyleSheet.create({
   },
   menuItemText: {
     fontWeight: '400',
+  },
+  menuItemSubtitle: {
+    marginTop: 2,
+    color: '#6A6A6A',
   },
 });
