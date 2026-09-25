@@ -71,6 +71,22 @@ export function tripStatsLabel(
   return time ? `${km} · ${time}` : km;
 }
 
+/** Store offers show store + branch, not the district pickup string. */
+export function driverPickupLabel(request: {
+  senderKind?: string;
+  senderName?: string;
+  storeBranchLocation?: string;
+  pickupLocation: string;
+}) {
+  if (request.senderKind !== 'STORE') return request.pickupLocation;
+  const store = (request.senderName || 'Store').trim();
+  const raw = (request.storeBranchLocation || '').trim();
+  if (!raw) return store;
+  const branch = raw.includes('·') ? raw.split('·')[0].trim() : raw;
+  if (!branch || branch === request.pickupLocation) return store;
+  return `${store} · ${branch}`;
+}
+
 /** What the driver keeps. Delivery State uses the live admin payout; Moto stays the trip fare. */
 export function driverPayoutLabel(request: Pick<DeliveryRequest, 'openToAllVehicleTypes' | 'driverEarnings' | 'deliveryPrice'>) {
   const raw = request.openToAllVehicleTypes

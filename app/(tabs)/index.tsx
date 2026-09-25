@@ -119,7 +119,7 @@ export default function HomeScreen() {
               storeId: user?.store?.id || '',
               storeName: user?.store?.name || '',
               storeOrderCode: storeOrderId.trim(),
-              storeBranchLocation: staffPickup.location,
+              storeBranchLocation: staffPickup.name || staffPickup.label || staffPickup.location,
             }
           : {}),
       },

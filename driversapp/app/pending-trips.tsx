@@ -1,6 +1,7 @@
 import {
   DeliveryRequest,
   driverPayoutLabel,
+  driverPickupLabel,
   getActiveDelivery,
   getDeliveryRequestById,
   getPendingRequests,
@@ -86,7 +87,7 @@ export default function PendingTripsScreen() {
             }>
             <Text style={styles.section}>Active trip</Text>
             <Text style={styles.route}>
-              {active.pickupLocation} → {active.destinationLocation}
+              {driverPickupLabel(active)} → {active.destinationLocation}
             </Text>
             <Text style={styles.meta}>
               {active.status} · {driverPayoutLabel(active)}
@@ -116,7 +117,7 @@ export default function PendingTripsScreen() {
                   router.push({ pathname: '/delivery-offer', params: { requestId: item.id } })
                 }>
                 <Text style={styles.route}>
-                  {item.pickupLocation} → {item.destinationLocation}
+                  {driverPickupLabel(item)} → {item.destinationLocation}
                 </Text>
                 <Text style={styles.meta}>
                   {driverPayoutLabel(item)} · {item.itemType}

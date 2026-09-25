@@ -7,6 +7,7 @@ import {
   getDeliveryRequestById,
   tripStatsLabel,
   getPendingRequests,
+  driverPickupLabel,
 } from '@/utils/deliveryRequests';
 import { driverDisplayName } from '@/utils/driverAuth';
 import { toUserFriendlyError } from '@/utils/errors';
@@ -251,24 +252,14 @@ export default function DeliveryOfferScreen() {
               <View style={styles.timelineLine} />
             </View>
             <View style={styles.routeTextCol}>
-              <Text style={styles.routePrimary} numberOfLines={1}>
-                Pickup ·{' '}
-                {request.senderKind === 'STORE' && request.storeBranchLocation
-                  ? request.storeBranchLocation
-                  : request.pickupLocation}
+              <Text style={styles.routePrimary} numberOfLines={2}>
+                Pickup · {driverPickupLabel(request)}
               </Text>
               <Text style={styles.routeSecondary} numberOfLines={2}>
                 {request.senderKind === 'STORE'
-                  ? [
-                      request.senderName || 'Store',
-                      request.storeOrderCode ? `Order ID ${request.storeOrderCode}` : null,
-                      request.storeBranchLocation &&
-                      request.storeBranchLocation !== request.pickupLocation
-                        ? request.pickupLocation
-                        : null,
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')
+                  ? request.storeOrderCode
+                    ? `Order ID ${request.storeOrderCode}`
+                    : 'Store pickup'
                   : `${request.senderName || 'Sender'} · ${request.senderPhone || 'No phone'}`}
               </Text>
             </View>

@@ -5,6 +5,7 @@ import {
   completeDelivery,
   DeliveryRequest,
   driverPayoutLabel,
+  driverPickupLabel,
   getDeliveryRequestById,
   tripStatsLabel,
   markAsPickedUp,
@@ -51,7 +52,7 @@ function formatMmSs(totalSec: number): string {
 
 function sheetCopy(request: DeliveryRequest): { title: string; subtitle: string } {
   if (request.status === 'accepted' && !request.driverArrived) {
-    return { title: 'Head to pickup', subtitle: request.pickupLocation };
+    return { title: 'Head to pickup', subtitle: driverPickupLabel(request) };
   }
   if (
     request.senderKind === 'STORE' &&
@@ -65,7 +66,7 @@ function sheetCopy(request: DeliveryRequest): { title: string; subtitle: string 
     return { title: 'Waiting for rider', subtitle: 'Ask them to confirm you arrived' };
   }
   if (request.status === 'accepted' && request.userConfirmedArrival) {
-    return { title: 'Confirm package pickup', subtitle: request.pickupLocation };
+    return { title: 'Confirm package pickup', subtitle: driverPickupLabel(request) };
   }
   if (request.status === 'picked_up' && !request.userConfirmedPickup) {
     return { title: 'Waiting for rider', subtitle: 'Ask them to confirm package taken' };
@@ -76,7 +77,7 @@ function sheetCopy(request: DeliveryRequest): { title: string; subtitle: string 
   if (request.status === 'in_transit' && request.returnRequested) {
     return {
       title: 'Returning to store',
-      subtitle: request.storeBranchLocation || request.pickupLocation,
+      subtitle: driverPickupLabel(request),
     };
   }
   if (request.status === 'in_transit') {
@@ -101,7 +102,7 @@ function sheetCopy(request: DeliveryRequest): { title: string; subtitle: string 
       : request.deliveryPrice;
     return { title: 'Delivery complete', subtitle: `$${earned} earned` };
   }
-  return { title: 'Trip details', subtitle: request.pickupLocation };
+  return { title: 'Trip details', subtitle: driverPickupLabel(request) };
 }
 
 export default function DeliveryDetailsScreen() {
@@ -396,10 +397,7 @@ export default function DeliveryDetailsScreen() {
         .filter(Boolean)
         .join(' · ')
     : [request.senderName, request.senderPhone].filter(Boolean).join(' · ');
-  const pickupTitle =
-    isStoreSender && request.storeBranchLocation
-      ? request.storeBranchLocation
-      : request.pickupLocation;
+  const pickupTitle = driverPickupLabel(request);
   const recipientLine = [request.recipientName, request.recipientNumber].filter(Boolean).join(' · ');
   const priceLabel = driverPayoutLabel(request);
   const isWaitingOnRider = step?.kind === 'wait';
