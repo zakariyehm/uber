@@ -5,6 +5,7 @@ import {
   DeliveryRequest,
   driverPayoutLabel,
   getDeliveryRequestById,
+  tripStatsLabel,
   getPendingRequests,
 } from '@/utils/deliveryRequests';
 import { driverDisplayName } from '@/utils/driverAuth';
@@ -229,10 +230,13 @@ export default function DeliveryOfferScreen() {
           <Text style={styles.price}>
             ${openFleet ? request.driverEarnings || '0.50' : request.deliveryPrice}
           </Text>
+          {tripStatsLabel(request) ? (
+            <Text style={styles.tripStats}>{tripStatsLabel(request)}</Text>
+          ) : null}
           <Text style={styles.priceHint}>
             {openFleet
               ? `${secondsLeft}s to accept · fare $${request.deliveryPrice} · you earn ${driverPayoutLabel(request)}`
-              : `${secondsLeft}s to accept · ${request.itemType}`}
+              : `${secondsLeft}s to accept · ${request.itemType || 'Moto'}`}
           </Text>
         </View>
 
@@ -362,6 +366,12 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#000',
     letterSpacing: -0.5,
+  },
+  tripStats: {
+    marginTop: 4,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#11181C',
   },
   priceHint: {
     marginTop: 6,

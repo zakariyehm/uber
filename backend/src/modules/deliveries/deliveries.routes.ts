@@ -12,6 +12,7 @@ import {
   applyDeliveryAction,
   createDelivery,
   declineDeliveryForDriver,
+  quoteDelivery,
   getBusyActiveRequestId,
   getById,
   getByOrderId,
@@ -24,6 +25,7 @@ import {
   createDeliverySchema,
   deliveryActionSchema,
   driverLocationSchema,
+  quoteDeliverySchema,
 } from './deliveries.schemas.ts';
 
 export async function deliveryRoutes(app: FastifyInstance) {
@@ -43,6 +45,17 @@ export async function deliveryRoutes(app: FastifyInstance) {
       return reply
         .code(error.statusCode || 400)
         .send({ error: error.message || 'Could not create delivery', code: 'delivery/create_failed' });
+    }
+  });
+
+  app.post('/quote', async (request, reply) => {
+    try {
+      const body = quoteDeliverySchema.parse(request.body);
+      return await quoteDelivery(body);
+    } catch (error: any) {
+      return reply
+        .code(error.statusCode || 400)
+        .send({ error: error.message || 'Could not quote trip', code: 'delivery/quote_failed' });
     }
   });
 

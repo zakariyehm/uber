@@ -47,6 +47,9 @@ export default function CheckoutScreen() {
   const deliveryMethod = params.deliveryMethod as string || '';
   const deliveryTime = params.deliveryTime as string || '';
   const deliveryPrice = params.deliveryPrice as string || '';
+  const distanceKm = (params.distanceKm as string) || '';
+  const durationLabel = (params.durationLabel as string) || '';
+  const fareBreakdown = (params.fareBreakdown as string) || '';
 
   // Use delivery price from params, or calculate if not provided
   const estimatedPrice = deliveryPrice ? deliveryPrice.replace('$', '') : '10.00';
@@ -349,8 +352,18 @@ export default function CheckoutScreen() {
             borderColor: isDark ? '#3A3A3A' : '#E0E0E0',
           }
         ]}>
+          {distanceKm ? (
+            <View style={styles.priceRow}>
+              <Text style={[styles.priceLabel, { color: colors.icon }]}>Distance</Text>
+              <Text style={[styles.priceValue, { color: colors.text }]}>
+                {distanceKm} km{durationLabel ? ` · ${durationLabel}` : ''}
+              </Text>
+            </View>
+          ) : null}
           <View style={styles.priceRow}>
-            <Text style={[styles.priceLabel, { color: colors.text }]}>Delivery Fee</Text>
+            <Text style={[styles.priceLabel, { color: colors.text }]}>
+              {fareBreakdown || 'Delivery Fee'}
+            </Text>
             <Text style={[styles.priceValue, { color: colors.text }]}>${estimatedPrice}</Text>
           </View>
           <View style={[styles.divider, { backgroundColor: isDark ? '#3A3A3A' : '#E0E0E0' }]} />

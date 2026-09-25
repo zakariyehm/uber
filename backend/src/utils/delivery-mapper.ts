@@ -36,6 +36,9 @@ export type DeliveryDto = {
   vehicleType?: string;
   openToAllVehicleTypes?: boolean;
   deliveryPrice: string;
+  distanceKm?: string;
+  durationMinutes?: number;
+  durationLabel?: string;
   status: string;
   createdAt: string;
   acceptedAt?: string;
@@ -128,6 +131,12 @@ export function toDeliveryDto(row: DbDelivery): DeliveryDto {
     vehicleType: row.vehicleType,
     openToAllVehicleTypes: openFleet,
     deliveryPrice: row.deliveryPrice.toFixed(2),
+    distanceKm: row.distanceKm != null ? Number(row.distanceKm).toFixed(1) : undefined,
+    durationMinutes: row.durationMinutes ?? undefined,
+    durationLabel:
+      row.durationMinutes != null
+        ? `~${row.durationMinutes} min`
+        : row.deliveryTimeLabel ?? undefined,
     status: statusMap[row.status],
     createdAt: row.createdAt.toISOString(),
     acceptedAt: toIso(row.acceptedAt),

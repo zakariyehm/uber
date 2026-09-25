@@ -6,6 +6,7 @@ import {
   DeliveryRequest,
   driverPayoutLabel,
   getDeliveryRequestById,
+  tripStatsLabel,
   markAsPickedUp,
   markDriverArrived,
   requestPayment,
@@ -537,6 +538,13 @@ export default function DeliveryDetailsScreen() {
         </View>
       </View>
 
+      {tripStatsLabel(request) ? (
+        <View style={styles.statsRow}>
+          <Text style={styles.statsLabel}>Trip</Text>
+          <Text style={styles.statsValue}>{tripStatsLabel(request)}</Text>
+        </View>
+      ) : null}
+
       <View style={styles.fareRow}>
         <View>
           <Text style={styles.fareLabel}>Your earnings</Text>
@@ -650,6 +658,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     fontWeight: '500',
+  },
+  statsRow: {
+    marginTop: 4,
+    borderRadius: 16,
+    backgroundColor: '#F7F7F7',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  statsLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#777',
+  },
+  statsValue: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#11181C',
   },
   fareRow: {
     marginTop: 4,

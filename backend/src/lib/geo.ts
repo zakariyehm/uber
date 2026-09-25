@@ -40,9 +40,9 @@ export function haversineMeters(a: LatLng, b: LatLng): number {
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
-/** Resolve pickup string like "Hodan, Xarunta" → approx coords. */
-export function geocodePickupLabel(pickupLocation: string): LatLng | null {
-  const raw = pickupLocation.trim();
+/** Resolve an address like "Hodan, Taleex" or a district name → approx coords. */
+export function geocodeLocationLabel(location: string): LatLng | null {
+  const raw = location.trim();
   if (!raw) return null;
 
   const head = raw.split(',')[0]?.trim() || raw;
@@ -67,6 +67,11 @@ export function resolvePickupCoords(input: {
   ) {
     return { latitude: input.pickupLat, longitude: input.pickupLng };
   }
-  if (input.pickupLocation) return geocodePickupLabel(input.pickupLocation);
+  if (input.pickupLocation) return geocodeLocationLabel(input.pickupLocation);
   return null;
+}
+
+/** Same lookup as pickup — Banadir district centers. */
+export function geocodePickupLabel(location: string): LatLng | null {
+  return geocodeLocationLabel(location);
 }

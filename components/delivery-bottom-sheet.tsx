@@ -42,9 +42,20 @@ interface DeliveryBottomSheetProps {
   visible: boolean;
   onClose: () => void;
   onSelect: (option: DeliveryOption) => void;
+  /** Server $0.25/km quote — replaces catalog flat fees when ready. */
+  quotedFare?: string | null;
+  quotedTime?: string | null;
+  quotedStats?: string | null;
 }
 
-export function DeliveryBottomSheet({ visible, onClose, onSelect }: DeliveryBottomSheetProps) {
+export function DeliveryBottomSheet({
+  visible,
+  onClose,
+  onSelect,
+  quotedFare,
+  quotedTime,
+  quotedStats,
+}: DeliveryBottomSheetProps) {
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
@@ -128,7 +139,11 @@ export function DeliveryBottomSheet({ visible, onClose, onSelect }: DeliveryBott
     if (selectedOption) {
       const option = deliveryOptions.find(opt => opt.id === selectedOption);
       if (option) {
-        onSelect(option);
+        onSelect({
+          ...option,
+          time: quotedTime || option.time,
+          price: quotedFare ? `$${quotedFare}` : option.price,
+        });
         onClose();
       }
     }
@@ -198,11 +213,12 @@ export function DeliveryBottomSheet({ visible, onClose, onSelect }: DeliveryBott
                         {option.name}
                       </Text>
                       <Text style={[styles.optionTime, { color: colors.icon }]}>
-                        {option.time}
+                        {quotedTime || option.time}
+                        {quotedStats ? ` · ${quotedStats}` : ''}
                       </Text>
                     </View>
                     <Text style={[styles.optionPrice, { color: colors.text }]}>
-                      {option.price}
+                      {quotedFare ? `$${quotedFare}` : option.price}
                     </Text>
                   </TouchableOpacity>
                 ))}

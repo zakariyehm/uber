@@ -20,6 +20,9 @@ export interface DeliveryRequest {
   vehicleType?: string;
   openToAllVehicleTypes?: boolean;
   deliveryPrice: string;
+  distanceKm?: string;
+  durationMinutes?: number;
+  durationLabel?: string;
   status: DeliveryStatus;
   createdAt: string;
   acceptedAt?: string;
@@ -56,6 +59,16 @@ export interface DeliveryRequest {
   arrivalWaitSecondsRemaining?: number;
   canCancelForNoShow?: boolean;
   arrivalWaitMinutes?: number;
+}
+
+/** Uber-style trip length shown on offer + active trip. */
+export function tripStatsLabel(
+  request: Pick<DeliveryRequest, 'distanceKm' | 'durationMinutes' | 'durationLabel'>
+) {
+  if (!request.distanceKm) return null;
+  const km = `${request.distanceKm} km`;
+  const time = request.durationLabel || (request.durationMinutes != null ? `~${request.durationMinutes} min` : null);
+  return time ? `${km} · ${time}` : km;
 }
 
 /** What the driver keeps. Delivery State uses the live admin payout; Moto stays the trip fare. */

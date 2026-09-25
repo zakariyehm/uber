@@ -1,6 +1,7 @@
 import { DeliveryStatus, VehicleType, type DeliveryRequest as DbDelivery } from '@prisma/client';
 import { prisma } from '../../lib/prisma.ts';
 import { resolvePickupCoords } from '../../lib/geo.ts';
+import { quoteTrip } from '../../lib/pricing.ts';
 import {
   claimDriverForOffer,
   findNearbyAvailableDrivers,
@@ -472,6 +473,32 @@ export async function ensureOfferAssignment(delivery: DbDelivery): Promise<DbDel
   return clearOffer(delivery.id, nextDeclined);
 }
 
+export async function quoteDelivery(input: {
+  pickupLocation: string;
+  destinationLocation: string;
+  pickupLat?: number;
+  pickupLng?: number;
+}) {
+  const quote = await quoteTrip(input);
+  if (!quote) {
+    const error = new Error('Could not estimate this trip. Check pickup and drop-off districts.') as Error & {
+      statusCode?: number;
+    };
+    error.statusCode = 400;
+    throw error;
+  }
+  return {
+    pickupLocation: input.pickupLocation,
+    destinationLocation: input.destinationLocation,
+    distanceKm: quote.distanceKm,
+    durationMinutes: quote.durationMinutes,
+    durationLabel: quote.durationLabel,
+    fare: quote.fareLabel,
+    pricePerKm: quote.pricePerKmLabel,
+    breakdown: `${quote.distanceKm.toFixed(1)} km × $${quote.pricePerKmLabel}/km`,
+  };
+}
+
 export async function createDelivery(
   input: {
     orderId?: string;
@@ -496,8 +523,21 @@ export async function createDelivery(
   },
   riderUserId?: string
 ) {
-  const price = Number.parseFloat(input.deliveryPrice.replace('$', ''));
-  const amount = Number.isFinite(price) ? price : 0;
+  const quote = await quoteTrip({
+    pickupLocation: input.pickupLocation,
+    destinationLocation: input.destinationLocation,
+    pickupLat: input.pickupLat,
+    pickupLng: input.pickupLng,
+  });
+  const openFleetPreview = await isOpenFleetMethod(input.deliveryMethod);
+  // Local Moto: server owns $0.25/km. Delivery State keeps the catalog fare.
+  const clientPrice = Number.parseFloat(input.deliveryPrice.replace('$', ''));
+  const amount =
+    quote && !openFleetPreview
+      ? quote.fare
+      : Number.isFinite(clientPrice)
+        ? clientPrice
+        : 0;
   if (amount <= 0) {
     const error = new Error('Invalid delivery price') as Error & { statusCode?: number };
     error.statusCode = 400;
@@ -505,11 +545,19 @@ export async function createDelivery(
   }
 
   const orderId = await allocateOrderId(input.orderId);
-  const pickupCoords = resolvePickupCoords({
-    pickupLat: input.pickupLat,
-    pickupLng: input.pickupLng,
-    pickupLocation: input.pickupLocation,
-  });
+  const pickupCoords = quote?.pickup ??
+    resolvePickupCoords({
+      pickupLat: input.pickupLat,
+      pickupLng: input.pickupLng,
+      pickupLocation: input.pickupLocation,
+    });
+  const tripFields = {
+    destinationLat: quote?.destination.latitude,
+    destinationLng: quote?.destination.longitude,
+    distanceKm: quote?.distanceKm,
+    durationMinutes: quote?.durationMinutes,
+    deliveryTimeLabel: quote?.durationLabel || input.deliveryTimeLabel,
+  };
 
   const { PaymentHoldStatus, PaymentPayer, SenderKind } = await import('@prisma/client');
 
@@ -574,7 +622,7 @@ export async function createDelivery(
     throw error;
   }
 
-  const openFleet = await isOpenFleetMethod(input.deliveryMethod);
+  const openFleet = openFleetPreview;
   // Delivery State normally charges the sender — except personal riders sending as a store
   // (recipient pays). Store-account riders still use store wallet (SENDER).
   let payerType =
@@ -614,7 +662,7 @@ export async function createDelivery(
         deliveryMethod: input.deliveryMethod,
         vehicleType: await resolveVehicleTypeForMethod(input.deliveryMethod),
         deliveryPrice: amount,
-        deliveryTimeLabel: input.deliveryTimeLabel,
+        ...tripFields,
         riderUserId,
         paymentHoldStatus: PaymentHoldStatus.NONE,
       },
@@ -657,7 +705,7 @@ export async function createDelivery(
         deliveryMethod: input.deliveryMethod,
         vehicleType: await resolveVehicleTypeForMethod(input.deliveryMethod),
         deliveryPrice: amount,
-        deliveryTimeLabel: input.deliveryTimeLabel,
+        ...tripFields,
         riderUserId,
         paymentHoldStatus: PaymentHoldStatus.NONE,
       },
@@ -718,7 +766,7 @@ export async function createDelivery(
       deliveryMethod: input.deliveryMethod,
       vehicleType: await resolveVehicleTypeForMethod(input.deliveryMethod),
       deliveryPrice: amount,
-      deliveryTimeLabel: input.deliveryTimeLabel,
+      ...tripFields,
       riderUserId,
       paymentHoldStatus: PaymentHoldStatus.HELD,
       waafiTransactionId: hold.waafiTransactionId,

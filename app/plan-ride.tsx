@@ -2,6 +2,7 @@ import { DeliveryBottomSheet } from '@/components/delivery-bottom-sheet';
 import { BANADIR_DISTRICTS } from '@/constants/somalia';
 import { AppColors } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth';
+import { quoteDelivery, type TripQuote } from '@/utils/deliveryRequests';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -43,6 +44,8 @@ export default function PlanRideScreen() {
   const [searchTarget, setSearchTarget] = useState<SearchTarget>(null);
   const [highlighted, setHighlighted] = useState<string | null>(null);
   const [showDeliverySheet, setShowDeliverySheet] = useState(false);
+  const [quote, setQuote] = useState<TripQuote | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
 
   const storeDistrict = useMemo(() => {
     if (!isStoreAccount) return '';
@@ -104,6 +107,38 @@ export default function PlanRideScreen() {
   const formatLocation = (district: string, neighborhood: string) =>
     `${district}, ${neighborhood.trim()}`;
 
+  const pickupLabel = isStoreAccount
+    ? `${storeDistrict}, ${storeBranchAddress.trim()}`
+    : pickupDistrict && pickupNeighborhood.trim()
+      ? formatLocation(pickupDistrict, pickupNeighborhood)
+      : '';
+  const dropoffLabel =
+    dropoffDistrict && dropoffNeighborhood.trim()
+      ? formatLocation(dropoffDistrict, dropoffNeighborhood)
+      : '';
+
+  useEffect(() => {
+    if (!canContinue || !pickupLabel || !dropoffLabel) {
+      setQuote(null);
+      return;
+    }
+    let cancelled = false;
+    setQuoteLoading(true);
+    void quoteDelivery({ pickupLocation: pickupLabel, destinationLocation: dropoffLabel })
+      .then((next) => {
+        if (!cancelled) setQuote(next);
+      })
+      .catch(() => {
+        if (!cancelled) setQuote(null);
+      })
+      .finally(() => {
+        if (!cancelled) setQuoteLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [canContinue, pickupLabel, dropoffLabel]);
+
   const handleContinue = () => {
     if (!canContinue) return;
     setShowDeliverySheet(true);
@@ -126,8 +161,12 @@ export default function PlanRideScreen() {
         pickup,
         destination: formatLocation(dropoffDistrict, dropoffNeighborhood),
         deliveryMethod: option.name,
-        deliveryTime: option.time,
-        deliveryPrice: option.price,
+        deliveryTime: quote?.durationLabel || option.time,
+        deliveryPrice: quote ? `$${quote.fare}` : option.price,
+        distanceKm: quote ? String(quote.distanceKm) : '',
+        durationMinutes: quote ? String(quote.durationMinutes) : '',
+        durationLabel: quote?.durationLabel || '',
+        fareBreakdown: quote?.breakdown || '',
         rideType: params.rideType || '',
         ...(isStoreAccount
           ? {
@@ -279,6 +318,24 @@ export default function PlanRideScreen() {
           )}
         </View>
 
+        {canContinue ? (
+          <View style={styles.quoteCard}>
+            {quoteLoading && !quote ? (
+              <Text style={styles.quoteHint}>Estimating distance and fare…</Text>
+            ) : quote ? (
+              <>
+                <Text style={styles.quoteFare}>${quote.fare}</Text>
+                <Text style={styles.quoteMeta}>
+                  {quote.distanceKm.toFixed(1)} km · {quote.durationLabel}
+                </Text>
+                <Text style={styles.quoteHint}>{quote.breakdown}</Text>
+              </>
+            ) : (
+              <Text style={styles.quoteHint}>Fare is $0.25 per km once the trip is estimated.</Text>
+            )}
+          </View>
+        ) : null}
+
         <View style={styles.spacer} />
 
         <TouchableOpacity
@@ -347,6 +404,9 @@ export default function PlanRideScreen() {
         visible={showDeliverySheet}
         onClose={() => setShowDeliverySheet(false)}
         onSelect={handleDeliverySelect}
+        quotedFare={quote?.fare}
+        quotedTime={quote?.durationLabel}
+        quotedStats={quote ? `${quote.distanceKm.toFixed(1)} km` : null}
       />
     </KeyboardAvoidingView>
   );
@@ -470,6 +530,30 @@ const styles = StyleSheet.create({
     height: StyleSheet.hairlineWidth,
     backgroundColor: '#E6E6E6',
     marginLeft: 18,
+  },
+  quoteCard: {
+    marginTop: 16,
+    borderRadius: 16,
+    backgroundColor: '#F6F7F8',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  quoteFare: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#11181C',
+    letterSpacing: -0.4,
+  },
+  quoteMeta: {
+    marginTop: 4,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#11181C',
+  },
+  quoteHint: {
+    marginTop: 4,
+    fontSize: 13,
+    color: '#6B6B6B',
   },
   spacer: {
     flex: 1,

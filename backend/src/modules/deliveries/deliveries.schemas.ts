@@ -64,6 +64,13 @@ export const createDeliverySchema = z
     }
   });
 
+export const quoteDeliverySchema = z.object({
+  pickupLocation: z.string().min(1),
+  destinationLocation: z.string().min(1),
+  pickupLat: z.number().finite().optional(),
+  pickupLng: z.number().finite().optional(),
+});
+
 export const driverLocationSchema = z.object({
   latitude: z.number().finite().min(-90).max(90),
   longitude: z.number().finite().min(-180).max(180),

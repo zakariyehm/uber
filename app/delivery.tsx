@@ -90,6 +90,9 @@ export default function DeliveryScreen() {
   const [deliveryMethod, setDeliveryMethod] = useState((params.deliveryMethod as string) || '');
   const [deliveryTime, setDeliveryTime] = useState((params.deliveryTime as string) || '');
   const [deliveryPrice, setDeliveryPrice] = useState((params.deliveryPrice as string) || '');
+  const distanceKm = (params.distanceKm as string) || '';
+  const durationLabel = (params.durationLabel as string) || '';
+  const fareBreakdown = (params.fareBreakdown as string) || '';
   const serviceCategory = (params.serviceCategory as string) || '';
   const storeDetailsReady = Boolean(
     (selectedStore?.id || user?.store?.id) &&
@@ -187,6 +190,9 @@ export default function DeliveryScreen() {
         deliveryMethod: deliveryMethod || '',
         deliveryTime: deliveryTime || '',
         deliveryPrice: deliveryPrice || '',
+        distanceKm,
+        durationLabel,
+        fareBreakdown,
         serviceCategory: serviceCategory || '',
       },
     });
@@ -239,7 +245,10 @@ export default function DeliveryScreen() {
             <View style={styles.infoRow}>
               <Ionicons name="airplane" size={scaleFont(20)} color={isDark ? '#FFFFFF' : '#000000'} />
               <Text style={[styles.infoText, { color: isDark ? '#FFFFFF' : '#000000' }]}>
-                {deliveryMethod} • {deliveryTime} • {deliveryPrice}
+                {deliveryMethod}
+                {distanceKm ? ` · ${distanceKm} km` : ''}
+                {durationLabel ? ` · ${durationLabel}` : deliveryTime ? ` · ${deliveryTime}` : ''}
+                {deliveryPrice ? ` · ${deliveryPrice}` : ''}
               </Text>
             </View>
           </View>

@@ -20,6 +20,9 @@ export interface DeliveryRequest {
   vehicleType?: string;
   openToAllVehicleTypes?: boolean;
   deliveryPrice: string;
+  distanceKm?: string;
+  durationMinutes?: number;
+  durationLabel?: string;
   status: DeliveryStatus;
   createdAt: string;
   acceptedAt?: string;
@@ -50,6 +53,27 @@ export interface DeliveryRequest {
   platformFee?: string;
   stateShare?: string;
   riderRefundPending?: string;
+}
+
+export type TripQuote = {
+  pickupLocation: string;
+  destinationLocation: string;
+  distanceKm: number;
+  durationMinutes: number;
+  durationLabel: string;
+  fare: string;
+  pricePerKm: string;
+  breakdown: string;
+};
+
+export async function quoteDelivery(input: {
+  pickupLocation: string;
+  destinationLocation: string;
+}): Promise<TripQuote> {
+  return apiRequest<TripQuote>('/deliveries/quote', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
 }
 
 export const createDeliveryRequest = async (orderData: {

@@ -146,6 +146,11 @@ model DeliveryRequest {
   pickupLat              Float?
   pickupLng              Float?
   destinationLocation    String
+  destinationLat         Float?
+  destinationLng         Float?
+  /** Route length used for $0.25/km fare. */
+  distanceKm             Decimal?       @db.Decimal(8, 2)
+  durationMinutes        Int?
   recipientName          String
   recipientNumber        String
   senderName             String?
