@@ -1,5 +1,6 @@
 import { BottomNav } from '@/components/bottom-nav';
 import { DriverHomeHeader } from '@/components/driver-home-header';
+import { DriverMap, MAPBOX_TOKEN } from '@/components/driver-map';
 import { AppColors } from '@/constants/theme';
 import { apiRequest } from '@/lib/api';
 import { LocalImages, useCachedAsset } from '@/lib/local-images';
@@ -43,6 +44,7 @@ export default function HomeScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [toggling, setToggling] = useState(false);
   const [walletBalance, setWalletBalance] = useState('0.00');
+  const [mapCoords, setMapCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const homeBgSource = useCachedAsset(LocalImages.homeBg.key, LocalImages.homeBg.moduleId);
 
   const requestListenerRef = useRef<(() => void) | null>(null);
@@ -69,6 +71,7 @@ export default function HomeScreen() {
       try {
         const coords = await readDriverCoords();
         if (!coords) return;
+        setMapCoords(coords);
         await updateDriverLocation(coords);
       } catch {
         // ignore transient GPS/network errors
@@ -96,6 +99,19 @@ export default function HomeScreen() {
     return () => {
       clearTransitionTimer();
       stopLocationHeartbeat();
+    };
+  }, []);
+
+  // Centre the map on the driver even while offline (no server ping).
+  useEffect(() => {
+    let cancelled = false;
+    void readDriverCoords()
+      .then((coords) => {
+        if (!cancelled && coords) setMapCoords(coords);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
     };
   }, []);
 
@@ -373,41 +389,54 @@ export default function HomeScreen() {
   const isOfflineUi = driverStatus === 'offline';
   const buttonDisabled = toggling || driverStatus === 'deactivating';
 
+  const overlay = (
+    <View style={styles.homeContainer} pointerEvents="box-none">
+      <DriverHomeHeader balance={walletBalance} onWalletPress={handleWalletPress} />
+      <View style={styles.goButtonContainer}>
+        <TouchableOpacity
+          style={[
+            styles.goButton,
+            {
+              width: goButtonSize,
+              height: goButtonSize,
+              borderRadius: goButtonSize / 2,
+              backgroundColor: isOfflineUi ? AppColors.primary : AppColors.danger,
+              opacity: buttonDisabled ? 0.6 : 1,
+            },
+          ]}
+          onPress={handleGoPress}
+          disabled={buttonDisabled}
+          activeOpacity={0.8}>
+          {toggling ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={[styles.goButtonText, { fontSize: goButtonFontSize }]}>
+              {isOfflineUi ? 'GO' : 'OFF'}
+            </Text>
+          )}
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" translucent />
-      <ImageBackground
-        source={homeBgSource}
-        style={styles.mapBackground}
-        resizeMode="cover">
-        <View style={styles.homeContainer}>
-          <DriverHomeHeader balance={walletBalance} onWalletPress={handleWalletPress} />
-          <View style={styles.goButtonContainer}>
-            <TouchableOpacity
-              style={[
-                styles.goButton,
-                {
-                  width: goButtonSize,
-                  height: goButtonSize,
-                  borderRadius: goButtonSize / 2,
-                  backgroundColor: isOfflineUi ? AppColors.primary : AppColors.danger,
-                  opacity: buttonDisabled ? 0.6 : 1,
-                },
-              ]}
-              onPress={handleGoPress}
-              disabled={buttonDisabled}
-              activeOpacity={0.8}>
-              {toggling ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={[styles.goButtonText, { fontSize: goButtonFontSize }]}>
-                  {isOfflineUi ? 'GO' : 'OFF'}
-                </Text>
-              )}
-            </TouchableOpacity>
-          </View>
+      {MAPBOX_TOKEN ? (
+        <View style={styles.mapBackground}>
+          <DriverMap
+            latitude={mapCoords?.latitude}
+            longitude={mapCoords?.longitude}
+            online={driverStatus === 'online' || driverStatus === 'waiting'}
+            style={StyleSheet.absoluteFill}
+          />
+          {overlay}
         </View>
-      </ImageBackground>
+      ) : (
+        <ImageBackground source={homeBgSource} style={styles.mapBackground} resizeMode="cover">
+          {overlay}
+        </ImageBackground>
+      )}
 
       <View style={styles.divider} />
       <BottomNav
