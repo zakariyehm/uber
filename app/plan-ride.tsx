@@ -170,7 +170,9 @@ export default function PlanRideScreen() {
         durationLabel: etaForMotoOption(quote, option.name) || '',
         fareBreakdown: /\bbicycle\b|\bbaaskiil\b/i.test(option.name) && quote
           ? quote.breakdownBicycle ||
-            `${quote.distanceKm.toFixed(1)} km × $${quote.pricePerKmBicycle || (quote.distanceKm <= 3 ? '0.40' : '0.30')}/km`
+            (quote.distanceKm <= 3
+              ? 'Fixed $1.00'
+              : `${quote.distanceKm.toFixed(1)} km × $0.30/km`)
           : /\bexpress\b/i.test(option.name) && quote
             ? `${quote.breakdown} + $0.50 Express`
             : quote?.breakdown || '',

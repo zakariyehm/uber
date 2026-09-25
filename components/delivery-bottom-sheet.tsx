@@ -231,7 +231,9 @@ export function DeliveryBottomSheet({
                         {etaForMotoOption(quote, option.name) || quotedTime || option.time}
                         {/\bexpress\b/i.test(option.name) ? ' · +$0.50' : ''}
                         {/\bbicycle\b|\bbaaskiil\b/i.test(option.name)
-                          ? ` · $${quote?.pricePerKmBicycle || (quote && quote.distanceKm <= 3 ? '0.40' : '0.30')}/km`
+                          ? quote && quote.distanceKm <= 3
+                            ? ' · $1.00'
+                            : ' · $0.30/km'
                           : ''}
                         {quotedStats ? ` · ${quotedStats}` : ''}
                       </Text>

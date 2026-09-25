@@ -9,11 +9,11 @@ import {
 export const PRICE_PER_KM_STANDARD = 0.5;
 /** Express Moto: faster pickup, added on top of the distance fare. */
 export const EXPRESS_SURCHARGE = 0.5;
-/** Bicycle 1–3 km: $0.40 per kilometre. */
-export const PRICE_PER_KM_BICYCLE_SHORT = 0.4;
+/** Bicycle 1–3 km: fixed $1. */
+export const BICYCLE_SHORT_FARE = 1;
 /** Bicycle 4–7 km: $0.30 per kilometre. */
 export const PRICE_PER_KM_BICYCLE = 0.3;
-/** Short-trip bicycle rate applies up to this distance. */
+/** Short-trip bicycle flat fare applies up to this distance. */
 export const BICYCLE_SHORT_KM = 3;
 /** Bicycle only appears for trips up to 7 km. */
 export const BICYCLE_MAX_KM = 7;
@@ -22,8 +22,12 @@ export function bicycleAvailableForKm(distanceKm: number) {
   return Number.isFinite(distanceKm) && distanceKm > 0 && distanceKm <= BICYCLE_MAX_KM;
 }
 
+export function isBicycleShortTrip(distanceKm: number) {
+  return distanceKm <= BICYCLE_SHORT_KM;
+}
+
 export function bicyclePricePerKm(distanceKm: number) {
-  return distanceKm <= BICYCLE_SHORT_KM ? PRICE_PER_KM_BICYCLE_SHORT : PRICE_PER_KM_BICYCLE;
+  return isBicycleShortTrip(distanceKm) ? 0 : PRICE_PER_KM_BICYCLE;
 }
 
 export function isExpressMethod(deliveryMethod?: string | null) {
@@ -41,7 +45,8 @@ export function expressDurationMinutes(standardMinutes: number) {
 }
 
 export function bicycleFareFromKm(distanceKm: number) {
-  return Math.round(distanceKm * bicyclePricePerKm(distanceKm) * 100) / 100;
+  if (isBicycleShortTrip(distanceKm)) return BICYCLE_SHORT_FARE;
+  return Math.round(distanceKm * PRICE_PER_KM_BICYCLE * 100) / 100;
 }
 
 export function applyMotoTier(baseFare: number, deliveryMethod?: string | null) {
