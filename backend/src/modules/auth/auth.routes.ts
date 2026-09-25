@@ -44,6 +44,7 @@ export async function authRoutes(app: FastifyInstance) {
         phone: body.phone,
         email: body.email,
         password: body.password,
+        accountKind: body.accountKind,
       });
       const token = await reply.jwtSign({ sub: user.id, role: user.role, phone: user.phone });
       return { token, user: toPublicUser(user) };
@@ -151,7 +152,7 @@ export async function authRoutes(app: FastifyInstance) {
       where: { id: request.user.sub },
       include: {
         driverProfile: true,
-        riderProfile: { include: { store: true } },
+        riderProfile: { include: { store: true, storeBranch: true } },
       },
     });
     if (!user) {

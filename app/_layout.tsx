@@ -74,6 +74,7 @@ function RootNavigator() {
       <Stack.Protected guard={!isLoggedIn}>
         <Stack.Screen name="get-started" options={{ headerShown: false }} />
         <Stack.Screen name="login" options={{ title: 'Log in' }} />
+        <Stack.Screen name="store-login" options={{ title: 'Ganacsade' }} />
         <Stack.Screen name="signup" options={{ title: 'Sign up' }} />
         <Stack.Screen name="otp-verify" options={{ title: 'Verify' }} />
         <Stack.Screen name="personal-info" options={{ title: 'Your details' }} />

@@ -47,6 +47,12 @@ export type StoredAuthUser = {
     phone?: string | null;
     district?: string | null;
     address?: string | null;
+    branch?: {
+      id: string;
+      name: string;
+      district: string;
+      address: string;
+    } | null;
   } | null;
 };
 

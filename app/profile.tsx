@@ -1,5 +1,6 @@
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth';
+import { staffDisplayName } from '@/utils/auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -31,10 +32,11 @@ export default function ProfileScreen() {
   const isDark = colorScheme === 'dark';
   const router = useRouter();
   const { user, signOut } = useAuth();
+  const isStoreAccount = user?.riderKind === 'STORE' && Boolean(user.store?.id);
   const username = useMemo(() => {
-    const name = [user?.firstName, user?.lastName].filter(Boolean).join(' ');
-    return name || 'Rider';
-  }, [user]);
+    return staffDisplayName(user) || (isStoreAccount ? 'Staff' : 'Rider');
+  }, [user, isStoreAccount]);
+  const storeName = user?.store?.name || '';
   const [rating] = useState('5.0');
 
   const menuItems: ProfileMenuItem[] = [
@@ -116,6 +118,14 @@ export default function ProfileScreen() {
                 <Text style={[styles.ratingText, { color: '#FFF', fontSize: scaleFont(14), marginLeft: scaleWidth(4) }]}>{rating}</Text>
               </View>
             </View>
+            {isStoreAccount && storeName ? (
+              <View style={styles.storeNameRow}>
+                <Ionicons name="storefront" size={scaleFont(14)} color={colors.icon} />
+                <Text style={[styles.storeName, { color: colors.icon, fontSize: scaleFont(14) }]} numberOfLines={1}>
+                  {storeName}
+                </Text>
+              </View>
+            ) : null}
           </View>
           <View style={[
             styles.avatarContainer,
@@ -193,6 +203,17 @@ const styles = StyleSheet.create({
   },
   username: {
     fontWeight: '700',
+  },
+  storeNameRow: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: scaleWidth(6),
+    marginTop: scaleHeight(6),
+  },
+  storeName: {
+    flex: 1,
+    fontWeight: '600',
   },
   ratingBadge: {
     flexDirection: 'row',

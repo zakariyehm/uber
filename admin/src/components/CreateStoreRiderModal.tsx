@@ -1,10 +1,10 @@
 "use client";
 
 import { Button } from "@/components/ui/Button";
-import { Field, TextInput } from "@/components/ui/Field";
+import { Field, TextInput, TextSelect } from "@/components/ui/Field";
 import { Modal } from "@/components/ui/Modal";
 import { api, errorMessage } from "@/lib/api";
-import { storeCategoryLabel, type StoreRow } from "@/lib/stores";
+import { storeCategoryLabel, type StoreBranchRow, type StoreRow } from "@/lib/stores";
 import { useEffect, useState } from "react";
 
 function randomPassword() {
@@ -18,6 +18,7 @@ type FormState = {
   phone: string;
   password: string;
   storeId: string;
+  storeBranchId: string;
 };
 
 const emptyForm = (): FormState => ({
@@ -26,15 +27,18 @@ const emptyForm = (): FormState => ({
   phone: "",
   password: "",
   storeId: "",
+  storeBranchId: "",
 });
 
 type Props = {
   open: boolean;
+  storeId?: string;
+  branches?: StoreBranchRow[];
   onClose: () => void;
   onCreated: () => void;
 };
 
-export function CreateStoreRiderModal({ open, onClose, onCreated }: Props) {
+export function CreateStoreRiderModal({ open, storeId, branches = [], onClose, onCreated }: Props) {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [stores, setStores] = useState<StoreRow[]>([]);
   const [creating, setCreating] = useState(false);
@@ -48,19 +52,28 @@ export function CreateStoreRiderModal({ open, onClose, onCreated }: Props) {
 
   useEffect(() => {
     if (!open) return;
-    setForm(emptyForm());
+    setForm({
+      ...emptyForm(),
+      storeId: storeId || "",
+      storeBranchId: branches[0]?.id || "",
+    });
     setError(null);
     setCreated(null);
     setCreating(false);
-    void api<{ stores: StoreRow[] }>("/admin/stores?limit=50&isActive=true")
-      .then((result) => setStores(result.stores || []))
-      .catch(() => setStores([]));
-  }, [open]);
+    if (!storeId) {
+      void api<{ stores: StoreRow[] }>("/admin/stores?limit=50&isActive=true")
+        .then((result) => setStores(result.stores || []))
+        .catch(() => setStores([]));
+    }
+  }, [open, storeId]);
 
   const canSubmit =
+    Boolean(form.firstName.trim()) &&
+    Boolean(form.lastName.trim()) &&
     Boolean(form.phone.trim()) &&
     form.password.length >= 6 &&
     Boolean(form.storeId) &&
+    Boolean(form.storeBranchId) &&
     !creating;
 
   const createRider = async () => {
@@ -78,11 +91,12 @@ export function CreateStoreRiderModal({ open, onClose, onCreated }: Props) {
       }>("/admin/riders", {
         method: "POST",
         body: JSON.stringify({
-          firstName: form.firstName.trim() || undefined,
-          lastName: form.lastName.trim() || undefined,
+          firstName: form.firstName.trim(),
+          lastName: form.lastName.trim(),
           phone: form.phone.trim(),
           password: form.password,
           storeId: form.storeId,
+          storeBranchId: form.storeBranchId,
         }),
       });
       setCreated({
@@ -150,37 +164,56 @@ export function CreateStoreRiderModal({ open, onClose, onCreated }: Props) {
         </div>
       ) : (
         <div className="space-y-5">
-          <Field label="Store" hint="Required — this rider can only send as this store">
-            <select
-              className="h-10 w-full rounded-lg border border-line bg-panel px-3 text-sm outline-none focus:border-raac focus:ring-2 focus:ring-raac/20"
-              value={form.storeId}
-              onChange={(e) => setForm((current) => ({ ...current, storeId: e.target.value }))}
-            >
-              <option value="">Select store…</option>
-              {stores.map((store) => (
-                <option key={store.id} value={store.id}>
-                  {store.name} · {storeCategoryLabel(store.category)}
-                </option>
-              ))}
-            </select>
-          </Field>
+          {storeId ? null : (
+            <Field label="Store" hint="Required — this rider can only send as this store">
+              <select
+                className="h-10 w-full rounded-lg border border-line bg-panel px-3 text-sm outline-none focus:border-raac focus:ring-2 focus:ring-raac/20"
+                value={form.storeId}
+                onChange={(e) => setForm((current) => ({ ...current, storeId: e.target.value }))}
+              >
+                <option value="">Select store…</option>
+                {stores.map((store) => (
+                  <option key={store.id} value={store.id}>
+                    {store.name} · {storeCategoryLabel(store.category)}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
 
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="First name">
               <TextInput
-                placeholder="Optional"
+                placeholder="First name"
                 value={form.firstName}
                 onChange={(e) => setForm((current) => ({ ...current, firstName: e.target.value }))}
               />
             </Field>
             <Field label="Last name">
               <TextInput
-                placeholder="Optional"
+                placeholder="Last name"
                 value={form.lastName}
                 onChange={(e) => setForm((current) => ({ ...current, lastName: e.target.value }))}
               />
             </Field>
           </div>
+
+          <Field label="Branch" hint="Pickup will use this branch automatically">
+            <TextSelect
+              value={form.storeBranchId}
+              onChange={(e) => setForm((current) => ({ ...current, storeBranchId: e.target.value }))}
+            >
+              <option value="">Select branch…</option>
+              {branches.map((branch) => (
+                <option key={branch.id} value={branch.id}>
+                  {branch.name} · {branch.district}
+                </option>
+              ))}
+            </TextSelect>
+          </Field>
+          {!branches.length ? (
+            <p className="text-sm text-muted">Add a branch on this store first, then create staff.</p>
+          ) : null}
 
           <Field label="Phone / login" hint="Somalia format, e.g. 61xxxxxxx">
             <TextInput

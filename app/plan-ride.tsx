@@ -2,6 +2,7 @@ import { DeliveryBottomSheet } from '@/components/delivery-bottom-sheet';
 import { BANADIR_DISTRICTS } from '@/constants/somalia';
 import { AppColors } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth';
+import { staffDisplayName, storeStaffPickup } from '@/utils/auth';
 import {
   etaForMotoOption,
   fareForMotoOption,
@@ -39,12 +40,13 @@ export default function PlanRideScreen() {
   const params = useLocalSearchParams<{ rideType?: string }>();
   const { user } = useAuth();
   const isStoreAccount = user?.riderKind === 'STORE' && Boolean(user.store?.id);
+  const staffName = staffDisplayName(user);
+  const staffPickup = storeStaffPickup(user);
 
   const [pickupDistrict, setPickupDistrict] = useState('');
   const [pickupNeighborhood, setPickupNeighborhood] = useState('');
   const [dropoffDistrict, setDropoffDistrict] = useState('');
   const [dropoffNeighborhood, setDropoffNeighborhood] = useState('');
-  const [storeBranchAddress, setStoreBranchAddress] = useState('');
   const [storeOrderId, setStoreOrderId] = useState('');
   const [searchTarget, setSearchTarget] = useState<SearchTarget>(null);
   const [highlighted, setHighlighted] = useState<string | null>(null);
@@ -53,8 +55,8 @@ export default function PlanRideScreen() {
 
   const storeDistrict = useMemo(() => {
     if (!isStoreAccount) return '';
-    return (user?.store?.district || '').trim() || 'Banadir';
-  }, [isStoreAccount, user?.store?.district]);
+    return staffPickup.district || 'Banadir';
+  }, [isStoreAccount, staffPickup.district]);
 
   useEffect(() => {
     if (!isStoreAccount) return;
@@ -65,7 +67,7 @@ export default function PlanRideScreen() {
 
   const canContinue = isStoreAccount
     ? Boolean(
-        storeBranchAddress.trim().length >= 2 &&
+        staffPickup.location.length >= 2 &&
           storeOrderId.trim().length >= 1 &&
           dropoffDistrict &&
           dropoffNeighborhood.trim().length >= 2
@@ -112,7 +114,7 @@ export default function PlanRideScreen() {
     `${district}, ${neighborhood.trim()}`;
 
   const pickupLabel = isStoreAccount
-    ? `${storeDistrict}, ${storeBranchAddress.trim()}`
+    ? staffPickup.location
     : pickupDistrict && pickupNeighborhood.trim()
       ? formatLocation(pickupDistrict, pickupNeighborhood)
       : '';
@@ -151,9 +153,8 @@ export default function PlanRideScreen() {
     time: string;
     price: string;
   }) => {
-    const branch = storeBranchAddress.trim();
     const pickup = isStoreAccount
-      ? `${storeDistrict}, ${branch}`
+      ? staffPickup.location
       : formatLocation(pickupDistrict, pickupNeighborhood);
     router.push({
       pathname: '/delivery',
@@ -184,7 +185,7 @@ export default function PlanRideScreen() {
               storeId: user?.store?.id || '',
               storeName: user?.store?.name || '',
               storeOrderCode: storeOrderId.trim(),
-              storeBranchLocation: branch,
+              storeBranchLocation: staffPickup.location,
             }
           : {}),
       },
@@ -253,7 +254,7 @@ export default function PlanRideScreen() {
         <Text style={styles.title}>{params.rideType ? `Plan your ${params.rideType}` : 'Plan your ride'}</Text>
         <Text style={styles.subtitle}>
           {isStoreAccount
-            ? 'Geli branch address iyo order ID, kadib drop-off.'
+            ? 'Pickup waa branch-kaaga. Kaliya geli order ID, kadib drop-off.'
             : 'Dooro degmo, kadib geli xaafadda.'}
         </Text>
 
@@ -273,6 +274,27 @@ export default function PlanRideScreen() {
                     </Text>
                   </View>
                 </View>
+                {staffName ? (
+                  <View style={styles.districtChipRow}>
+                    <View style={[styles.districtChip, { flexShrink: 1 }]}>
+                      <Ionicons name="person" size={14} color="#000" />
+                      <Text style={styles.districtChipText} numberOfLines={1}>
+                        {staffName}
+                      </Text>
+                    </View>
+                  </View>
+                ) : null}
+                {staffPickup.label ? (
+                  <View style={styles.districtChipRow}>
+                    <View style={[styles.districtChip, { flexShrink: 1 }]}>
+                      <Ionicons name="business" size={14} color="#000" />
+                      <Text style={styles.districtChipText} numberOfLines={1}>
+                        {staffPickup.label}
+                        {staffPickup.location ? ` · ${staffPickup.location}` : ''}
+                      </Text>
+                    </View>
+                  </View>
+                ) : null}
                 <View style={styles.districtChipRow}>
                   <View style={styles.districtChip}>
                     <Ionicons name="pricetag" size={14} color="#000" />
@@ -286,16 +308,6 @@ export default function PlanRideScreen() {
                     </Text>
                   </View>
                 </View>
-                <TextInput
-                  style={styles.neighborhoodInput}
-                  placeholder="Geli branch address *"
-                  placeholderTextColor="#9A9A9A"
-                  value={storeBranchAddress}
-                  onChangeText={setStoreBranchAddress}
-                  autoCapitalize="words"
-                  autoCorrect={false}
-                  returnKeyType="next"
-                />
                 <TextInput
                   style={styles.neighborhoodInput}
                   placeholder="Order ID *"

@@ -1,6 +1,7 @@
 import { apiRequest, getStoredUser } from '@/lib/api';
 import { AppColors } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth';
+import { staffDisplayName } from '@/utils/auth';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
@@ -64,6 +65,7 @@ export default function WalletScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const isStoreAccount = user?.riderKind === 'STORE' && Boolean(user.store?.id);
+  const staffName = staffDisplayName(user);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [wallet, setWallet] = useState<RiderWalletPayload | null>(null);
@@ -186,7 +188,10 @@ export default function WalletScreen() {
                 </TouchableOpacity>
               </View>
 
-              <Text style={styles.caption}>{wallet?.storeName || 'Store'} wallet</Text>
+              <Text style={styles.caption}>
+                {wallet?.storeName || user?.store?.name || 'Store'}
+                {staffName ? ` · ${staffName}` : ''}
+              </Text>
               <View style={styles.balanceContainer}>
                 <Text style={styles.priceText}>{isBalanceVisible ? `$${available}` : '••••••'}</Text>
               </View>

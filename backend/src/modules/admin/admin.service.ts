@@ -542,9 +542,10 @@ export async function createDriver(input: {
 export async function createStoreRider(input: {
   phone: string;
   password: string;
-  firstName?: string;
-  lastName?: string;
+  firstName: string;
+  lastName: string;
   storeId: string;
+  storeBranchId: string;
 }) {
   const phone = somaliaPhone(input.phone);
   if (!/^\+252\d{8,10}$/.test(phone)) {
@@ -561,6 +562,15 @@ export async function createStoreRider(input: {
   if (!store || !store.isActive) {
     throw adminError('Store not found or inactive', 400);
   }
+  if (!input.storeBranchId?.trim()) {
+    throw adminError('Assign this staff to a branch', 400);
+  }
+  const branch = await prisma.storeBranch.findFirst({
+    where: { id: input.storeBranchId, storeId: store.id },
+  });
+  if (!branch) {
+    throw adminError('Select a branch that belongs to this store', 400);
+  }
 
   const existing = await prisma.user.findUnique({ where: { phone } });
   if (existing) {
@@ -568,28 +578,28 @@ export async function createStoreRider(input: {
   }
 
   const passwordHash = await bcrypt.hash(input.password, 10);
-  const display =
-    [input.firstName?.trim(), input.lastName?.trim()].filter(Boolean).join(' ') || store.name;
+  const display = [input.firstName.trim(), input.lastName.trim()].filter(Boolean).join(' ');
 
   const user = await prisma.user.create({
     data: {
       phone,
       passwordHash,
-      firstName: input.firstName?.trim() || null,
-      lastName: input.lastName?.trim() || null,
+      firstName: input.firstName.trim(),
+      lastName: input.lastName.trim(),
       role: UserRole.RIDER,
       riderProfile: {
         create: {
           displayName: display,
           riderKind: RiderKind.STORE,
           storeId: store.id,
+          storeBranchId: branch.id,
         },
       },
       riderWallet: { create: {} },
     },
     include: {
       driverProfile: true,
-      riderProfile: { include: { store: true } },
+      riderProfile: { include: { store: true, storeBranch: true } },
     },
   });
 
@@ -600,6 +610,7 @@ export async function createStoreRider(input: {
     riderKind: 'STORE' as const,
     storeId: store.id,
     storeName: store.name,
+    branch: toBranchDto(branch),
   };
 }
 
@@ -637,7 +648,7 @@ export async function listUsers(input: {
     prisma.user.findMany({
       where,
       include: {
-        riderProfile: { include: { store: true } },
+        riderProfile: { include: { store: true, storeBranch: true } },
         driverProfile: true,
         wallet: true,
         riderWallet: true,
@@ -1034,35 +1045,178 @@ export async function listStores(input: {
   };
 }
 
+function toBranchDto(row: { id: string; name: string; district: string; address: string; createdAt: Date }) {
+  return {
+    id: row.id,
+    name: row.name,
+    district: row.district,
+    address: row.address,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+function normalizeStoreBranch(input: { name: string; district: string; address: string }) {
+  const name = input.name.trim();
+  const district = input.district.trim();
+  const address = input.address.trim();
+  if (!name) throw adminError('Enter a branch name', 400);
+  if (!district) throw adminError('Enter a district for each branch', 400);
+  if (!address) throw adminError('Enter an address for each branch', 400);
+  return { name, district, address };
+}
+
 export async function createStore(input: {
   name: string;
   category: StoreCategory;
-  phone?: string;
-  ownerName?: string;
-  address?: string;
-  district?: string;
+  phone: string;
+  ownerName: string;
+  address: string;
+  district: string;
   description?: string;
+  branches: { name: string; district: string; address: string }[];
+  staff: {
+    firstName: string;
+    lastName: string;
+    phone: string;
+    password: string;
+    branchIndex: number;
+  }[];
 }) {
   const name = input.name.trim();
   if (name.length < 2) throw adminError('Enter a store name', 400);
+  const ownerName = input.ownerName.trim();
+  const address = input.address.trim();
+  const district = input.district.trim();
+  if (!ownerName) throw adminError('Enter the owner name', 400);
+  if (!address) throw adminError('Enter the store address', 400);
+  if (!district) throw adminError('Enter the store district', 400);
 
-  const phone = input.phone?.trim() ? somaliaPhone(input.phone) : null;
-  if (phone && !/^\+252\d{8,10}$/.test(phone)) {
+  const phone = somaliaPhone(input.phone);
+  if (!/^\+252\d{8,10}$/.test(phone)) {
     throw adminError('Enter a valid Somalia phone number', 400);
   }
 
-  const row = await prisma.store.create({
+  const branches = (input.branches || []).map(normalizeStoreBranch);
+  if (!branches.length) throw adminError('Add at least one store branch', 400);
+
+  const staff = input.staff || [];
+  if (!staff.length) throw adminError('Add at least one store staff login', 400);
+
+  const staffPhones = staff.map((row) => somaliaPhone(row.phone));
+  if (new Set(staffPhones).size !== staffPhones.length) {
+    throw adminError('Each staff needs a different phone number', 400);
+  }
+  for (const row of staff) {
+    if (!/^\+252\d{8,10}$/.test(somaliaPhone(row.phone))) {
+      throw adminError('Enter a valid Somalia phone number for each staff', 400);
+    }
+    if (!row.firstName.trim() || !row.lastName.trim()) {
+      throw adminError('Enter first and last name for each staff', 400);
+    }
+    if (!row.password || row.password.length < 6) {
+      throw adminError('Each staff password must be at least 6 characters', 400);
+    }
+    if (!Number.isInteger(row.branchIndex) || row.branchIndex < 0 || row.branchIndex >= branches.length) {
+      throw adminError('Assign each staff to a branch', 400);
+    }
+  }
+
+  const existing = await prisma.user.findMany({
+    where: { phone: { in: staffPhones } },
+    select: { phone: true },
+  });
+  if (existing.length) {
+    throw adminError(`An account already exists with ${existing[0].phone}`, 409);
+  }
+
+  const created = await prisma.$transaction(async (tx) => {
+    const store = await tx.store.create({
+      data: {
+        name,
+        category: input.category,
+        phone,
+        ownerName,
+        address,
+        district,
+        description: input.description?.trim() || null,
+      },
+    });
+
+    const createdBranches = [];
+    for (const branch of branches) {
+      createdBranches.push(
+        await tx.storeBranch.create({
+          data: {
+            storeId: store.id,
+            name: branch.name,
+            district: branch.district,
+            address: branch.address,
+          },
+        })
+      );
+    }
+
+    const issued: { id: string; name: string; phone: string; password: string; branch: string }[] = [];
+    for (const row of staff) {
+      const staffPhone = somaliaPhone(row.phone);
+      const firstName = row.firstName.trim();
+      const lastName = row.lastName.trim();
+      const display = `${firstName} ${lastName}`.trim();
+      const passwordHash = await bcrypt.hash(row.password, 10);
+      const branch = createdBranches[row.branchIndex];
+      const user = await tx.user.create({
+        data: {
+          phone: staffPhone,
+          passwordHash,
+          firstName,
+          lastName,
+          role: UserRole.RIDER,
+          riderProfile: {
+            create: {
+              displayName: display,
+              riderKind: RiderKind.STORE,
+              storeId: store.id,
+              storeBranchId: branch.id,
+            },
+          },
+          riderWallet: { create: {} },
+        },
+      });
+      issued.push({
+        id: user.id,
+        name: display,
+        phone: staffPhone,
+        password: row.password,
+        branch: branch.name,
+      });
+    }
+
+    return { store, staff: issued, branches: createdBranches };
+  });
+
+  return {
+    ...toStoreDto(created.store),
+    branches: created.branches.map(toBranchDto),
+    staff: created.staff,
+  };
+}
+
+export async function addStoreBranch(
+  storeId: string,
+  input: { name: string; district: string; address: string }
+) {
+  const store = await prisma.store.findUnique({ where: { id: storeId } });
+  if (!store) throw adminError('Store not found', 404);
+  const branch = normalizeStoreBranch(input);
+  const row = await prisma.storeBranch.create({
     data: {
-      name,
-      category: input.category,
-      phone,
-      ownerName: input.ownerName?.trim() || null,
-      address: input.address?.trim() || null,
-      district: input.district?.trim() || null,
-      description: input.description?.trim() || null,
+      storeId,
+      name: branch.name,
+      district: branch.district,
+      address: branch.address,
     },
   });
-  return toStoreDto(row);
+  return toBranchDto(row);
 }
 
 export async function patchStore(
@@ -1123,10 +1277,13 @@ export async function deleteStore(id: string) {
 }
 
 export async function getStore(id: string) {
-  const store = await prisma.store.findUnique({ where: { id } });
+  const store = await prisma.store.findUnique({
+    where: { id },
+    include: { branches: { orderBy: { createdAt: 'asc' } } },
+  });
   if (!store) throw adminError('Store not found', 404);
 
-  const [orderCounts, recentOrders, recentTxns] = await Promise.all([
+  const [orderCounts, recentOrders, recentTxns, staffRows] = await Promise.all([
     prisma.deliveryRequest.groupBy({
       by: ['status'],
       where: { storeId: id },
@@ -1136,6 +1293,9 @@ export async function getStore(id: string) {
       where: { storeId: id },
       orderBy: { createdAt: 'desc' },
       take: 30,
+      include: {
+        rider: { select: { firstName: true, lastName: true, phone: true } },
+      },
     }),
     prisma.storeWalletTransaction.findMany({
       where: { storeId: id },
@@ -1144,6 +1304,14 @@ export async function getStore(id: string) {
       include: {
         deliveryRequest: { select: { orderId: true } },
       },
+    }),
+    prisma.user.findMany({
+      where: {
+        role: UserRole.RIDER,
+        riderProfile: { storeId: id, riderKind: RiderKind.STORE },
+      },
+      include: { riderProfile: { include: { storeBranch: true } } },
+      orderBy: { createdAt: 'asc' },
     }),
   ]);
 
@@ -1156,6 +1324,17 @@ export async function getStore(id: string) {
 
   return {
     store: toStoreDto(store),
+    branches: store.branches.map(toBranchDto),
+    staff: staffRows.map((user) => ({
+      id: user.id,
+      name: displayName(user),
+      phone: user.phone,
+      isActive: user.isActive,
+      createdAt: user.createdAt.toISOString(),
+      branch: user.riderProfile?.storeBranch
+        ? toBranchDto(user.riderProfile.storeBranch)
+        : null,
+    })),
     stats: {
       ordersTotal,
       pending: counts.PENDING || 0,
@@ -1173,6 +1352,8 @@ export async function getStore(id: string) {
         deliveryPrice: dto.deliveryPrice,
         storeOrderCode: row.storeOrderCode ?? undefined,
         storeBranchLocation: row.storeBranchLocation ?? undefined,
+        staffName: row.rider ? displayName(row.rider) : null,
+        staffPhone: row.rider?.phone ?? null,
         destinationLocation: dto.destinationLocation,
         recipientName: dto.recipientName,
         payerType: dto.payerType,

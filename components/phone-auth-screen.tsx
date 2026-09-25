@@ -1,7 +1,8 @@
 import { LoadingOverlay } from '@/components/ui/loading-overlay';
 import { AppColors } from '@/constants/theme';
 import { formatLocalDisplay, isValidSomaliMobile, toE164Somalia } from '@/constants/somalia';
-import { requestOtp } from '@/utils/auth';
+import { useAuth } from '@/contexts/auth';
+import { loginStoreStaff, requestOtp } from '@/utils/auth';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
@@ -26,17 +27,34 @@ type PhoneAuthScreenProps = {
 export function PhoneAuthScreen({ mode }: PhoneAuthScreenProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { signIn } = useAuth();
   const [localNumber, setLocalNumber] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [needsPassword, setNeedsPassword] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const canContinue = useMemo(() => isValidSomaliMobile(localNumber), [localNumber]);
+  const canContinue = useMemo(() => {
+    if (!isValidSomaliMobile(localNumber)) return false;
+    if (needsPassword) return password.length >= 6;
+    return true;
+  }, [localNumber, needsPassword, password]);
 
   const handleContinue = async () => {
     if (!canContinue || busy) return;
     const phone = toE164Somalia(localNumber);
     setBusy(true);
     try {
+      if (needsPassword) {
+        const result = await loginStoreStaff(phone, password);
+        await signIn(result.token, result.user);
+        return;
+      }
       const result = await requestOtp(phone, mode === 'register' ? 'REGISTER' : 'LOGIN');
+      if (result.needsPassword) {
+        setNeedsPassword(true);
+        return;
+      }
       router.push({
         pathname: '/otp-verify',
         params: {
@@ -49,8 +67,10 @@ export function PhoneAuthScreen({ mode }: PhoneAuthScreenProps) {
     } catch (error: any) {
       if (error?.code === 'auth/user-disabled') {
         Alert.alert('Account disabled', error.message || 'This account is disabled. Contact Raac operations.');
+      } else if (error?.code === 'auth/not-store-staff' || error?.code === 'auth/wrong-password') {
+        Alert.alert('Could not sign in', error.message || 'Check the number and password, then try again.');
       } else {
-        Alert.alert('Could not send code', error.message || 'Please try again.');
+        Alert.alert(needsPassword ? 'Could not sign in' : 'Could not send code', error.message || 'Please try again.');
       }
     } finally {
       setBusy(false);
@@ -79,16 +99,43 @@ export function PhoneAuthScreen({ mode }: PhoneAuthScreenProps) {
               placeholderTextColor="#9A9A9A"
               keyboardType="phone-pad"
               value={localNumber}
-              onChangeText={(value) => setLocalNumber(value.replace(/[^\d]/g, '').slice(0, 9))}
+              onChangeText={(value) => {
+                setLocalNumber(value.replace(/[^\d]/g, '').slice(0, 9));
+                if (needsPassword) {
+                  setNeedsPassword(false);
+                  setPassword('');
+                }
+              }}
               autoFocus
             />
           </View>
 
+          {needsPassword ? (
+            <View style={styles.phoneRow}>
+              <TextInput
+                style={styles.input}
+                placeholder="Password"
+                placeholderTextColor="#9A9A9A"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoFocus
+              />
+              <Pressable onPress={() => setShowPassword((value) => !value)} hitSlop={8}>
+                <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={20} color={AppColors.muted} />
+              </Pressable>
+            </View>
+          ) : null}
+
           <Pressable
             style={[styles.continue, !canContinue && styles.continueDisabled]}
             disabled={!canContinue || busy}
-            onPress={handleContinue}>
-            <Text style={[styles.continueText, !canContinue && styles.continueTextDisabled]}>Continue</Text>
+            onPress={() => void handleContinue()}>
+            <Text style={[styles.continueText, !canContinue && styles.continueTextDisabled]}>
+              {needsPassword ? 'Sign in' : 'Continue'}
+            </Text>
           </Pressable>
 
           <View style={styles.orRow}>
@@ -106,7 +153,7 @@ export function PhoneAuthScreen({ mode }: PhoneAuthScreenProps) {
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>
-      <LoadingOverlay visible={busy} message="Sending code" />
+      <LoadingOverlay visible={busy} message={needsPassword ? 'Signing in' : 'Sending code'} />
     </View>
   );
 }

@@ -18,6 +18,29 @@ export const STORE_CATEGORIES = [
   { id: "OTHER", label: "Other" },
 ] as const;
 
+export const BANADIR_DISTRICTS = [
+  "Abdiaziz",
+  "Bondhere",
+  "Darussalam",
+  "Daynile",
+  "Dharkenley",
+  "Garasbaaley",
+  "Gubadleey",
+  "Hamar Jajab",
+  "Hamar Weyne",
+  "Heliwaa",
+  "Hodan",
+  "Howlwadag",
+  "Karaan",
+  "Kaxda",
+  "Shangaani",
+  "Shibis",
+  "Waberi",
+  "Wadajir (Madina)",
+  "Warta Nabada",
+  "Yaaqshiid",
+] as const;
+
 export type StoreCategoryId = (typeof STORE_CATEGORIES)[number]["id"];
 
 export function storeCategoryLabel(id?: string | null) {
@@ -39,8 +62,27 @@ export type StoreRow = {
   updatedAt: string;
 };
 
+export type StoreBranchRow = {
+  id: string;
+  name: string;
+  district: string;
+  address: string;
+  createdAt: string;
+};
+
+export type StoreStaffRow = {
+  id: string;
+  name: string;
+  phone: string;
+  isActive: boolean;
+  createdAt: string;
+  branch?: StoreBranchRow | null;
+};
+
 export type StoreProfile = {
   store: StoreRow;
+  branches?: StoreBranchRow[];
+  staff?: StoreStaffRow[];
   stats: {
     ordersTotal: number;
     pending: number;
@@ -55,6 +97,8 @@ export type StoreProfile = {
     deliveryPrice: string;
     storeOrderCode?: string;
     storeBranchLocation?: string;
+    staffName?: string | null;
+    staffPhone?: string | null;
     destinationLocation: string;
     recipientName: string;
     payerType?: string;

@@ -1,5 +1,6 @@
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth';
+import { staffDisplayName, storeStaffPickup } from '@/utils/auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Ionicons } from '@expo/vector-icons';
 import NetInfo from '@react-native-community/netinfo';
@@ -69,6 +70,8 @@ export default function DeliveryScreen() {
   const params = useLocalSearchParams();
   const { user } = useAuth();
   const isStoreAccount = user?.riderKind === 'STORE' && Boolean(user.store?.id);
+  const staffName = staffDisplayName(user);
+  const staffPickup = storeStaffPickup(user);
   const [isLoading, setIsLoading] = useState(true);
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
 
@@ -80,7 +83,7 @@ export default function DeliveryScreen() {
   const [selectedStore, setSelectedStore] = useState<CatalogStore | null>(null);
   const [storeOrderCode, setStoreOrderCode] = useState((params.storeOrderCode as string) || '');
   const [storeBranchLocation, setStoreBranchLocation] = useState(
-    (params.storeBranchLocation as string) || ''
+    (params.storeBranchLocation as string) || staffPickup.location
   );
   const [recipientName, setRecipientName] = useState('');
   const [recipientNumber, setRecipientNumber] = useState('');
@@ -119,7 +122,7 @@ export default function DeliveryScreen() {
     });
     setSenderName(user.store.name);
     if (params.storeOrderCode) setStoreOrderCode(String(params.storeOrderCode));
-    if (params.storeBranchLocation) setStoreBranchLocation(String(params.storeBranchLocation));
+    setStoreBranchLocation(String(params.storeBranchLocation || staffPickup.location));
   }, [user, params.storeOrderCode, params.storeBranchLocation]);
 
   useEffect(() => {
@@ -310,7 +313,7 @@ export default function DeliveryScreen() {
                 },
               ]}>
               <Text style={[styles.helperText, { color: isDark ? '#999999' : '#666666', marginBottom: 4 }]}>
-                Store · sender details already set
+                {staffName ? `${staffName} · store sender` : 'Store · sender details already set'}
               </Text>
               <Text style={[styles.locationText, { color: isDark ? '#FFFFFF' : '#000000' }]}>
                 {selectedStore?.name || user?.store?.name || senderName || 'Store'}
@@ -329,7 +332,8 @@ export default function DeliveryScreen() {
           {isStoreAccount ? (
             <>
               <Text style={[styles.helperText, { color: isDark ? '#999999' : '#666666' }]}>
-                Store account · geli order ID iyo branch location
+                {user?.store?.name || 'Store'}
+                {staffName ? ` · ${staffName}` : ''} · geli order ID kaliya
               </Text>
               <View
                 style={[
@@ -363,20 +367,20 @@ export default function DeliveryScreen() {
                 onChangeText={setStoreOrderCode}
               />
 
-              <TextInput
+              <View
                 style={[
                   styles.input,
+                  styles.pickerButton,
                   {
                     backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
-                    color: isDark ? '#FFFFFF' : '#000000',
                     borderColor: isDark ? '#333333' : '#E0E0E0',
                   },
-                ]}
-                placeholder="Branch location *"
-                placeholderTextColor={isDark ? '#666666' : '#999999'}
-                value={storeBranchLocation}
-                onChangeText={setStoreBranchLocation}
-              />
+                ]}>
+                <Text style={[styles.pickerText, { color: isDark ? '#FFFFFF' : '#000000' }]}>
+                  {storeBranchLocation || staffPickup.location || 'No branch assigned'}
+                </Text>
+                <Ionicons name="lock-closed" size={scaleFont(16)} color={isDark ? '#666666' : '#999999'} />
+              </View>
             </>
           ) : (
             <>

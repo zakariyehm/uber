@@ -9,7 +9,12 @@ export async function fetchCurrentUser() {
 }
 
 export async function requestOtp(phone: string, purpose: 'LOGIN' | 'REGISTER') {
-  const result = await apiRequest<{ phone: string; expiresIn: number; devCode?: string }>('/auth/otp/request', {
+  const result = await apiRequest<{
+    phone: string;
+    expiresIn?: number;
+    devCode?: string;
+    needsPassword?: boolean;
+  }>('/auth/otp/request', {
     method: 'POST',
     body: JSON.stringify({ phone, purpose }),
   });
@@ -58,14 +63,41 @@ export async function completeRiderProfile(input: {
   return result;
 }
 
-export async function loginRider(phone: string, password: string) {
+export function staffDisplayName(
+  user: { firstName?: string | null; lastName?: string | null } | null | undefined
+) {
+  return [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim();
+}
+
+export function storeStaffPickup(
+  user:
+    | {
+        store?: {
+          district?: string | null;
+          address?: string | null;
+          branch?: { name: string; district: string; address: string } | null;
+        } | null;
+      }
+    | null
+    | undefined
+) {
+  const branch = user?.store?.branch;
+  const district = (branch?.district || user?.store?.district || '').trim();
+  const address = (branch?.address || user?.store?.address || '').trim();
+  const name = (branch?.name || '').trim();
+  const location = [district, address].filter(Boolean).join(', ');
+  const label = name || address || 'Branch';
+  return { district, address, name, label, location };
+}
+
+export async function loginStoreStaff(phone: string, password: string) {
   const result = await apiRequest<{ token: string; user: AuthUser }>('/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ phone, password }),
+    body: JSON.stringify({ phone, password, accountKind: 'STORE' }),
   });
   await setAuthToken(result.token);
   await setStoredUser(result.user);
-  return result.user;
+  return result;
 }
 
 export async function registerRider(input: {

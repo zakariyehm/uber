@@ -618,15 +618,24 @@ export async function createDelivery(
       error.statusCode = 400;
       throw error;
     }
+    const staff = riderUserId
+      ? await prisma.user.findUnique({
+          where: { id: riderUserId },
+          include: { riderProfile: { include: { storeBranch: true } } },
+        })
+      : null;
+    const assigned = staff?.riderProfile?.storeId === input.storeId ? staff.riderProfile.storeBranch : null;
     const code = input.storeOrderCode?.trim() || '';
-    const branch = input.storeBranchLocation?.trim() || '';
+    const branch =
+      input.storeBranchLocation?.trim() ||
+      (assigned ? `${assigned.district}, ${assigned.address}` : '');
     if (!code) {
       const error = new Error('Store order ID is required') as Error & { statusCode?: number };
       error.statusCode = 400;
       throw error;
     }
     if (!branch) {
-      const error = new Error('Store branch location is required') as Error & {
+      const error = new Error('This staff has no assigned branch. Ask admin to add one.') as Error & {
         statusCode?: number;
       };
       error.statusCode = 400;
@@ -640,7 +649,7 @@ export async function createDelivery(
     }
     storeId = store.id;
     storeOrderCode = code;
-    storeBranchLocation = branch;
+    storeBranchLocation = assigned ? `${assigned.name} · ${assigned.district}, ${assigned.address}` : branch;
     senderName = store.name;
     if (!referenceId) referenceId = code;
   }

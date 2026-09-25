@@ -13,6 +13,7 @@ export const loginSchema = z
     phone: z.string().min(7).optional(),
     email: z.string().email().optional(),
     password: z.string().min(6),
+    accountKind: z.enum(['STORE']).optional(),
   })
   .refine((data) => Boolean(data.phone || data.email), {
     message: 'Phone or email is required',

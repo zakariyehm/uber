@@ -84,17 +84,20 @@ model User {
 }
 
 model RiderProfile {
-  userId      String    @id
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  displayName String?
+  userId        String       @id
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName   String?
   /** App self-signup = PERSONAL. Admin-issued store staff = STORE. */
-  riderKind   RiderKind @default(PERSONAL)
-  storeId     String?
-  store       Store?    @relation(fields: [storeId], references: [id], onDelete: SetNull)
-  rating      Decimal   @default(5.0) @db.Decimal(3, 2)
-  createdAt   DateTime  @default(now())
+  riderKind     RiderKind    @default(PERSONAL)
+  storeId       String?
+  store         Store?       @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  storeBranchId String?
+  storeBranch   StoreBranch? @relation(fields: [storeBranchId], references: [id], onDelete: SetNull)
+  rating        Decimal      @default(5.0) @db.Decimal(3, 2)
+  createdAt     DateTime     @default(now())
 
   @@index([riderKind, storeId])
+  @@index([storeBranchId])
 }
 
 enum RiderKind {
@@ -372,9 +375,23 @@ model Store {
   deliveries  DeliveryRequest[]
   walletTxns  StoreWalletTransaction[]
   riders      RiderProfile[]
+  branches    StoreBranch[]
 
   @@index([category, isActive])
   @@index([name])
+}
+
+model StoreBranch {
+  id        String         @id @default(uuid())
+  storeId   String
+  store     Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  name      String
+  district  String
+  address   String
+  createdAt DateTime       @default(now())
+  riders    RiderProfile[]
+
+  @@index([storeId])
 }
 
 enum StoreWalletTxnType {

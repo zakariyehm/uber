@@ -10,7 +10,7 @@ type Props = {
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
-  width?: "md" | "lg";
+  width?: "md" | "lg" | "xl";
 };
 
 export function Modal({
@@ -51,7 +51,7 @@ export function Modal({
         aria-modal="true"
         aria-labelledby="modal-title"
         className={`relative z-10 flex max-h-[min(92vh,720px)] w-full flex-col overflow-hidden rounded-2xl border border-line bg-panel shadow-modal animate-modal-in ${
-          width === "lg" ? "max-w-xl" : "max-w-lg"
+          width === "xl" ? "max-w-2xl" : width === "lg" ? "max-w-xl" : "max-w-lg"
         }`}
       >
         <div className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">

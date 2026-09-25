@@ -4,6 +4,7 @@ import { requireAdmin } from '../../middleware/authenticate.ts';
 import {
   cancelTrip,
   createDriver,
+  addStoreBranch,
   createStore,
   createStoreRider,
   creditStoreBalance,
@@ -69,12 +70,27 @@ const createDriverSchema = z.object({
   address: z.string().max(160).optional(),
 });
 
+const storeBranchSchema = z.object({
+  name: z.string().min(1).max(80),
+  district: z.string().min(1).max(60),
+  address: z.string().min(1).max(160),
+});
+
+const storeStaffSchema = z.object({
+  phone: z.string().min(7),
+  password: z.string().min(6).max(64),
+  firstName: z.string().min(1).max(40),
+  lastName: z.string().min(1).max(40),
+  branchIndex: z.number().int().min(0),
+});
+
 const createStoreRiderSchema = z.object({
   phone: z.string().min(7),
   password: z.string().min(6).max(64),
-  firstName: z.string().min(1).max(40).optional(),
-  lastName: z.string().min(1).max(40).optional(),
+  firstName: z.string().min(1).max(40),
+  lastName: z.string().min(1).max(40),
   storeId: z.string().uuid(),
+  storeBranchId: z.string().uuid(),
 });
 
 const resetPasswordSchema = z.object({
@@ -115,11 +131,13 @@ const storeListQuery = z.object({
 const createStoreSchema = z.object({
   name: z.string().min(2).max(80),
   category: z.enum(STORE_CATEGORIES),
-  phone: z.string().min(7).max(20).optional(),
-  ownerName: z.string().min(1).max(60).optional(),
-  address: z.string().min(1).max(160).optional(),
-  district: z.string().min(1).max(60).optional(),
+  phone: z.string().min(7).max(20),
+  ownerName: z.string().min(1).max(60),
+  address: z.string().min(1).max(160),
+  district: z.string().min(1).max(60),
   description: z.string().max(300).optional(),
+  branches: z.array(storeBranchSchema).min(1),
+  staff: z.array(storeStaffSchema).min(1),
 });
 
 const patchStoreSchema = z.object({
@@ -493,13 +511,32 @@ export async function adminRoutes(app: FastifyInstance) {
     } catch (error: any) {
       if (error?.name === 'ZodError') {
         return reply.code(400).send({
-          error: error.issues?.[0]?.message || 'Enter store name and type',
+          error: error.issues?.[0]?.message || 'Enter full store and staff details',
           details: error.issues,
         });
       }
       return reply
         .code(error.statusCode || 400)
         .send({ error: error.message || 'Could not create store', code: error.code });
+    }
+  });
+
+  app.post('/stores/:id/branches', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    try {
+      const body = storeBranchSchema.parse(request.body ?? {});
+      const branch = await addStoreBranch(id, body);
+      return reply.code(201).send(branch);
+    } catch (error: any) {
+      if (error?.name === 'ZodError') {
+        return reply.code(400).send({
+          error: error.issues?.[0]?.message || 'Enter branch name, district, and address',
+          details: error.issues,
+        });
+      }
+      return reply
+        .code(error.statusCode || 400)
+        .send({ error: error.message || 'Could not add branch', code: error.code });
     }
   });
 

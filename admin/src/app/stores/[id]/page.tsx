@@ -4,12 +4,15 @@ import { KpiCard } from "@/components/KpiCard";
 import { OrderCode } from "@/components/OrderCode";
 import { Shell } from "@/components/Shell";
 import { StatusBadge } from "@/components/StatusBadge";
+import { CreateStoreRiderModal } from "@/components/CreateStoreRiderModal";
 import { StoreFormModal } from "@/components/StoreFormModal";
 import { Button } from "@/components/ui/Button";
 import { EmptyRow, Panel, Table, Td, Th, THead } from "@/components/ui/PageChrome";
 import { api, errorMessage } from "@/lib/api";
 import { money, when } from "@/lib/format";
-import { storeCategoryLabel, type StoreProfile } from "@/lib/stores";
+import { BANADIR_DISTRICTS, storeCategoryLabel, type StoreProfile } from "@/lib/stores";
+import { Field, TextInput, TextSelect } from "@/components/ui/Field";
+import { Modal } from "@/components/ui/Modal";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -20,6 +23,11 @@ export default function StoreProfilePage() {
   const [data, setData] = useState<StoreProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [staffOpen, setStaffOpen] = useState(false);
+  const [branchOpen, setBranchOpen] = useState(false);
+  const [branchForm, setBranchForm] = useState({ name: "", district: "", address: "" });
+  const [branchSaving, setBranchSaving] = useState(false);
+  const [branchError, setBranchError] = useState<string | null>(null);
 
   const load = async () => {
     try {
@@ -62,6 +70,19 @@ export default function StoreProfilePage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setBranchForm({ name: "", district: store.district || "", address: "" });
+                  setBranchError(null);
+                  setBranchOpen(true);
+                }}
+              >
+                Add branch
+              </Button>
+              <Button variant="ghost" onClick={() => setStaffOpen(true)} disabled={!data?.branches?.length}>
+                Add staff
+              </Button>
               <Button variant="ghost" onClick={() => setEditOpen(true)}>
                 Edit
               </Button>
@@ -111,6 +132,10 @@ export default function StoreProfilePage() {
                     <dd className="mt-0.5 text-muted">{store.description}</dd>
                   </div>
                 ) : null}
+                <div>
+                  <dt className="text-xs uppercase tracking-wide text-muted">App staff</dt>
+                  <dd className="mt-0.5">{data?.staff?.length || 0}</dd>
+                </div>
                 <div>
                   <dt className="text-xs uppercase tracking-wide text-muted">Registered</dt>
                   <dd className="mt-0.5 text-muted">{when(store.createdAt)}</dd>
@@ -173,6 +198,73 @@ export default function StoreProfilePage() {
             </Panel>
           </div>
 
+          <Panel className="mb-6 overflow-hidden">
+            <div className="border-b border-line px-4 py-3">
+              <h3 className="text-sm font-semibold">Branches</h3>
+              <p className="text-xs text-muted">Staff pickup defaults to their assigned branch</p>
+            </div>
+            <Table>
+              <THead>
+                <tr>
+                  <Th>Branch</Th>
+                  <Th>District</Th>
+                  <Th>Address</Th>
+                </tr>
+              </THead>
+              <tbody>
+                {(data?.branches || []).map((branch) => (
+                  <tr key={branch.id} className="border-t border-line/80">
+                    <Td className="font-medium">{branch.name}</Td>
+                    <Td>{branch.district}</Td>
+                    <Td className="text-sm">{branch.address}</Td>
+                  </tr>
+                ))}
+                {!data?.branches?.length ? (
+                  <EmptyRow colSpan={3} message="Add a branch, then assign staff to it." />
+                ) : null}
+              </tbody>
+            </Table>
+          </Panel>
+
+          <Panel className="mb-6 overflow-hidden">
+            <div className="border-b border-line px-4 py-3">
+              <h3 className="text-sm font-semibold">App staff</h3>
+              <p className="text-xs text-muted">These accounts log in to the Raac app with phone + password</p>
+            </div>
+            <Table>
+              <THead>
+                <tr>
+                  <Th>Name</Th>
+                  <Th>Phone / login</Th>
+                  <Th>Branch</Th>
+                  <Th>Status</Th>
+                </tr>
+              </THead>
+              <tbody>
+                {(data?.staff || []).map((person) => (
+                  <tr key={person.id} className="border-t border-line/80">
+                    <Td className="font-medium">{person.name}</Td>
+                    <Td className="font-mono text-sm">{person.phone}</Td>
+                    <Td>
+                      <p className="text-sm">{person.branch?.name || "—"}</p>
+                      {person.branch ? (
+                        <p className="max-w-[180px] truncate text-xs text-muted">
+                          {person.branch.district}, {person.branch.address}
+                        </p>
+                      ) : null}
+                    </Td>
+                    <Td>
+                      <StatusBadge value={person.isActive ? "active" : "disabled"} />
+                    </Td>
+                  </tr>
+                ))}
+                {!data?.staff?.length ? (
+                  <EmptyRow colSpan={4} message="No staff yet. Add staff so they can log in to the Raac app." />
+                ) : null}
+              </tbody>
+            </Table>
+          </Panel>
+
           <Panel className="overflow-hidden">
             <div className="border-b border-line px-4 py-3">
               <h3 className="text-sm font-semibold">Orders</h3>
@@ -183,6 +275,7 @@ export default function StoreProfilePage() {
                 <tr>
                   <Th>Order</Th>
                   <Th>Store order</Th>
+                  <Th>Staff</Th>
                   <Th>Branch</Th>
                   <Th>Recipient</Th>
                   <Th>Pay</Th>
@@ -201,6 +294,12 @@ export default function StoreProfilePage() {
                     </Td>
                     <Td className="text-sm">{order.storeOrderCode || "—"}</Td>
                     <Td>
+                      <p className="text-sm">{order.staffName || "—"}</p>
+                      {order.staffPhone ? (
+                        <p className="font-mono text-xs text-muted">{order.staffPhone}</p>
+                      ) : null}
+                    </Td>
+                    <Td>
                       <p className="max-w-[160px] truncate text-sm">{order.storeBranchLocation || "—"}</p>
                     </Td>
                     <Td>
@@ -215,7 +314,7 @@ export default function StoreProfilePage() {
                   </tr>
                 ))}
                 {!data?.orders.length ? (
-                  <EmptyRow colSpan={7} message="No store orders yet." />
+                  <EmptyRow colSpan={8} message="No store orders yet." />
                 ) : null}
               </tbody>
             </Table>
@@ -227,6 +326,90 @@ export default function StoreProfilePage() {
             onClose={() => setEditOpen(false)}
             onSaved={() => void load()}
           />
+
+          <CreateStoreRiderModal
+            open={staffOpen}
+            storeId={store.id}
+            branches={data?.branches || []}
+            onClose={() => setStaffOpen(false)}
+            onCreated={() => void load()}
+          />
+
+          <Modal
+            open={branchOpen}
+            onClose={() => setBranchOpen(false)}
+            title="Add branch"
+            description="Staff assigned to this branch will use it as default pickup."
+            footer={
+              <>
+                <Button variant="ghost" onClick={() => setBranchOpen(false)} disabled={branchSaving}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="primary"
+                  disabled={
+                    branchSaving ||
+                    !branchForm.name.trim() ||
+                    !branchForm.district.trim() ||
+                    !branchForm.address.trim()
+                  }
+                  onClick={async () => {
+                    setBranchSaving(true);
+                    setBranchError(null);
+                    try {
+                      await api(`/admin/stores/${store.id}/branches`, {
+                        method: "POST",
+                        body: JSON.stringify({
+                          name: branchForm.name.trim(),
+                          district: branchForm.district.trim(),
+                          address: branchForm.address.trim(),
+                        }),
+                      });
+                      setBranchOpen(false);
+                      await load();
+                    } catch (err) {
+                      setBranchError(errorMessage(err, "Could not add branch"));
+                    } finally {
+                      setBranchSaving(false);
+                    }
+                  }}
+                >
+                  {branchSaving ? "Saving…" : "Add branch"}
+                </Button>
+              </>
+            }
+          >
+            <div className="space-y-4">
+              <Field label="Branch name">
+                <TextInput
+                  placeholder="e.g. Hodan branch"
+                  value={branchForm.name}
+                  onChange={(e) => setBranchForm((c) => ({ ...c, name: e.target.value }))}
+                />
+              </Field>
+              <Field label="District">
+                <TextSelect
+                  value={branchForm.district}
+                  onChange={(e) => setBranchForm((c) => ({ ...c, district: e.target.value }))}
+                >
+                  <option value="">Select district</option>
+                  {BANADIR_DISTRICTS.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </TextSelect>
+              </Field>
+              <Field label="Address">
+                <TextInput
+                  placeholder="Street / landmark"
+                  value={branchForm.address}
+                  onChange={(e) => setBranchForm((c) => ({ ...c, address: e.target.value }))}
+                />
+              </Field>
+              {branchError ? <p className="text-sm text-danger">{branchError}</p> : null}
+            </div>
+          </Modal>
 
         </>
       )}

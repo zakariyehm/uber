@@ -17,7 +17,13 @@ export async function requestOtp(phoneRaw: string, purpose: 'LOGIN' | 'REGISTER'
   if (purposeEnum === 'LOGIN' || purposeEnum === 'REGISTER') {
     const existing = await prisma.user.findUnique({
       where: { phone },
-      select: { isActive: true, firstName: true, lastName: true, role: true },
+      select: {
+        isActive: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        riderProfile: { select: { riderKind: true, storeId: true } },
+      },
     });
     if (existing && !existing.isActive) {
       const name = [existing.firstName, existing.lastName].filter(Boolean).join(' ').trim();
@@ -31,6 +37,13 @@ export async function requestOtp(phoneRaw: string, purpose: 'LOGIN' | 'REGISTER'
       );
       if (name) error.driverName = name;
       throw error;
+    }
+    const isStoreStaff =
+      existing?.role === UserRole.RIDER &&
+      existing.riderProfile?.riderKind === 'STORE' &&
+      Boolean(existing.riderProfile.storeId);
+    if (isStoreStaff) {
+      return { phone, needsPassword: true as const };
     }
   }
 
@@ -98,7 +111,13 @@ export async function verifyOtp(phoneRaw: string, code: string, purpose: 'LOGIN'
     throw new AuthError('Invalid code. Please try again.', 'auth/otp-invalid', 400);
   }
 
-  const user = await prisma.user.findUnique({ where: { phone } });
+  const user = await prisma.user.findUnique({
+    where: { phone },
+    include: {
+      driverProfile: true,
+      riderProfile: { include: { store: true, storeBranch: true } },
+    },
+  });
   if (user && !user.isActive) {
     const name = [user.firstName, user.lastName].filter(Boolean).join(' ').trim();
     const kind = user.role === UserRole.DRIVER ? 'driver' : 'rider';
@@ -124,7 +143,13 @@ export async function completeOtpProfile(input: {
   role?: 'RIDER' | 'DRIVER';
 }) {
   const phone = normalizePhone(input.phone);
-  const existing = await prisma.user.findUnique({ where: { phone } });
+  const existing = await prisma.user.findUnique({
+    where: { phone },
+    include: {
+      driverProfile: true,
+      riderProfile: { include: { store: true, storeBranch: true } },
+    },
+  });
   if (existing) {
     if (existing.role === UserRole.DRIVER) {
       throw new AuthError(
@@ -132,6 +157,9 @@ export async function completeOtpProfile(input: {
         'auth/driver-invite-only',
         403
       );
+    }
+    if (existing.riderProfile?.riderKind === 'STORE') {
+      return toPublicUser(existing);
     }
     const user = await prisma.user.update({
       where: { id: existing.id },

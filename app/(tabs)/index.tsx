@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { LocalImages, useCachedAsset } from '@/lib/local-images';
 import { fetchDeliveryStateMethods, type CatalogMethod } from '@/utils/catalog';
+import { staffDisplayName, storeStaffPickup } from '@/utils/auth';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -35,6 +36,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const isStoreAccount = user?.riderKind === 'STORE' && Boolean(user.store?.id);
+  const staffName = staffDisplayName(user);
   const cardHeight = height * 0.3;
   const logoSource = useCachedAsset(
     LocalImages.headerLogo.key,
@@ -43,8 +45,8 @@ export default function HomeScreen() {
   const [showDeliverySheet, setShowDeliverySheet] = useState(false);
   const [pickupDistrict, setPickupDistrict] = useState('');
   const [pickupNeighborhood, setPickupNeighborhood] = useState('');
-  const [storeBranchAddress, setStoreBranchAddress] = useState('');
   const [storeOrderId, setStoreOrderId] = useState('');
+  const staffPickup = storeStaffPickup(user);
   const [dropoffMethod, setDropoffMethod] = useState<CatalogMethod | null>(null);
   const [stateMethods, setStateMethods] = useState<CatalogMethod[]>([]);
   const [picker, setPicker] = useState<PickerKind>(null);
@@ -52,7 +54,7 @@ export default function HomeScreen() {
   const canContinue = useMemo(() => {
     if (!dropoffMethod) return false;
     if (isStoreAccount) {
-      return storeBranchAddress.trim().length >= 2 && storeOrderId.trim().length >= 1;
+      return staffPickup.location.length >= 2 && storeOrderId.trim().length >= 1;
     }
     return Boolean(pickupDistrict && pickupNeighborhood.trim().length >= 2);
   }, [
@@ -60,12 +62,11 @@ export default function HomeScreen() {
     pickupNeighborhood,
     dropoffMethod,
     isStoreAccount,
-    storeBranchAddress,
+    staffPickup.location,
     storeOrderId,
   ]);
 
-  const storePickupDistrict =
-    (user?.store?.district || '').trim() || pickupDistrict || 'Banadir';
+  const storePickupDistrict = staffPickup.district || pickupDistrict || 'Banadir';
 
   useEffect(() => {
     if (!isStoreAccount) return;
@@ -98,10 +99,9 @@ export default function HomeScreen() {
   const handleContinueDelivery = () => {
     if (!canContinue || !dropoffMethod) return;
     closeDeliverySheet();
-    const branch = storeBranchAddress.trim();
     const district = isStoreAccount ? storePickupDistrict : pickupDistrict;
     const pickup = isStoreAccount
-      ? `${district}, ${branch}`
+      ? staffPickup.location
       : `${pickupDistrict}, ${pickupNeighborhood.trim()}`;
     router.push({
       pathname: '/delivery',
@@ -119,7 +119,7 @@ export default function HomeScreen() {
               storeId: user?.store?.id || '',
               storeName: user?.store?.name || '',
               storeOrderCode: storeOrderId.trim(),
-              storeBranchLocation: branch,
+              storeBranchLocation: staffPickup.location,
             }
           : {}),
       },
@@ -153,6 +153,20 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.content}>
+        {isStoreAccount ? (
+          <View style={[styles.storeIdentity, { backgroundColor: isDark ? '#2A2A2A' : '#F3F3F3' }]}>
+            <Ionicons name="storefront" size={20} color={AppColors.header} />
+            <View style={styles.storeIdentityText}>
+              <Text style={[styles.storeIdentityName, { color: colors.text }]} numberOfLines={1}>
+                {user?.store?.name || 'Store'}
+              </Text>
+              <Text style={[styles.storeIdentityStaff, { color: colors.icon }]} numberOfLines={1}>
+                {staffName || 'Staff'}
+              </Text>
+            </View>
+          </View>
+        ) : null}
+
         <View style={styles.row}>
           <TouchableOpacity
             style={[
@@ -229,7 +243,6 @@ export default function HomeScreen() {
                       if (picker === 'district') {
                         setPickupDistrict(item);
                         setPickupNeighborhood('');
-                        setStoreBranchAddress('');
                       } else if (method) {
                         setDropoffMethod(method);
                       }
@@ -259,7 +272,7 @@ export default function HomeScreen() {
             </Text>
             <Text style={[styles.sheetSubtitle, { color: colors.icon }]}>
               {isStoreAccount
-                ? 'Pickup degmada waa automatic. Geli branch xarunta iyo order ID, kadib dooro drop-off.'
+                ? 'Pickup waa branch-kaaga. Kaliya geli order ID, kadib dooro drop-off.'
                 : 'Dooro degmada, kadib geli xaafadda. Destination-ka waa gobol.'}
             </Text>
 
@@ -268,7 +281,9 @@ export default function HomeScreen() {
                 <Ionicons name="storefront" size={18} color={AppColors.header} />
                 <View style={styles.fixedStateText}>
                   <Text style={[styles.fixedStateTitle, { color: colors.text }]}>{user.store.name}</Text>
-                  <Text style={[styles.fixedStateHint, { color: colors.icon }]}>Store account</Text>
+                  <Text style={[styles.fixedStateHint, { color: colors.icon }]}>
+                    {staffName || 'Store staff'}
+                  </Text>
                 </View>
               </View>
             ) : null}
@@ -292,28 +307,21 @@ export default function HomeScreen() {
                       {storePickupDistrict}
                     </Text>
                     <Text style={[styles.fixedStateHint, { color: colors.icon }]}>
-                      Auto · store pickup
+                      Auto · {staffPickup.label}
                     </Text>
                   </View>
                 </View>
 
-                <View
-                  style={[
-                    styles.selectField,
-                    { backgroundColor: isDark ? '#2A2A2A' : '#F3F3F3', marginTop: 10 },
-                  ]}>
-                  <View style={styles.selectFieldBody}>
-                    <Text style={[styles.selectLabel, { color: colors.icon }]}>Branch xarunta</Text>
-                    <TextInput
-                      style={[styles.neighborhoodInput, { color: colors.text }]}
-                      placeholder="Geli branch xarunta"
-                      placeholderTextColor={colors.icon}
-                      value={storeBranchAddress}
-                      onChangeText={setStoreBranchAddress}
-                      autoCapitalize="words"
-                      autoCorrect={false}
-                      returnKeyType="next"
-                    />
+                <View style={[styles.fixedStateRow, { backgroundColor: isDark ? '#2A2A2A' : '#F3F3F3', marginTop: 10 }]}>
+                  <Ionicons name="business" size={18} color={AppColors.header} />
+                  <View style={styles.fixedStateText}>
+                    <Text style={[styles.selectLabel, { color: colors.icon }]}>Branch</Text>
+                    <Text style={[styles.fixedStateTitle, { color: colors.text }]}>
+                      {staffPickup.label}
+                    </Text>
+                    <Text style={[styles.fixedStateHint, { color: colors.icon }]}>
+                      {staffPickup.location || 'Ask admin to assign a branch'}
+                    </Text>
                   </View>
                 </View>
                 <View
@@ -452,6 +460,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 24,
     alignItems: 'flex-start',
+  },
+  storeIdentity: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 18,
+  },
+  storeIdentityText: {
+    flex: 1,
+  },
+  storeIdentityName: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  storeIdentityStaff: {
+    fontSize: 13,
+    fontWeight: '500',
+    marginTop: 2,
   },
   row: {
     flexDirection: 'row',

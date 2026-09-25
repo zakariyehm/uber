@@ -54,7 +54,12 @@ export async function registerUser(input: {
   return user;
 }
 
-export async function loginUser(input: { phone?: string; email?: string; password: string }) {
+export async function loginUser(input: {
+  phone?: string;
+  email?: string;
+  password: string;
+  accountKind?: 'STORE';
+}) {
   const rawPhone = input.phone ? normalizePhone(input.phone) : null;
   const email = input.email?.trim().toLowerCase() || null;
 
@@ -68,16 +73,16 @@ export async function loginUser(input: { phone?: string; email?: string; passwor
   const user = rawPhone
     ? (await prisma.user.findUnique({
         where: { phone: rawPhone },
-        include: { driverProfile: true, riderProfile: { include: { store: true } } },
+        include: { driverProfile: true, riderProfile: { include: { store: true, storeBranch: true } } },
       })) ||
       (await prisma.user.findUnique({
         where: { phone: somaliaForm(rawPhone) },
-        include: { driverProfile: true, riderProfile: { include: { store: true } } },
+        include: { driverProfile: true, riderProfile: { include: { store: true, storeBranch: true } } },
       }))
     : email
       ? await prisma.user.findUnique({
           where: { email },
-          include: { driverProfile: true, riderProfile: { include: { store: true } } },
+          include: { driverProfile: true, riderProfile: { include: { store: true, storeBranch: true } } },
         })
       : null;
 
@@ -111,6 +116,20 @@ export async function loginUser(input: { phone?: string; email?: string; passwor
     throw error;
   }
 
+  if (input.accountKind === 'STORE') {
+    const isStoreStaff =
+      user.role === UserRole.RIDER &&
+      user.riderProfile?.riderKind === 'STORE' &&
+      Boolean(user.riderProfile.storeId);
+    if (!isStoreStaff) {
+      throw new AuthError(
+        'This number is not registered as store staff. Only staff numbers from store register can sign in here.',
+        'auth/not-store-staff',
+        403
+      );
+    }
+  }
+
   return user;
 }
 
@@ -127,10 +146,24 @@ export function toPublicUser(user: {
   riderProfile?: {
     riderKind?: string | null;
     storeId?: string | null;
-    store?: { id: string; name: string; category: string; phone?: string | null } | null;
+    store?: {
+      id: string;
+      name: string;
+      category: string;
+      phone?: string | null;
+      district?: string | null;
+      address?: string | null;
+    } | null;
+    storeBranch?: {
+      id: string;
+      name: string;
+      district: string;
+      address: string;
+    } | null;
   } | null;
 }) {
   const store = user.riderProfile?.store;
+  const branch = user.riderProfile?.storeBranch;
   return {
     id: user.id,
     role: user.role,
@@ -160,6 +193,14 @@ export function toPublicUser(user: {
             phone: store.phone ?? null,
             district: store.district ?? null,
             address: store.address ?? null,
+            branch: branch
+              ? {
+                  id: branch.id,
+                  name: branch.name,
+                  district: branch.district,
+                  address: branch.address,
+                }
+              : null,
           }
         : null,
   };
