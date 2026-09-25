@@ -73,6 +73,7 @@ export function storeStaffPickup(
   user:
     | {
         store?: {
+          name?: string | null;
           district?: string | null;
           address?: string | null;
           branch?: { name: string; district: string; address: string } | null;
@@ -85,9 +86,11 @@ export function storeStaffPickup(
   const district = (branch?.district || user?.store?.district || '').trim();
   const address = (branch?.address || user?.store?.address || '').trim();
   const name = (branch?.name || '').trim();
+  const storeName = (user?.store?.name || '').trim();
   const location = [district, address].filter(Boolean).join(', ');
   const label = name || address || 'Branch';
-  return { district, address, name, label, location };
+  const display = [storeName, name].filter(Boolean).join(' · ') || storeName || label;
+  return { district, address, name, storeName, label, location, display };
 }
 
 export async function loginStoreStaff(phone: string, password: string) {

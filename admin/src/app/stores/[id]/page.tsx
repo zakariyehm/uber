@@ -28,6 +28,10 @@ export default function StoreProfilePage() {
   const [branchForm, setBranchForm] = useState({ name: "", district: "", address: "" });
   const [branchSaving, setBranchSaving] = useState(false);
   const [branchError, setBranchError] = useState<string | null>(null);
+  const [amountOpen, setAmountOpen] = useState(false);
+  const [amountForm, setAmountForm] = useState({ amount: "", note: "" });
+  const [amountSaving, setAmountSaving] = useState(false);
+  const [amountError, setAmountError] = useState<string | null>(null);
 
   const load = async () => {
     try {
@@ -73,6 +77,16 @@ export default function StoreProfilePage() {
               <Button
                 variant="ghost"
                 onClick={() => {
+                  setAmountForm({ amount: "", note: "" });
+                  setAmountError(null);
+                  setAmountOpen(true);
+                }}
+              >
+                Add amount
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => {
                   setBranchForm({ name: "", district: store.district || "", address: "" });
                   setBranchError(null);
                   setBranchOpen(true);
@@ -91,10 +105,10 @@ export default function StoreProfilePage() {
 
           <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <KpiCard
-              label="Credit balance"
+              label="Wallet"
               value={money(store.balance || "0")}
               tone={Number(store.balance || 0) < 0 ? "amber" : "green"}
-              hint="Delivery charges · debt allowed"
+              hint="Top-up balance for store trips"
             />
             <KpiCard label="Orders" value={String(stats?.ordersTotal ?? 0)} tone="blue" />
             <KpiCard label="Active" value={String(stats?.active ?? 0)} tone="amber" hint={`${stats?.pending ?? 0} pending`} />
@@ -334,6 +348,69 @@ export default function StoreProfilePage() {
             onClose={() => setStaffOpen(false)}
             onCreated={() => void load()}
           />
+
+          <Modal
+            open={amountOpen}
+            onClose={() => setAmountOpen(false)}
+            title="Add amount"
+            description={`Add top-up to ${store.name}. This increases the wallet staff use for trips.`}
+            footer={
+              <>
+                <Button variant="ghost" onClick={() => setAmountOpen(false)} disabled={amountSaving}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="primary"
+                  disabled={amountSaving || !(Number(amountForm.amount) > 0)}
+                  onClick={async () => {
+                    const amount = Number(amountForm.amount);
+                    if (!Number.isFinite(amount) || amount <= 0) {
+                      setAmountError("Enter a positive amount");
+                      return;
+                    }
+                    setAmountSaving(true);
+                    setAmountError(null);
+                    try {
+                      await api(`/admin/stores/${store.id}/credit`, {
+                        method: "POST",
+                        body: JSON.stringify({
+                          amount,
+                          note: amountForm.note.trim() || undefined,
+                        }),
+                      });
+                      setAmountOpen(false);
+                      await load();
+                    } catch (err) {
+                      setAmountError(errorMessage(err, "Could not add amount"));
+                    } finally {
+                      setAmountSaving(false);
+                    }
+                  }}
+                >
+                  {amountSaving ? "Saving…" : "Add amount"}
+                </Button>
+              </>
+            }
+          >
+            <div className="space-y-4">
+              <Field label="Amount (USD)" hint="This is added to the store wallet immediately">
+                <TextInput
+                  placeholder="10.00"
+                  inputMode="decimal"
+                  value={amountForm.amount}
+                  onChange={(e) => setAmountForm((c) => ({ ...c, amount: e.target.value }))}
+                />
+              </Field>
+              <Field label="Note">
+                <TextInput
+                  placeholder="Optional, e.g. cash top-up"
+                  value={amountForm.note}
+                  onChange={(e) => setAmountForm((c) => ({ ...c, note: e.target.value }))}
+                />
+              </Field>
+              {amountError ? <p className="text-sm text-danger">{amountError}</p> : null}
+            </div>
+          </Modal>
 
           <Modal
             open={branchOpen}

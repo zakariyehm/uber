@@ -175,6 +175,7 @@ export default function DeliveryScreen() {
       pathname: '/checkout',
       params: {
         pickupLocation: pickupLocation,
+        pickupDisplay: isStoreAccount ? staffPickup.display || pickupLocation : pickupLocation,
         destinationLocation: destinationLocation,
         referenceId: senderKind === 'STORE' ? storeOrderCode.trim() : receiptInfoId || '',
         senderKind,
@@ -274,7 +275,9 @@ export default function DeliveryScreen() {
               style={styles.inputIcon}
             />
             <Text style={[styles.locationText, { color: isDark ? '#FFFFFF' : '#000000' }]}>
-              {pickupLocation || 'Not set'}
+              {isStoreAccount
+                ? staffPickup.display || pickupLocation || 'Not set'
+                : pickupLocation || 'Not set'}
             </Text>
           </View>
         </View>

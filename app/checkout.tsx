@@ -33,6 +33,7 @@ export default function CheckoutScreen() {
 
   // Extract order details from params
   const pickupLocation = params.pickupLocation as string || '';
+  const pickupDisplay = (params.pickupDisplay as string) || pickupLocation;
   const destinationLocation = params.destinationLocation as string || '';
   const referenceId = params.referenceId as string || '';
   const senderKind = ((params.senderKind as string) || 'PERSONAL').toUpperCase() === 'STORE'
@@ -268,7 +269,7 @@ export default function CheckoutScreen() {
               <Ionicons name="location" size={scaleFont(20)} color={colors.icon} />
               <Text style={[styles.infoLabel, { color: colors.icon }]}>Pickup Location</Text>
             </View>
-            <Text style={[styles.infoValue, { color: colors.text }]}>{pickupLocation}</Text>
+            <Text style={[styles.infoValue, { color: colors.text }]}>{pickupDisplay}</Text>
           </View>
 
           {/* Destination Location */}
