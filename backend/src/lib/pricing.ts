@@ -11,14 +11,25 @@ export const PRICE_PER_KM_SAME_DISTRICT = 0.5;
 export const PRICE_PER_KM_CROSS_DISTRICT = 0.3;
 /** Express Moto: faster pickup, added on top of the distance fare. */
 export const EXPRESS_SURCHARGE = 0.5;
+/** Bicycle trips: flat $0.30 per kilometre (cheaper than Standard moto). */
+export const PRICE_PER_KM_BICYCLE = 0.3;
 
 export function isExpressMethod(deliveryMethod?: string | null) {
   return /\bexpress\b/i.test(String(deliveryMethod || ''));
 }
 
+export function isBicycleMethod(deliveryMethod?: string | null) {
+  const raw = String(deliveryMethod || '').toLowerCase();
+  return /\bbicycle\b|\bbaaskiil\b/.test(raw) && !/motorbike|motorcycle/.test(raw);
+}
+
 /** Express arrives ~2 minutes sooner (5 min Standard → 3 min Express). */
 export function expressDurationMinutes(standardMinutes: number) {
   return Math.max(2, standardMinutes - 2);
+}
+
+export function bicycleFareFromKm(distanceKm: number) {
+  return Math.round(distanceKm * PRICE_PER_KM_BICYCLE * 100) / 100;
 }
 
 export function applyMotoTier(baseFare: number, deliveryMethod?: string | null) {
@@ -31,6 +42,23 @@ export function applyMotoTier(baseFare: number, deliveryMethod?: string | null) 
     express: isExpressMethod(deliveryMethod),
     surcharge: isExpressMethod(deliveryMethod) ? EXPRESS_SURCHARGE : 0,
   };
+}
+
+export function applyQuotedFare(
+  quote: { fare: number; distanceKm: number },
+  deliveryMethod?: string | null
+) {
+  if (isBicycleMethod(deliveryMethod)) {
+    const fare = bicycleFareFromKm(quote.distanceKm);
+    return {
+      fare,
+      fareLabel: fare.toFixed(2),
+      bicycle: true,
+      express: false,
+      surcharge: 0,
+    };
+  }
+  return { ...applyMotoTier(quote.fare, deliveryMethod), bicycle: false };
 }
 /** Roads are not straight — bump straight-line distance toward a real route. */
 const ROAD_FACTOR = 1.25;

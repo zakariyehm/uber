@@ -22,7 +22,7 @@ export type CatalogStore = {
 const FALLBACK_MOTO: CatalogMethod[] = [
   { id: 'moto-standard', name: 'Standard', icon: 'motorbike', time: 'Everyday trips', displayPrice: '$0.50', price: '0.50', vehicleType: 'MOTORCYCLE' },
   { id: 'moto-express', name: 'Express', icon: 'motorbike', time: 'Faster pickup · +$0.50', displayPrice: '$1.00', price: '1.00', vehicleType: 'MOTORCYCLE' },
-  { id: 'moto-bicycle', name: 'Moto Bicycle', icon: 'bicycle', time: '15-25 minutes', displayPrice: '$0.80', price: '0.80', vehicleType: 'BICYCLE' },
+  { id: 'moto-bicycle', name: 'Moto Bicycle', icon: 'bicycle', time: 'km × $0.30', displayPrice: '$0.30', price: '0.30', vehicleType: 'BICYCLE' },
 ];
 
 const FALLBACK_STATES: CatalogMethod[] = [

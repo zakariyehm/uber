@@ -2,10 +2,12 @@ import { DeliveryStatus, VehicleType, type DeliveryRequest as DbDelivery } from 
 import { prisma } from '../../lib/prisma.ts';
 import { resolvePickupCoords } from '../../lib/geo.ts';
 import {
-  applyMotoTier,
+  applyQuotedFare,
+  bicycleFareFromKm,
   expressDurationMinutes,
   EXPRESS_SURCHARGE,
   isExpressMethod,
+  PRICE_PER_KM_BICYCLE,
   quoteTrip,
 } from '../../lib/pricing.ts';
 import {
@@ -493,7 +495,8 @@ export async function quoteDelivery(input: {
     error.statusCode = 400;
     throw error;
   }
-  const express = applyMotoTier(quote.fare, 'Express');
+  const express = applyQuotedFare(quote, 'Express');
+  const bicycleFare = bicycleFareFromKm(quote.distanceKm);
   const expressMinutes = expressDurationMinutes(quote.durationMinutes);
   return {
     pickupLocation: input.pickupLocation,
@@ -506,9 +509,12 @@ export async function quoteDelivery(input: {
     fare: quote.fareLabel,
     fareStandard: quote.fareLabel,
     fareExpress: express.fareLabel,
+    fareBicycle: bicycleFare.toFixed(2),
     expressSurcharge: EXPRESS_SURCHARGE.toFixed(2),
     pricePerKm: quote.pricePerKmLabel,
+    pricePerKmBicycle: PRICE_PER_KM_BICYCLE.toFixed(2),
     breakdown: `${quote.distanceKm.toFixed(1)} km × $${quote.pricePerKmLabel}/km`,
+    breakdownBicycle: `${quote.distanceKm.toFixed(1)} km × $${PRICE_PER_KM_BICYCLE.toFixed(2)}/km`,
   };
 }
 
@@ -547,7 +553,7 @@ export async function createDelivery(
   const clientPrice = Number.parseFloat(input.deliveryPrice.replace('$', ''));
   const amount =
     quote && !openFleetPreview
-      ? applyMotoTier(quote.fare, input.deliveryMethod).fare
+      ? applyQuotedFare(quote, input.deliveryMethod).fare
       : Number.isFinite(clientPrice)
         ? clientPrice
         : 0;

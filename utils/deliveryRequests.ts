@@ -66,13 +66,22 @@ export type TripQuote = {
   fare: string;
   fareStandard?: string;
   fareExpress?: string;
+  fareBicycle?: string;
   expressSurcharge?: string;
   pricePerKm: string;
+  pricePerKmBicycle?: string;
   breakdown: string;
+  breakdownBicycle?: string;
 };
+
+function isBicycleOption(methodName: string) {
+  const raw = methodName.toLowerCase();
+  return /\bbicycle\b|\bbaaskiil\b/.test(raw) && !/motorbike|motorcycle/.test(raw);
+}
 
 export function fareForMotoOption(quote: TripQuote | null | undefined, methodName: string) {
   if (!quote) return null;
+  if (isBicycleOption(methodName)) return quote.fareBicycle || quote.fare;
   if (/\bexpress\b/i.test(methodName)) return quote.fareExpress || quote.fare;
   return quote.fareStandard || quote.fare;
 }

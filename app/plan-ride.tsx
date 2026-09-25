@@ -168,9 +168,11 @@ export default function PlanRideScreen() {
         distanceKm: quote ? String(quote.distanceKm) : '',
         durationMinutes: quote ? String(quote.durationMinutes) : '',
         durationLabel: etaForMotoOption(quote, option.name) || '',
-        fareBreakdown: /\bexpress\b/i.test(option.name) && quote
-          ? `${quote.breakdown} + $0.50 Express`
-          : quote?.breakdown || '',
+        fareBreakdown: /\bbicycle\b|\bbaaskiil\b/i.test(option.name) && quote
+          ? quote.breakdownBicycle || `${quote.distanceKm.toFixed(1)} km × $0.30/km`
+          : /\bexpress\b/i.test(option.name) && quote
+            ? `${quote.breakdown} + $0.50 Express`
+            : quote?.breakdown || '',
         rideType: params.rideType || '',
         ...(isStoreAccount
           ? {
