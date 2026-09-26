@@ -401,7 +401,7 @@ export default function HomeScreen() {
       case 'waiting':
         return AppColors.waiting;
       case 'online':
-        return AppColors.primary;
+        return AppColors.online;
       case 'deactivating':
         return '#8E8E93';
       default:

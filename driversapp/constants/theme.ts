@@ -25,6 +25,7 @@ export const AppColors = {
   danger: '#FF3B30',
   success: '#34C759',
   offline: '#161616',
+  online: '#FB7701',
   waiting: '#FF9500',
 };
 
