@@ -134,7 +134,7 @@ export default function HomeScreen() {
 
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <Image
-          source={require('@/assets/images/raac-logo.png')}
+          source={require('@/assets/images/raac-logo-home.png')}
           style={styles.logo}
           resizeMode="contain"
           accessibilityLabel="RAAC"
@@ -436,9 +436,9 @@ const styles = StyleSheet.create({
     minHeight: 64,
   },
   logo: {
-    width: 118,
-    height: 90,
-    marginLeft: 4,
+    width: 128,
+    height: 64,
+    marginLeft: 8,
   },
   profileIconContainer: {
     width: 48,
