@@ -155,7 +155,7 @@ const styles = StyleSheet.create({
   },
   brandLogo: {
     width: scaleWidth(196),
-    height: scaleHeight(104),
+    height: scaleHeight(150),
   },
   textContainer: {
     alignItems: 'center',

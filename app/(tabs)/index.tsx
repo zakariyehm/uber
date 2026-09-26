@@ -436,8 +436,8 @@ const styles = StyleSheet.create({
     minHeight: 64,
   },
   logo: {
-    width: 128,
-    height: 56,
+    width: 118,
+    height: 90,
     marginLeft: 4,
   },
   profileIconContainer: {

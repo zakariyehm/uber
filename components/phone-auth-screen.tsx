@@ -191,8 +191,8 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   brandLogo: {
-    width: 148,
-    height: 80,
+    width: 160,
+    height: 122,
     marginBottom: 20,
   },
   title: {

@@ -5,14 +5,15 @@
 
 import { Platform } from 'react-native';
 
-/** Raac brand — navy field + arrow blue from the wordmark. */
+/** Raac brand — orange field from the wordmark. */
 export const Brand = {
+  orange: '#FB7701',
+  orangeStrong: '#E06800',
   navy: '#202B3D',
   blue: '#3376BD',
-  blueStrong: '#2868A8',
 };
 
-const tintColorLight = Brand.blue;
+const tintColorLight = Brand.orange;
 const tintColorDark = '#fff';
 
 export const Colors = {
@@ -66,9 +67,9 @@ export const AppColors = {
   muted: '#6A6A6A',
   border: '#E6E6E6',
   accent: '#000000',
-  header: Brand.navy,
-  primary: Brand.blue,
+  header: Brand.orange,
+  primary: Brand.orange,
   disabled: '#F1F1F1',
   disabledText: '#B3B3B3',
-  link: Brand.blue,
+  link: Brand.orange,
 };
