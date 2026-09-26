@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
   priceText: {
     fontSize: width * 0.1,
     fontWeight: '800',
-    color: AppColors.primary,
+    color: '#FFFFFF',
   },
   divider: {
     height: StyleSheet.hairlineWidth,

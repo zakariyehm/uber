@@ -64,7 +64,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   dollar: {
-    color: AppColors.primary,
+    color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '800',
     marginRight: 3,
