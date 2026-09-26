@@ -20,7 +20,7 @@
         "INTERNET"
       ],
       "adaptiveIcon": {
-        "backgroundColor": "#3376BD",
+        "backgroundColor": "#000000",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -39,7 +39,7 @@
           "image": "./assets/images/raac-logo.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#202B3D"
+          "backgroundColor": "#000000"
         }
       ],
       "expo-font",
