@@ -1,14 +1,22 @@
 /**
  * App colors — driversapp is light-only.
- * Primary matches rider + ops: RGB(2, 166, 228).
+ * Primary is Raac arrow blue; navy is the wordmark field.
  */
 
 import { Platform } from 'react-native';
 
-/** Raac brand primary — RGB(2, 166, 228) */
+/** Raac brand — navy field + arrow blue from the wordmark. */
+export const Brand = {
+  navy: '#202B3D',
+  blue: '#3376BD',
+  blueStrong: '#2868A8',
+};
+
+/** Raac brand primary — arrow blue #3376BD */
 export const AppColors = {
-  primary: '#02A6E4',
-  primaryDim: 'rgba(2, 166, 228, 0.14)',
+  primary: Brand.blue,
+  primaryDim: 'rgba(51, 118, 189, 0.14)',
+  navy: Brand.navy,
   bg: '#FFFFFF',
   surface: '#F3F3F3',
   text: '#11181C',

@@ -49,9 +49,9 @@ export default function LoginPage() {
     <div className="grid min-h-screen place-items-center bg-sidebar px-4">
       <form
         onSubmit={onSubmit}
-        className="w-full max-w-md rounded-2xl border border-sidebar-line bg-[#161616] p-8 text-sidebar-ink shadow-modal"
+        className="w-full max-w-md rounded-2xl border border-sidebar-line bg-navy p-8 text-sidebar-ink shadow-modal"
       >
-        <img src="/raac-logo.png" alt="RAAC" width={160} height={62} className="h-12 w-auto" />
+        <img src="/raac-logo.png?v=3" alt="RAAC" width={160} height={86} className="h-12 w-auto" />
         <p className="mt-5 text-[10px] font-semibold uppercase tracking-[0.2em] text-sidebar-muted">
           Operations
         </p>

@@ -7,19 +7,20 @@
   --line: #e5e7eb;
   --text: #111827;
   --muted: #6b7280;
-  /* Raac primary — RGB(2, 166, 228) */
-  --primary: #02a6e4;
-  --primary-dim: rgba(2, 166, 228, 0.12);
-  --primary-strong: #028fc4;
+  /* Raac brand — navy field + arrow blue */
+  --navy: #202b3d;
+  --primary: #3376bd;
+  --primary-dim: rgba(51, 118, 189, 0.14);
+  --primary-strong: #2868a8;
   --red: #dc2626;
   --amber: #d97706;
-  --blue: #2563eb;
-  --sidebar: #111111;
+  --blue: #3376bd;
+  --sidebar: #202b3d;
   --sidebar-ink: #f5f5f5;
   --sidebar-muted: #9ca3af;
-  --sidebar-line: #262626;
-  --sidebar-hover: #1c1c1c;
-  --sidebar-active: #1a1a1a;
+  --sidebar-line: #314056;
+  --sidebar-hover: #283648;
+  --sidebar-active: #2d3d52;
   --overlay: rgba(17, 17, 17, 0.48);
   --shadow-modal: 0 24px 64px rgba(17, 17, 17, 0.18);
 }
@@ -31,6 +32,7 @@
   --color-line: var(--line);
   --color-ink: var(--text);
   --color-muted: var(--muted);
+  --color-navy: var(--navy);
   --color-raac: var(--primary);
   --color-raac-dim: var(--primary-dim);
   --color-raac-strong: var(--primary-strong);

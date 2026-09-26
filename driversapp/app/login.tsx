@@ -122,7 +122,7 @@ export default function LoginScreen() {
             {/* Brand + Title */}
             <View style={styles.titleSection}>
               <Image
-                source={require('@/assets/images/raac-logo.png')}
+                source={require('@/assets/images/raac-logo-ink.png')}
                 style={styles.brandLogo}
                 resizeMode="contain"
                 accessibilityLabel="RAAC"
@@ -240,10 +240,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   brandLogo: {
-    width: scaleWidth(132),
-    height: scaleHeight(52),
+    width: scaleWidth(148),
+    height: scaleHeight(80),
     marginBottom: scaleHeight(20),
-    tintColor: AppColors.primary,
   },
   title: {
     fontSize: scaleFont(32),

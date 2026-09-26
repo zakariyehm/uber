@@ -7,16 +7,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    Alert,
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -85,6 +86,12 @@ export function PhoneAuthScreen({ mode }: PhoneAuthScreenProps) {
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
+          <Image
+            source={require('@/assets/images/raac-logo-ink.png')}
+            style={styles.brandLogo}
+            resizeMode="contain"
+            accessibilityLabel="RAAC"
+          />
           <Text style={styles.title}>Enter your mobile number</Text>
 
           <View style={styles.phoneRow}>
@@ -182,6 +189,11 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 20,
     paddingTop: 8,
+  },
+  brandLogo: {
+    width: 148,
+    height: 80,
+    marginBottom: 20,
   },
   title: {
     fontSize: 28,

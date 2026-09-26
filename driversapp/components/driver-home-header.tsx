@@ -52,7 +52,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#111111',
+    backgroundColor: AppColors.navy,
     borderRadius: 999,
     paddingVertical: 10,
     paddingHorizontal: 18,

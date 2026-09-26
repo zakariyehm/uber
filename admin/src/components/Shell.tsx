@@ -72,7 +72,7 @@ export function Shell({ children, flush }: { children: React.ReactNode; flush?: 
       <aside className="fixed inset-y-0 left-0 z-20 flex w-[240px] flex-col bg-sidebar text-sidebar-ink">
         <div className="border-b border-sidebar-line px-4 py-5">
           <Link href="/" className="inline-flex items-center">
-            <img src="/raac-logo.png" alt="RAAC" width={120} height={47} className="h-9 w-auto" />
+            <img src="/raac-logo.png?v=3" alt="RAAC" width={128} height={56} className="h-9 w-auto" />
           </Link>
           <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-sidebar-muted">
             Operations

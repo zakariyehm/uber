@@ -9,7 +9,7 @@ import type { ImageSourcePropType } from 'react-native';
  * in AsyncStorage. Later launches skip re-unpacking the bundle asset.
  * Bump CACHE_VERSION when you replace the source PNG in assets/.
  */
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const META_KEY = '@raac/local-image-cache';
 const DIR = `${FileSystem.documentDirectory ?? ''}raac-images/`;
 

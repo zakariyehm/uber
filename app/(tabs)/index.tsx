@@ -3,7 +3,6 @@ import { BANADIR_DISTRICTS } from '@/constants/somalia';
 import { AppColors, Colors } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { LocalImages, useCachedAsset } from '@/lib/local-images';
 import { fetchDeliveryStateMethods, type CatalogMethod } from '@/utils/catalog';
 import { staffDisplayName, storeStaffPickup } from '@/utils/auth';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -38,10 +37,6 @@ export default function HomeScreen() {
   const isStoreAccount = user?.riderKind === 'STORE' && Boolean(user.store?.id);
   const staffName = staffDisplayName(user);
   const cardHeight = height * 0.3;
-  const logoSource = useCachedAsset(
-    LocalImages.headerLogo.key,
-    LocalImages.headerLogo.moduleId
-  );
   const [showDeliverySheet, setShowDeliverySheet] = useState(false);
   const [pickupDistrict, setPickupDistrict] = useState('');
   const [pickupNeighborhood, setPickupNeighborhood] = useState('');
@@ -139,7 +134,7 @@ export default function HomeScreen() {
 
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <Image
-          source={logoSource}
+          source={require('@/assets/images/raac-logo.png')}
           style={styles.logo}
           resizeMode="contain"
           accessibilityLabel="RAAC"
@@ -442,8 +437,8 @@ const styles = StyleSheet.create({
   },
   logo: {
     width: 128,
-    height: 50,
-    marginLeft: 0,
+    height: 56,
+    marginLeft: 4,
   },
   profileIconContainer: {
     width: 48,

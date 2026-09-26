@@ -1,10 +1,10 @@
 import { LoadingOverlay } from '@/components/ui/loading-overlay';
-import { Colors } from '@/constants/theme';
+import { AppColors, Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Dimensions, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Dimensions, Image, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import NetInfo from '@react-native-community/netinfo';
 
@@ -81,21 +81,19 @@ export default function GetStartedScreen() {
         
         {/* Logo/Icon */}
         <View style={styles.logoContainer}>
-          <View style={[
-            styles.logoCircle,
-            {
-              backgroundColor: isDark ? '#1A1A1A' : '#F8F8F8',
-            }
-          ]}>
-            <Ionicons name="restaurant" size={scaleFont(80)} color={isDark ? '#FFFFFF' : '#000000'} />
-          </View>
+          <Image
+            source={require('@/assets/images/raac-logo-ink.png')}
+            style={styles.brandLogo}
+            resizeMode="contain"
+            accessibilityLabel="RAAC"
+          />
         </View>
 
         {/* Welcome Text */}
         <View style={styles.textContainer}>
-          <Text style={[styles.title, { color: colors.text }]}>Welcome to Eat</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Welcome to Raac</Text>
           <Text style={[styles.subtitle, { color: colors.icon }]}>
-            Order food and get it delivered to your doorstep quickly and safely
+            Send packages across Mogadishu. Fast pickup, live tracking, and reliable drivers.
           </Text>
         </View>
 
@@ -105,7 +103,7 @@ export default function GetStartedScreen() {
             style={[
               styles.primaryButton,
               {
-                backgroundColor: '#000',
+                backgroundColor: AppColors.header,
               }
             ]}
             activeOpacity={0.8}
@@ -155,12 +153,9 @@ const styles = StyleSheet.create({
     marginTop: scaleHeight(60),
     marginBottom: scaleHeight(40),
   },
-  logoCircle: {
-    width: scaleWidth(160),
-    height: scaleWidth(160),
-    borderRadius: scaleWidth(80),
-    justifyContent: 'center',
-    alignItems: 'center',
+  brandLogo: {
+    width: scaleWidth(196),
+    height: scaleHeight(104),
   },
   textContainer: {
     alignItems: 'center',

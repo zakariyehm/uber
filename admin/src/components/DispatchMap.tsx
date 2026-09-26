@@ -126,12 +126,12 @@ export function DispatchMap({ trips, drivers, selectedId, onSelectTrip }: Props)
           background:${selected ? "#000" : "#111"};
           color:#fff;font:600 10px/1 ui-sans-serif,system-ui;
           box-shadow:0 8px 20px rgba(0,0,0,.35);
-          outline:${selected ? "2px solid #02a6e4" : "0"};
+          outline:${selected ? "2px solid #3376BD" : "0"};
         ">
-          <span style="width:7px;height:7px;border-radius:99px;background:${pending ? "#f59e0b" : "#02a6e4"}"></span>
+          <span style="width:7px;height:7px;border-radius:99px;background:${pending ? "#f59e0b" : "#3376BD"}"></span>
           ${formatOrderCode(trip.orderId)}
         </span>
-        <span style="width:10px;height:10px;border-radius:99px;background:#fff;border:3px solid ${pending ? "#f59e0b" : "#02a6e4"}"></span>
+        <span style="width:10px;height:10px;border-radius:99px;background:#fff;border:3px solid ${pending ? "#f59e0b" : "#3376BD"}"></span>
       `;
       el.onclick = () => onSelectTrip?.(trip.id);
       add(lng, lat, el);
