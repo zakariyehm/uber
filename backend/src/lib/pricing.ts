@@ -5,29 +5,45 @@ import {
   type LatLng,
 } from './geo.ts';
 
-/** Standard Moto: $0.50 per kilometre on every local trip. */
-export const PRICE_PER_KM_STANDARD = 0.5;
-/** Express Moto: faster pickup, added on top of the distance fare. */
-export const EXPRESS_SURCHARGE = 0.5;
-/** Bicycle 1–3 km: fixed $1. */
-export const BICYCLE_SHORT_FARE = 1;
-/** Bicycle 4–7 km: $0.30 per kilometre. */
-export const PRICE_PER_KM_BICYCLE = 0.3;
-/** Short-trip bicycle flat fare applies up to this distance. */
-export const BICYCLE_SHORT_KM = 3;
-/** Bicycle only appears for trips up to 7 km. */
-export const BICYCLE_MAX_KM = 7;
+/** Fixed Standard / Bicycle brackets. Over 15 km adds $0.25 per extra km. */
+export const FARE_UNDER_5 = 1.2;
+export const FARE_5_TO_8 = 1.5;
+export const FARE_8_TO_12 = 2;
+export const FARE_12_TO_15 = 2.5;
+export const PRICE_PER_KM_OVER_15 = 0.25;
+/** Express: Standard fare + $1.00. */
+export const EXPRESS_SURCHARGE = 1;
+/** Kept for quote API fields — overage rate after 15 km. */
+export const PRICE_PER_KM_STANDARD = PRICE_PER_KM_OVER_15;
+/** Bicycle only for trips up to 10 km. */
+export const BICYCLE_MAX_KM = 10;
+
+export function fareFromKm(distanceKm: number) {
+  const km = Number(distanceKm);
+  if (!Number.isFinite(km) || km <= 0) return 0;
+  if (km < 5) return FARE_UNDER_5;
+  if (km < 8) return FARE_5_TO_8;
+  if (km < 12) return FARE_8_TO_12;
+  if (km <= 15) return FARE_12_TO_15;
+  return roundMoney(FARE_12_TO_15 + (km - 15) * PRICE_PER_KM_OVER_15);
+}
+
+export function fareBreakdownFromKm(distanceKm: number) {
+  const km = Number(distanceKm);
+  if (!Number.isFinite(km) || km <= 0) return '';
+  if (km < 5) return `${km.toFixed(1)} km · $1.20`;
+  if (km < 8) return `${km.toFixed(1)} km · $1.50`;
+  if (km < 12) return `${km.toFixed(1)} km · $2.00`;
+  if (km <= 15) return `${km.toFixed(1)} km · $2.50`;
+  return `15 km + ${(km - 15).toFixed(1)} km × $0.25`;
+}
 
 export function bicycleAvailableForKm(distanceKm: number) {
   return Number.isFinite(distanceKm) && distanceKm > 0 && distanceKm <= BICYCLE_MAX_KM;
 }
 
-export function isBicycleShortTrip(distanceKm: number) {
-  return distanceKm <= BICYCLE_SHORT_KM;
-}
-
-export function bicyclePricePerKm(distanceKm: number) {
-  return isBicycleShortTrip(distanceKm) ? 0 : PRICE_PER_KM_BICYCLE;
+export function bicycleFareFromKm(distanceKm: number) {
+  return fareFromKm(distanceKm);
 }
 
 export function isExpressMethod(deliveryMethod?: string | null) {
@@ -42,11 +58,6 @@ export function isBicycleMethod(deliveryMethod?: string | null) {
 /** Express arrives ~2 minutes sooner (5 min Standard → 3 min Express). */
 export function expressDurationMinutes(standardMinutes: number) {
   return Math.max(2, standardMinutes - 2);
-}
-
-export function bicycleFareFromKm(distanceKm: number) {
-  if (isBicycleShortTrip(distanceKm)) return BICYCLE_SHORT_FARE;
-  return Math.round(distanceKm * PRICE_PER_KM_BICYCLE * 100) / 100;
 }
 
 export function applyMotoTier(baseFare: number, deliveryMethod?: string | null) {
@@ -186,15 +197,12 @@ export async function quoteTrip(input: {
   const sameDistrict =
     samePlace ||
     districtHead(input.pickupLocation) === districtHead(input.destinationLocation);
-  const pricePerKm = PRICE_PER_KM_STANDARD;
+  const pricePerKm = PRICE_PER_KM_OVER_15;
   const distanceKm = roundKm(sameDistrict && km < SAME_DISTRICT_KM ? SAME_DISTRICT_KM : km);
   const durationMinutes = routed?.seconds
     ? Math.max(MIN_MINUTES, Math.round(routed.seconds / 60))
     : Math.max(MIN_MINUTES, Math.round((distanceKm / AVG_SPEED_KMH) * 60));
-  const fare = Math.max(
-    SAME_DISTRICT_KM * PRICE_PER_KM_STANDARD,
-    roundMoney(distanceKm * pricePerKm)
-  );
+  const fare = fareFromKm(distanceKm);
 
   return {
     pickup,

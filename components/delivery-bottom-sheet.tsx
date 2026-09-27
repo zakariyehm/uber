@@ -229,12 +229,7 @@ export function DeliveryBottomSheet({
                       </Text>
                       <Text style={[styles.optionTime, { color: colors.icon }]}>
                         {etaForMotoOption(quote, option.name) || quotedTime || option.time}
-                        {/\bexpress\b/i.test(option.name) ? ' · +$0.50' : ''}
-                        {/\bbicycle\b|\bbaaskiil\b/i.test(option.name)
-                          ? quote && quote.distanceKm <= 3
-                            ? ' · $1.00'
-                            : ' · $0.30/km'
-                          : ''}
+                        {/\bexpress\b/i.test(option.name) ? ' · +$1.00' : ''}
                         {quotedStats ? ` · ${quotedStats}` : ''}
                       </Text>
                     </View>

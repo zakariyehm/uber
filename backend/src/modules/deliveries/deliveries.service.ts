@@ -6,11 +6,9 @@ import {
   BICYCLE_MAX_KM,
   bicycleAvailableForKm,
   bicycleFareFromKm,
-  bicyclePricePerKm,
-  BICYCLE_SHORT_FARE,
   expressDurationMinutes,
-  isBicycleShortTrip,
   EXPRESS_SURCHARGE,
+  fareBreakdownFromKm,
   isBicycleMethod,
   isExpressMethod,
   quoteTrip,
@@ -502,8 +500,7 @@ export async function quoteDelivery(input: {
   }
   const express = applyQuotedFare(quote, 'Express');
   const bicycleFare = bicycleFareFromKm(quote.distanceKm);
-  const bicycleShort = isBicycleShortTrip(quote.distanceKm);
-  const bicycleRate = bicyclePricePerKm(quote.distanceKm);
+  const breakdown = fareBreakdownFromKm(quote.distanceKm);
   const expressMinutes = expressDurationMinutes(quote.durationMinutes);
   return {
     pickupLocation: input.pickupLocation,
@@ -521,11 +518,9 @@ export async function quoteDelivery(input: {
     bicycleMaxKm: BICYCLE_MAX_KM,
     expressSurcharge: EXPRESS_SURCHARGE.toFixed(2),
     pricePerKm: quote.pricePerKmLabel,
-    pricePerKmBicycle: bicycleShort ? BICYCLE_SHORT_FARE.toFixed(2) : bicycleRate.toFixed(2),
-    breakdown: `${quote.distanceKm.toFixed(1)} km × $${quote.pricePerKmLabel}/km`,
-    breakdownBicycle: bicycleShort
-      ? `Fixed $${BICYCLE_SHORT_FARE.toFixed(2)}`
-      : `${quote.distanceKm.toFixed(1)} km × $${bicycleRate.toFixed(2)}/km`,
+    pricePerKmBicycle: quote.pricePerKmLabel,
+    breakdown,
+    breakdownBicycle: breakdown,
   };
 }
 
@@ -560,7 +555,6 @@ export async function createDelivery(
     pickupLng: input.pickupLng,
   });
   const openFleetPreview = await isOpenFleetMethod(input.deliveryMethod);
-  // Standard km × $0.50, Express = Standard + $0.50, Bicycle 1–3 km $1 else × $0.30 up to 7 km.
   if (quote && !openFleetPreview && isBicycleMethod(input.deliveryMethod) && !bicycleAvailableForKm(quote.distanceKm)) {
     const error = new Error(`Bicycle is only available for trips up to ${BICYCLE_MAX_KM} km.`) as Error & {
       statusCode?: number;
