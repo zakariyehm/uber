@@ -84,7 +84,7 @@ function isBicycleOption(methodName: string) {
 export function bicycleOptionVisible(quote: TripQuote | null | undefined) {
   if (!quote) return false;
   if (typeof quote.bicycleAvailable === 'boolean') return quote.bicycleAvailable;
-  return quote.distanceKm > 0 && quote.distanceKm <= (quote.bicycleMaxKm || 10);
+  return quote.distanceKm > 0 && quote.distanceKm <= (quote.bicycleMaxKm ?? 8);
 }
 
 export function fareForMotoOption(quote: TripQuote | null | undefined, methodName: string) {

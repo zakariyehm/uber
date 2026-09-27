@@ -15,8 +15,8 @@ export const PRICE_PER_KM_OVER_15 = 0.25;
 export const EXPRESS_SURCHARGE = 1;
 /** Kept for quote API fields — overage rate after 15 km. */
 export const PRICE_PER_KM_STANDARD = PRICE_PER_KM_OVER_15;
-/** Bicycle only for trips up to 10 km. */
-export const BICYCLE_MAX_KM = 10;
+/** Bicycle only for trips up to 8 km (same fare as Standard). */
+export const BICYCLE_MAX_KM = 8;
 
 export function fareFromKm(distanceKm: number) {
   const km = Number(distanceKm);
