@@ -8,8 +8,8 @@ import {
 /** Fixed Standard / Bicycle brackets. Over 15 km adds $0.25 per extra km. */
 export const FARE_UNDER_5 = 1.2;
 export const FARE_5_TO_8 = 1.5;
-export const FARE_8_TO_12 = 2;
-export const FARE_12_TO_15 = 2.5;
+export const FARE_8_TO_12 = 2.5;
+export const FARE_12_TO_15 = 3;
 export const PRICE_PER_KM_OVER_15 = 0.25;
 /** Express: Standard fare + $1.00. */
 export const EXPRESS_SURCHARGE = 1;
@@ -33,8 +33,8 @@ export function fareBreakdownFromKm(distanceKm: number) {
   if (!Number.isFinite(km) || km <= 0) return '';
   if (km < 5) return `${km.toFixed(1)} km · $1.20`;
   if (km < 8) return `${km.toFixed(1)} km · $1.50`;
-  if (km < 12) return `${km.toFixed(1)} km · $2.00`;
-  if (km <= 15) return `${km.toFixed(1)} km · $2.50`;
+  if (km < 12) return `${km.toFixed(1)} km · $2.50`;
+  if (km <= 15) return `${km.toFixed(1)} km · $3.00`;
   return `15 km + ${(km - 15).toFixed(1)} km × $0.25`;
 }
 
