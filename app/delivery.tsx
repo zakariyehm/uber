@@ -78,8 +78,10 @@ export default function DeliveryScreen() {
   // Form state
   const [senderKind, setSenderKind] = useState<SenderKind>(isStoreAccount ? 'STORE' : 'PERSONAL');
   const [receiptInfoId, setReceiptInfoId] = useState('');
-  const [senderName, setSenderName] = useState('');
-  const [senderNumber, setSenderNumber] = useState('');
+  const [senderName, setSenderName] = useState(() => (isStoreAccount ? '' : staffName));
+  const [senderNumber, setSenderNumber] = useState(() =>
+    isStoreAccount ? '' : (user?.phone || '').trim()
+  );
   const [selectedStore, setSelectedStore] = useState<CatalogStore | null>(null);
   const [storeOrderCode, setStoreOrderCode] = useState((params.storeOrderCode as string) || '');
   const [storeBranchLocation, setStoreBranchLocation] = useState(
@@ -111,6 +113,11 @@ export default function DeliveryScreen() {
   useEffect(() => {
     if (!user?.store?.id || user.riderKind !== 'STORE') {
       setSenderKind('PERSONAL');
+      // Prefill from profile; keep editable — only fill empty fields.
+      const name = staffDisplayName(user);
+      const phone = (user?.phone || '').trim();
+      if (name) setSenderName((current) => current || name);
+      if (phone) setSenderNumber((current) => current || phone);
       return;
     }
     setSenderKind('STORE');
@@ -388,7 +395,7 @@ export default function DeliveryScreen() {
           ) : (
             <>
               <Text style={[styles.helperText, { color: isDark ? '#999999' : '#666666' }]}>
-                Magaca iyo number-ka waa qasab
+                Hubi magaca iyo number-ka diraha
               </Text>
 
               <TextInput
